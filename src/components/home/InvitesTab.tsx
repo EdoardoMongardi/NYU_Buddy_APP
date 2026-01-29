@@ -7,6 +7,7 @@ import { Inbox, RefreshCw, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import OfferCard from '@/components/offers/OfferCard';
 import { InboxOffer } from '@/lib/firebase/functions';
 
@@ -18,6 +19,8 @@ interface InvitesTabProps {
   onAccept: (offerId: string) => Promise<{ matchCreated: boolean; matchId?: string }>;
   onDecline: (offerId: string) => Promise<void>;
   isAvailable: boolean;
+  userPhotoURL?: string | null;
+  userDisplayName?: string;
 }
 
 export default function InvitesTab({
@@ -28,6 +31,8 @@ export default function InvitesTab({
   onAccept,
   onDecline,
   isAvailable,
+  userPhotoURL,
+  userDisplayName,
 }: InvitesTabProps) {
   const router = useRouter();
   const [respondingOfferId, setRespondingOfferId] = useState<string | null>(null);
@@ -58,8 +63,12 @@ export default function InvitesTab({
     return (
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
         <CardContent className="pt-6 text-center py-12">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-            <Inbox className="w-8 h-8 text-gray-400" />
+          <div className="mx-auto mb-4">
+            <ProfileAvatar
+              photoURL={userPhotoURL}
+              displayName={userDisplayName}
+              size="lg"
+            />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Set your availability

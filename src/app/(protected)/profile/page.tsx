@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { Loader2, User, Heart, Coffee, ArrowLeft, Save } from 'lucide-react';
+import { doc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { Loader2, User, Heart, Coffee, ArrowLeft, Save, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,8 +21,9 @@ import {
     CardDescription,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 
-import { getFirebaseDb } from '@/lib/firebase/client';
+import { getFirebaseDb, getFirebaseStorage } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/hooks/useAuth';
 import {
     onboardingSchema,
@@ -36,6 +38,9 @@ export default function ProfilePage() {
     const router = useRouter();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [removePhoto, setRemovePhoto] = useState(false);
 
     const {
         register,
@@ -61,6 +66,10 @@ export default function ProfilePage() {
                 interests: userProfile.interests || [],
                 preferredActivities: userProfile.preferredActivities || [],
             });
+            // Reset image state when profile loads
+            setImagePreview(null);
+            setSelectedImage(null);
+            setRemovePhoto(false);
         }
     }, [userProfile, reset]);
 
@@ -93,17 +102,70 @@ export default function ProfilePage() {
         }
     };
 
+    const handleImageSelect = (file: File) => {
+        setSelectedImage(file);
+        const url = URL.createObjectURL(file);
+        setImagePreview(url);
+        setRemovePhoto(false);
+    };
+
+    const handleRemovePhoto = () => {
+        setSelectedImage(null);
+        setImagePreview(null);
+        setRemovePhoto(true);
+    };
+
+    const uploadProfilePicture = async (userId: string, file: File): Promise<string> => {
+        const storage = getFirebaseStorage();
+        const fileExtension = file.name.split('.').pop() || 'jpg';
+        const storageRef = ref(storage, `profile-pictures/${userId}.${fileExtension}`);
+
+        await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(storageRef);
+        return downloadURL;
+    };
+
+    const deleteProfilePicture = async (userId: string) => {
+        const storage = getFirebaseStorage();
+        // Try to delete common extensions
+        const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        for (const ext of extensions) {
+            try {
+                const storageRef = ref(storage, `profile-pictures/${userId}.${ext}`);
+                await deleteObject(storageRef);
+                break; // Successfully deleted
+            } catch {
+                // File with this extension doesn't exist, try next
+            }
+        }
+    };
+
+    // Check if there are photo changes
+    const hasPhotoChanges = selectedImage !== null || removePhoto;
+
     const onSubmit = async (data: OnboardingFormData) => {
         if (!user) return;
 
         setIsLoading(true);
         try {
-            await updateDoc(doc(getFirebaseDb(), 'users', user.uid), {
+            let photoURL: string | undefined;
+            const updateData: Record<string, unknown> = {
                 displayName: data.displayName,
                 interests: data.interests,
                 preferredActivities: data.preferredActivities,
                 updatedAt: serverTimestamp(),
-            });
+            };
+
+            // Handle photo changes
+            if (selectedImage) {
+                photoURL = await uploadProfilePicture(user.uid, selectedImage);
+                updateData.photoURL = photoURL;
+            } else if (removePhoto && userProfile?.photoURL) {
+                await deleteProfilePicture(user.uid);
+                updateData.photoURL = deleteField();
+            }
+
+            await updateDoc(doc(getFirebaseDb(), 'users', user.uid), updateData);
 
             await refreshUserProfile();
 
@@ -132,6 +194,9 @@ export default function ProfilePage() {
             </div>
         );
     }
+
+    // Determine what photo to show
+    const displayPhotoURL = removePhoto ? null : (imagePreview || userProfile.photoURL);
 
     return (
         <div className="max-w-md mx-auto py-6 space-y-6">
@@ -170,10 +235,32 @@ export default function ProfilePage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="flex justify-center mb-6">
-                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold">
-                                        {watch('displayName')?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase()}
+                                {/* Profile Picture Section */}
+                                <div className="flex flex-col items-center gap-4 mb-6">
+                                    <ProfileAvatar
+                                        photoURL={displayPhotoURL}
+                                        displayName={watch('displayName')}
+                                        size="xl"
+                                        editable
+                                        onImageSelect={handleImageSelect}
+                                    />
+                                    <div className="flex gap-2">
+                                        {displayPhotoURL && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleRemovePhoto}
+                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="w-4 h-4 mr-1" />
+                                                Remove Photo
+                                            </Button>
+                                        )}
                                     </div>
+                                    <p className="text-xs text-gray-500 text-center">
+                                        Click on the avatar to change your profile picture
+                                    </p>
                                 </div>
 
                                 <div className="space-y-2">
@@ -310,7 +397,7 @@ export default function ProfilePage() {
                         <Button
                             type="submit"
                             className="flex-[2] bg-gradient-to-r from-violet-600 to-purple-600"
-                            disabled={isLoading || !isDirty}
+                            disabled={isLoading || (!isDirty && !hasPhotoChanges)}
                         >
                             {isLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

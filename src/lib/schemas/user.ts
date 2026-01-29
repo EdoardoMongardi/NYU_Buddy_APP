@@ -59,6 +59,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  photoURL?: string;  // Optional, uses default avatar if not set
   interests: string[];
   preferredActivities: string[];
   profileCompleted: boolean;

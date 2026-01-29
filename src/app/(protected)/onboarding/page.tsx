@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Loader2, User, Heart, Coffee } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -19,8 +20,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 
-import { getFirebaseDb } from '@/lib/firebase/client';
+import { getFirebaseDb, getFirebaseStorage } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/hooks/useAuth';
 import {
   onboardingSchema,
@@ -34,6 +36,8 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const {
     register,
@@ -77,18 +81,45 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleImageSelect = (file: File) => {
+    setSelectedImage(file);
+    const url = URL.createObjectURL(file);
+    setImagePreview(url);
+  };
+
+  const uploadProfilePicture = async (userId: string, file: File): Promise<string> => {
+    const storage = getFirebaseStorage();
+    const fileExtension = file.name.split('.').pop() || 'jpg';
+    const storageRef = ref(storage, `profile-pictures/${userId}.${fileExtension}`);
+
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+    return downloadURL;
+  };
+
   const onSubmit = async (data: OnboardingFormData) => {
     if (!user) return;
 
     setIsLoading(true);
     try {
-      await updateDoc(doc(getFirebaseDb(), 'users', user.uid), {
+      let photoURL: string | undefined;
+
+      // Upload profile picture if selected
+      if (selectedImage) {
+        photoURL = await uploadProfilePicture(user.uid, selectedImage);
+      }
+
+      // Use setDoc with merge to handle both new and existing documents
+      await setDoc(doc(getFirebaseDb(), 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
         displayName: data.displayName,
         interests: data.interests,
         preferredActivities: data.preferredActivities,
+        ...(photoURL && { photoURL }),
         profileCompleted: true,
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
 
       await refreshUserProfile();
       router.push('/');
@@ -100,11 +131,17 @@ export default function OnboardingPage() {
   };
 
   const nextStep = () => {
-    if (step < 3) setStep(step + 1);
+    if (step < 4) setStep(step + 1);
   };
 
   const prevStep = () => {
     if (step > 1) setStep(step - 1);
+  };
+
+  const skipProfilePicture = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    nextStep();
   };
 
   return (
@@ -117,24 +154,25 @@ export default function OnboardingPage() {
         <Card className="shadow-xl border-0">
           <CardHeader className="text-center">
             <div className="flex justify-center space-x-2 mb-4">
-              {[1, 2, 3].map((s) => (
+              {[1, 2, 3, 4].map((s) => (
                 <div
                   key={s}
-                  className={`w-3 h-3 rounded-full transition-colors ${
-                    s <= step ? 'bg-violet-600' : 'bg-gray-200'
-                  }`}
+                  className={`w-3 h-3 rounded-full transition-colors ${s <= step ? 'bg-violet-600' : 'bg-gray-200'
+                    }`}
                 />
               ))}
             </div>
             <CardTitle className="text-2xl">
               {step === 1 && 'Welcome to NYU Buddy!'}
-              {step === 2 && 'What are you interested in?'}
-              {step === 3 && 'What do you like to do?'}
+              {step === 2 && 'Add a Profile Picture'}
+              {step === 3 && 'What are you interested in?'}
+              {step === 4 && 'What do you like to do?'}
             </CardTitle>
             <CardDescription>
               {step === 1 && "Let's set up your profile"}
-              {step === 2 && 'Select your interests to find like-minded buddies'}
-              {step === 3 && 'Choose activities you enjoy with others'}
+              {step === 2 && 'Help others recognize you (optional)'}
+              {step === 3 && 'Select your interests to find like-minded buddies'}
+              {step === 4 && 'Choose activities you enjoy with others'}
             </CardDescription>
           </CardHeader>
 
@@ -176,8 +214,59 @@ export default function OnboardingPage() {
                 </motion.div>
               )}
 
-              {/* Step 2: Interests */}
+              {/* Step 2: Profile Picture (Optional) */}
               {step === 2 && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex flex-col items-center gap-4">
+                    <ProfileAvatar
+                      photoURL={imagePreview}
+                      displayName={watch('displayName')}
+                      size="xl"
+                      editable
+                      onImageSelect={handleImageSelect}
+                    />
+                    <p className="text-sm text-gray-500 text-center">
+                      {imagePreview
+                        ? 'Looking good! Click the image to change it.'
+                        : 'Click to add a photo or use our NYU Buddy avatar'}
+                    </p>
+                  </div>
+
+                  <div className="flex space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={prevStep}
+                      className="flex-1"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={skipProfilePicture}
+                      className="flex-1"
+                    >
+                      Skip
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={nextStep}
+                      className="flex-1 bg-gradient-to-r from-violet-600 to-purple-600"
+                      disabled={!imagePreview}
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Step 3: Interests */}
+              {step === 3 && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -195,11 +284,10 @@ export default function OnboardingPage() {
                             ? 'default'
                             : 'outline'
                         }
-                        className={`cursor-pointer transition-all ${
-                          selectedInterests?.includes(interest)
-                            ? 'bg-violet-600 hover:bg-violet-700'
-                            : 'hover:bg-violet-100'
-                        }`}
+                        className={`cursor-pointer transition-all ${selectedInterests?.includes(interest)
+                          ? 'bg-violet-600 hover:bg-violet-700'
+                          : 'hover:bg-violet-100'
+                          }`}
                         onClick={() => toggleInterest(interest)}
                       >
                         {interest}
@@ -235,8 +323,8 @@ export default function OnboardingPage() {
                 </motion.div>
               )}
 
-              {/* Step 3: Activities */}
-              {step === 3 && (
+              {/* Step 4: Activities */}
+              {step === 4 && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -254,11 +342,10 @@ export default function OnboardingPage() {
                             ? 'default'
                             : 'outline'
                         }
-                        className={`cursor-pointer transition-all px-4 py-2 text-base ${
-                          selectedActivities?.includes(activity)
-                            ? 'bg-violet-600 hover:bg-violet-700'
-                            : 'hover:bg-violet-100'
-                        }`}
+                        className={`cursor-pointer transition-all px-4 py-2 text-base ${selectedActivities?.includes(activity)
+                          ? 'bg-violet-600 hover:bg-violet-700'
+                          : 'hover:bg-violet-100'
+                          }`}
                         onClick={() => toggleActivity(activity)}
                       >
                         {activity}
