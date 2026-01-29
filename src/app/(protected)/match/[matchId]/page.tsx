@@ -1,0 +1,615 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import {
+  User,
+  MapPin,
+  Navigation,
+  Check,
+  Loader2,
+  Flag,
+  Ban,
+  MessageCircle,
+  Coffee,
+} from 'lucide-react';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+
+import { getFirebaseDb } from '@/lib/firebase/client';
+import { matchConfirmPlace, matchCancel } from '@/lib/firebase/functions';
+import { useMatch } from '@/lib/hooks/useMatch';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { usePresence } from '@/lib/hooks/usePresence';
+
+const STATUS_STEPS = [
+  { key: 'pending', label: 'Matched', icon: Check },
+  { key: 'heading_there', label: 'On the way', icon: Navigation },
+  { key: 'arrived', label: 'Arrived', icon: MapPin },
+  { key: 'completed', label: 'Complete', icon: Coffee },
+];
+
+export default function MatchPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { presence: myPresence } = usePresence();
+  const matchId = params.matchId as string;
+
+  const {
+    match,
+    otherUserProfile,
+    places,
+    loading,
+    error,
+    updateStatus,
+    fetchRecommendations,
+    myStatus,
+  } = useMatch(matchId);
+
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [isReporting, setIsReporting] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
+  const [isConfirmingPlace, setIsConfirmingPlace] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Fetch place recommendations when match loads
+  useEffect(() => {
+    if (match) {
+      fetchRecommendations();
+    }
+  }, [match, fetchRecommendations]);
+
+  const handleStatusUpdate = async (
+    status: 'heading_there' | 'arrived' | 'completed'
+  ) => {
+    setIsUpdating(true);
+    try {
+      await updateStatus(status);
+      if (status === 'completed') {
+        // Redirect to feedback page
+        router.push(`/feedback/${matchId}`);
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!match || !user || !reportReason.trim()) return;
+
+    setIsReporting(true);
+    try {
+      const otherUid =
+        match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
+
+      await setDoc(doc(getFirebaseDb(), 'reports', `${matchId}_${user.uid}`), {
+        reportedBy: user.uid,
+        reportedUser: otherUid,
+        matchId,
+        reason: reportReason.trim(),
+        createdAt: serverTimestamp(),
+      });
+
+      setReportReason('');
+      alert('Report submitted. Thank you for keeping NYU Buddy safe.');
+    } catch {
+      alert('Failed to submit report. Please try again.');
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!match || !user) return;
+
+    setIsBlocking(true);
+    try {
+      const otherUid =
+        match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
+
+      // Check if block already exists
+      const blockRef = doc(getFirebaseDb(), 'blocks', user.uid, 'blocked', otherUid);
+      const blockDoc = await getDoc(blockRef);
+
+      if (!blockDoc.exists()) {
+        await setDoc(blockRef, {
+          blockedAt: serverTimestamp(),
+        });
+      }
+
+      alert('User blocked. You won\'t see them in suggestions anymore.');
+      router.push('/');
+    } catch {
+      alert('Failed to block user. Please try again.');
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
+  // If match becomes cancelled via listener, redirect immediately
+  useEffect(() => {
+    if (match?.status === 'cancelled') {
+      console.log('Match status changed to cancelled in background, redirecting...');
+      window.location.href = '/?cancelled=true';
+    }
+  }, [match?.status]);
+
+  const handleConfirmPlace = async (placeId: string) => {
+    if (!matchId) return;
+
+    setIsConfirmingPlace(placeId);
+    try {
+      await matchConfirmPlace({ matchId, placeId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to confirm place';
+      alert(message);
+    } finally {
+      setIsConfirmingPlace(null);
+    }
+  };
+
+  const handleCancelMatch = async () => {
+    if (!matchId || !confirm('Are you sure you want to cancel this match?')) return;
+
+    setIsCancelling(true);
+    try {
+      await matchCancel({ matchId });
+      router.push('/');
+    } catch (err) {
+      console.error('Cancel Match Error:', err);
+      const message = err instanceof Error ? err.message : 'Failed to cancel match';
+
+      // If match is already cancelled (400 Bad Request often returns this), treat as success
+      if (message.toLowerCase().includes('cancelled') || message.includes('400')) {
+        console.log('Match already cancelled, forcing redirect...');
+        window.location.href = '/?cancelled=true';
+        return;
+      }
+      alert(message);
+    } finally {
+      // setIsCancelling(false); // Don't reset if we might be redirecting to avoid flicker
+    }
+  };
+
+  const currentStatusIndex = STATUS_STEPS.findIndex(
+    (s) => s.key === match?.status
+  );
+
+  // 2-Step View Logic
+  const showLocationSelection = !match?.confirmedPlaceName;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+      </div>
+    );
+  }
+
+  if (error || !match) {
+    return (
+      <div className="max-w-md mx-auto text-center py-12">
+        <p className="text-red-500 mb-4">{error || 'Match not found'}</p>
+        <Button onClick={() => router.push('/')}>Go Home</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-md mx-auto space-y-6">
+      {/* Match Header - Always Visible */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <Card className="border-0 shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white">
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+                <User className="w-8 h-8" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">
+                  {otherUserProfile?.displayName || 'Your Buddy'}
+                </h2>
+                <p className="text-white/80 text-sm">
+                  Matched {match.matchedAt?.toDate().toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <CardContent className="p-6">
+            {/* Interests */}
+            {otherUserProfile && otherUserProfile.interests.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm text-gray-500 mb-2">Interests:</p>
+                <div className="flex flex-wrap gap-2">
+                  {otherUserProfile.interests.slice(0, 5).map((interest) => (
+                    <Badge key={interest} variant="secondary">
+                      {interest}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* STEP 1: Location Selection View */}
+      {showLocationSelection && (
+        <>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="text-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Select a Location</h3>
+              <p className="text-sm text-gray-500">Agree on a place to meet to continue</p>
+            </div>
+          </motion.div>
+
+          {/* Recommended Places */}
+          {places.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-lg">Nearby Spots</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {places.map((place) => (
+                    <div
+                      key={place.id}
+                      className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+                        <Coffee className="w-5 h-5 text-violet-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900">{place.name}</p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {place.address}
+                        </p>
+                        <Badge variant="outline" className="mt-1">
+                          {place.distance}m away
+                        </Badge>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleConfirmPlace(place.id)}
+                        disabled={isConfirmingPlace !== null}
+                        className="bg-gradient-to-r from-violet-600 to-purple-600"
+                      >
+                        {isConfirmingPlace === place.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Meet here'
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* No Recommendations Fallback */}
+          {places.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="border-0 shadow-lg bg-orange-50 border-orange-100">
+                <CardHeader>
+                  <CardTitle className="text-lg text-orange-800">No Spots Found</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-orange-700 mb-4">
+                    We couldn&apos;t find specific spots nearby.
+                  </p>
+                  <Button
+                    onClick={() => handleConfirmPlace('custom_central_location')}
+                    variant="secondary"
+                    className="w-full bg-orange-100 text-orange-800 hover:bg-orange-200"
+                    disabled
+                  >
+                    Waiting for features...
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Cancel Match Button (Step 1) */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="pt-4"
+          >
+            <Button
+              variant="outline"
+              className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+              onClick={handleCancelMatch}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Cancel Match
+            </Button>
+          </motion.div>
+        </>
+      )}
+
+      {/* STEP 2: Meetup Status View */}
+      {!showLocationSelection && (
+        <>
+          {/* Confirmed Place Display */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-0 shadow-lg border-green-200 bg-green-50">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Check className="w-5 h-5 text-green-600" />
+                  Meeting Location
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start space-x-3 p-3 bg-white rounded-lg">
+                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900">{match.confirmedPlaceName}</p>
+                    <p className="text-sm text-gray-500 truncate">
+                      {match.confirmedPlaceAddress}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Status Progress */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-lg">Meetup Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between mb-6">
+                  {STATUS_STEPS.map((step, index) => {
+                    const Icon = step.icon;
+                    const isActive = index <= currentStatusIndex;
+                    const isCurrent = step.key === match.status;
+
+                    return (
+                      <div
+                        key={step.key}
+                        className="flex flex-col items-center space-y-2"
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isActive
+                            ? 'bg-violet-600 text-white'
+                            : 'bg-gray-100 text-gray-400'
+                            } ${isCurrent ? 'ring-2 ring-violet-300 ring-offset-2' : ''}`}
+                        >
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <span
+                          className={`text-xs ${isActive ? 'text-violet-600 font-medium' : 'text-gray-400'
+                            }`}
+                        >
+                          {step.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Status Update Buttons */}
+                <div className="space-y-3">
+                  {myStatus === 'pending' && (
+                    <Button
+                      className="w-full bg-gradient-to-r from-violet-600 to-purple-600"
+                      onClick={() => handleStatusUpdate('heading_there')}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Navigation className="mr-2 h-4 w-4" />
+                          I&apos;m on my way
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {myStatus === 'heading_there' && (
+                    <Button
+                      className="w-full bg-gradient-to-r from-violet-600 to-purple-600"
+                      onClick={() => handleStatusUpdate('arrived')}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <MapPin className="mr-2 h-4 w-4" />
+                          I&apos;ve arrived
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {myStatus === 'arrived' && (
+                    <Button
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600"
+                      onClick={() => handleStatusUpdate('completed')}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Complete Meetup
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {myStatus === 'completed' && (
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => router.push(`/feedback/${matchId}`)}
+                    >
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      Leave Feedback
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Safety Actions */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+          >
+            <Card className="border-0 shadow-lg">
+              <CardContent className="pt-6">
+                {/* Cancel Button (Step 2) */}
+                {match.status !== 'completed' && (
+                  <div className="mb-4">
+                    <Button
+                      variant="outline"
+                      className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                      onClick={handleCancelMatch}
+                      disabled={isCancelling}
+                    >
+                      {isCancelling ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : null}
+                      Cancel Match
+                    </Button>
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                      Cancelling now will affect your reliability score
+                    </p>
+                  </div>
+                )}
+                <Separator className="mb-4" />
+                <div className="flex space-x-3">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <Flag className="mr-2 h-4 w-4" />
+                        Report
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Report User</DialogTitle>
+                        <DialogDescription>
+                          Help us keep NYU Buddy safe. Describe the issue.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                          <Label>Reason</Label>
+                          <Textarea
+                            value={reportReason}
+                            onChange={(e) => setReportReason(e.target.value)}
+                            placeholder="Describe the issue..."
+                            rows={4}
+                          />
+                        </div>
+                        <Button
+                          onClick={handleReport}
+                          disabled={!reportReason.trim() || isReporting}
+                          className="w-full"
+                        >
+                          {isReporting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            'Submit Report'
+                          )}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={handleBlock}
+                    disabled={isBlocking}
+                  >
+                    {isBlocking ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Block
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </>
+      )}
+      {/* Debug Info */}
+      <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono break-all">
+        <h4 className="font-bold mb-2">Debug Info</h4>
+        <p>My Stored Location (from DB): {myPresence ? `${myPresence.lat.toFixed(5)}, ${myPresence.lng.toFixed(5)}` : 'Loading...'}</p>
+        <div className="mt-2">
+          <strong>Recommended Places:</strong>
+          {places.map(p => (
+            <div key={p.id} className="ml-2 mt-1">
+              - {p.name}: {p.distance}m  (Loc: {p.lat?.toFixed(5)}, {p.lng?.toFixed(5)})
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

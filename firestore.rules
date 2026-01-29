@@ -1,0 +1,113 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user owns the document
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email in ['edoardo.mongardi18@gmail.com'];
+    }
+
+    // Helper function to check if user is participant in a match
+    function isMatchParticipant(matchData) {
+      return isAuthenticated() &&
+        (request.auth.uid == matchData.user1Uid || request.auth.uid == matchData.user2Uid);
+    }
+
+    // Users collection
+    // Users can read and write their own documents
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if false; // Users cannot delete their accounts directly
+    }
+
+    // Presence collection
+    // Anyone authenticated can read (for matching)
+    // Only Cloud Functions should write (but allow for development)
+    match /presence/{uid} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(uid);
+    }
+
+    // Suggestions collection
+    // Users can read their own suggestions (from or to them)
+    // Writing is done via Cloud Functions
+    match /suggestions/{suggestionId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isAuthenticated() &&
+        request.resource.data.fromUid == request.auth.uid;
+      allow update, delete: if false; // Managed by functions
+    }
+
+    // Offers collection
+    // Users can read offers they sent or received
+    // All writes via Cloud Functions
+    match /offers/{offerId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if false; // Created by functions only
+      allow update: if false; // Updated by functions only
+      allow delete: if false;
+    }
+
+    // Matches collection
+    // Participants can read their matches
+    // Status updates via Cloud Functions
+    // Matches collection
+    // Participants can read their matches
+    // Status updates via Cloud Functions
+    match /matches/{matchId} {
+      allow read: if isAuthenticated();
+      allow create: if false; // Created by functions
+      allow update: if isMatchParticipant(resource.data);
+      allow delete: if false;
+    }
+
+    // Places collection
+    // Anyone authenticated can read
+    // Only admins can write
+    match /places/{placeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Feedback collection
+    // Users can create feedback for matches they participated in
+    // Users can read their own feedback
+    match /feedback/{feedbackId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() &&
+        request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Reports collection
+    // Anyone authenticated can create a report
+    // Only admins can read reports
+    match /reports/{reportId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.reportedBy == request.auth.uid;
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // Blocks collection (subcollection under users)
+    // Users can read and write their own blocks
+    match /blocks/{uid}/blocked/{blockedUid} {
+      allow read, write: if isOwner(uid);
+    }
+  }
+}
