@@ -55,6 +55,14 @@ export default function AvailabilitySheet() {
     setIsSubmitting(true);
     setLocationError(null);
 
+    if (!window.isSecureContext) {
+      setLocationError(
+        'Location access requires a secure connection (HTTPS). Please try using localhost or set up HTTPS.'
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       // Request geolocation
       const position = await new Promise<GeolocationPosition>(
@@ -174,11 +182,10 @@ export default function AvailabilitySheet() {
                 <Badge
                   key={act}
                   variant={activity === act ? 'default' : 'outline'}
-                  className={`cursor-pointer text-base px-4 py-2 transition-all ${
-                    activity === act
-                      ? 'bg-violet-600 hover:bg-violet-700'
-                      : 'hover:bg-violet-100'
-                  }`}
+                  className={`cursor-pointer text-base px-4 py-2 transition-all ${activity === act
+                    ? 'bg-violet-600 hover:bg-violet-700'
+                    : 'hover:bg-violet-100'
+                    }`}
                   onClick={() => setActivity(act)}
                 >
                   {act}
