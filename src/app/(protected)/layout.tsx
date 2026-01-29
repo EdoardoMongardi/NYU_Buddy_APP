@@ -29,8 +29,8 @@ export default function ProtectedLayout({
     // Email not verified -> stay on current page but show verification message
     // We allow navigation to see verification status
 
-    // Profile not completed -> redirect to onboarding (unless already there)
-    if (userProfile && !userProfile.profileCompleted && pathname !== '/onboarding') {
+    // No profile document OR profile not completed -> redirect to onboarding (unless already there)
+    if ((!userProfile || !userProfile.profileCompleted) && pathname !== '/onboarding') {
       router.replace('/onboarding');
       return;
     }

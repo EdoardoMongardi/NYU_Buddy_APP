@@ -8,6 +8,7 @@ import { X, Check, MapPin, User, Coffee, Loader2, RefreshCw, UserX } from 'lucid
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 
 import { useSuggestion } from '@/lib/hooks/useSuggestion';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -111,8 +112,12 @@ export default function SuggestionCard({ isAvailable }: SuggestionCardProps) {
     return (
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
         <CardContent className="pt-6 text-center py-12">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-            <User className="w-8 h-8 text-gray-400" />
+          <div className="mx-auto mb-4 flex justify-center">
+            <ProfileAvatar
+              photoURL={userProfile?.photoURL}
+              displayName={userProfile?.displayName}
+              size="lg"
+            />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Set your availability

@@ -20,7 +20,7 @@ export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { isAvailable } = usePresence();
 
   useEffect(() => {
@@ -207,6 +207,8 @@ export default function HomePage() {
                     onAccept={handleAcceptOffer}
                     onDecline={handleDeclineOffer}
                     isAvailable={isAvailable}
+                    userPhotoURL={userProfile?.photoURL}
+                    userDisplayName={userProfile?.displayName}
                   />
                 </motion.div>
               )}
