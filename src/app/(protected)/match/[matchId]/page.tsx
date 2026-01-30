@@ -66,17 +66,13 @@ export default function MatchPage() {
   // PRD v2.4: Location Decision Hook
   const {
     placeCandidates,
-    visibleCandidates,
     myChoice,
     otherChoice,
     otherChosenCandidate,
     formattedCountdown,
-    canFindOthers,
     isSettingChoice,
-    handleFindOthers,
     handleSetChoice,
     handleGoWithTheirChoice,
-    windowIndex,
   } = useLocationDecision(matchId);
 
   const [isUpdating, setIsUpdating] = useState(false);
