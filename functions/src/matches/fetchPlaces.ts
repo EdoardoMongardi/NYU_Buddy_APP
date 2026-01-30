@@ -86,10 +86,14 @@ export async function matchFetchAllPlacesHandler(
         center = [loc2.lat, loc2.lng];
     } else {
         // Default: NYU Washington Square
+        // Default: NYU Washington Square
+        console.log('[matchFetchAllPlaces] Fallback to DEFAULT_LOCATION');
         center = DEFAULT_LOCATION;
     }
 
     const matchActivity = match.activity || null;
+
+    console.log(`[matchFetchAllPlaces] Center: ${center}, Activity: ${matchActivity}`);
 
     // Fetch candidates using shared utility
     const placeCandidates = await getPlaceCandidates({

@@ -167,12 +167,14 @@ export async function getUserLocation(
     const presenceDoc = await db.collection('presence').doc(uid).get();
 
     if (!presenceDoc.exists) {
+        console.log(`[getUserLocation] No presence doc for ${uid}`);
         return null;
     }
 
     const presence = presenceDoc.data()!;
 
     if (typeof presence.lat !== 'number' || typeof presence.lng !== 'number') {
+        console.log(`[getUserLocation] Invalid coords for ${uid}: ${presence.lat}, ${presence.lng}`);
         return null;
     }
 
@@ -182,6 +184,8 @@ export async function getUserLocation(
     const isStale = updatedAt
         ? (now - updatedAt.toMillis()) > LOCATION_STALE_THRESHOLD_MS
         : true; // If no timestamp, consider stale
+
+    if (isStale) console.log(`[getUserLocation] Stale location for ${uid} (updatedAt: ${updatedAt?.toDate()})`);
 
     return {
         lat: presence.lat,
