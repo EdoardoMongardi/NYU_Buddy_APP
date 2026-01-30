@@ -139,18 +139,28 @@ export default function MatchPage() {
 
     setIsBlocking(true);
     try {
+      console.log('[handleBlock] Starting block process for otherUid:', otherUid);
+      console.log('[handleBlock] Current user.uid:', user.uid);
+
       // 1. Create the block document FIRST (before cancel triggers redirect)
       const blockRef = doc(getFirebaseDb(), 'blocks', user.uid, 'blocked', otherUid);
+      console.log('[handleBlock] Block ref path:', blockRef.path);
+
       const blockDoc = await getDoc(blockRef);
+      console.log('[handleBlock] Existing block doc exists:', blockDoc.exists());
 
       if (!blockDoc.exists()) {
+        console.log('[handleBlock] Creating new block document...');
         await setDoc(blockRef, {
           blockedAt: serverTimestamp(),
         });
-        console.log('[handleBlock] Block document created for', otherUid);
+        console.log('[handleBlock] Block document CREATED successfully for', otherUid);
+      } else {
+        console.log('[handleBlock] Block already exists, skipping create');
       }
 
       // 2. THEN cancel the match (this triggers the redirect via listener)
+      console.log('[handleBlock] Calling matchCancel...');
       await matchCancel({ matchId, reason: 'blocked' });
 
       toast({
