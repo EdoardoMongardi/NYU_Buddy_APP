@@ -268,20 +268,16 @@ export default function MatchPage() {
         >
           <LocationDecisionPanel
             placeCandidates={placeCandidates}
-            visibleCandidates={visibleCandidates}
             myChoice={myChoice}
             otherChoice={otherChoice}
             otherChosenCandidate={otherChosenCandidate ?? null}
             otherUserName={otherUserProfile?.displayName || 'Your buddy'}
             formattedCountdown={formattedCountdown}
-            canFindOthers={canFindOthers}
             isSettingChoice={isSettingChoice}
             onSelectPlace={handleSetChoice}
-            onFindOthers={handleFindOthers}
             onGoWithTheirChoice={handleGoWithTheirChoice}
             onCancel={handleCancelClick}
             isCancelling={isCancelling}
-            windowIndex={windowIndex}
           />
         </motion.div>
       )}

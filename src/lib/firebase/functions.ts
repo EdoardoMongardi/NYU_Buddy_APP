@@ -146,6 +146,9 @@ export interface PlaceCandidate {
   lng: number;
   distance: number;
   rank: number;
+  tags?: string[];
+  priceLevel?: number;
+  photoUrl?: string;
 }
 
 export const matchFetchAllPlaces = createCallable<

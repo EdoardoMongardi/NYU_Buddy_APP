@@ -5,13 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Clock,
     Info,
-    ChevronLeft,
-    ChevronRight,
     Check,
     Loader2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { PlaceCard } from './PlaceCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
@@ -22,69 +21,38 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { PlaceCandidate } from '@/lib/firebase/functions';
-import { PlaceCard } from './PlaceCard';
 
 interface LocationDecisionPanelProps {
     placeCandidates: PlaceCandidate[];
-    visibleCandidates: PlaceCandidate[];
     myChoice: { placeId: string; placeRank: number } | null;
     otherChoice: { placeId: string; placeRank: number } | null;
     otherChosenCandidate: PlaceCandidate | null;
     otherUserName: string;
     formattedCountdown: string | null;
-    canFindOthers: boolean;
     isSettingChoice: boolean;
     onSelectPlace: (placeId: string, placeRank: number) => void;
-    onFindOthers: () => void;
     onGoWithTheirChoice: () => void;
     onCancel: () => void;
     isCancelling: boolean;
-    windowIndex?: number;
 }
 
 export function LocationDecisionPanel({
     placeCandidates,
-    visibleCandidates,
     myChoice,
     otherChoice,
     otherChosenCandidate,
     otherUserName,
     formattedCountdown,
-    canFindOthers,
     isSettingChoice,
     onSelectPlace,
-    onFindOthers,
     onGoWithTheirChoice,
     onCancel,
     isCancelling,
-    windowIndex = 0,
 }: LocationDecisionPanelProps) {
     const [infoOpen, setInfoOpen] = useState(false);
-    const [currentIndex, setCurrentIndex] = useState(0);
 
     const bothChoseSame = myChoice && otherChoice && myChoice.placeId === otherChoice.placeId;
-    const currentPlace = visibleCandidates[currentIndex];
-
-    // Navigation handlers for carousel
-    const goToPrevious = () => {
-        if (currentIndex > 0) {
-            setCurrentIndex(currentIndex - 1);
-        } else if (canFindOthers) {
-            // If at start of current window, go to previous window
-            onFindOthers();
-            setCurrentIndex(2); // Go to last item of new window
-        }
-    };
-
-    const goToNext = () => {
-        if (currentIndex < visibleCandidates.length - 1) {
-            setCurrentIndex(currentIndex + 1);
-        } else if (canFindOthers) {
-            // If at end of current window, go to next window
-            onFindOthers();
-            setCurrentIndex(0); // Go to first item of new window
-        }
-    };
+    const currentSelection = myChoice?.placeId;
 
     // Empty state
     if (placeCandidates.length === 0) {
@@ -158,66 +126,36 @@ export function LocationDecisionPanel({
                 </Dialog>
             </div>
 
-            {/* Place Carousel */}
-            {currentPlace && (
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={currentPlace.placeId}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.2 }}
-                    >
-                        <PlaceCard
-                            place={currentPlace}
-                            isSelected={myChoice?.placeId === currentPlace.placeId}
-                            isOtherChoice={otherChoice?.placeId === currentPlace.placeId}
-                            isLoading={isSettingChoice}
-                            onSelect={() => onSelectPlace(currentPlace.placeId, currentPlace.rank)}
-                        />
-                    </motion.div>
-                </AnimatePresence>
-            )}
-
-            {/* Carousel Navigation */}
-            <div className="flex items-center justify-between px-2">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={goToPrevious}
-                    disabled={currentIndex === 0 && windowIndex === 0}
-                    className="h-10 w-10"
-                >
-                    <ChevronLeft className="w-5 h-5" />
-                </Button>
-
-                {/* Pagination dots */}
-                <div className="flex items-center gap-1.5">
-                    {visibleCandidates.map((_, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => setCurrentIndex(idx)}
-                            className={`w-2 h-2 rounded-full transition-all ${idx === currentIndex
-                                ? 'bg-violet-600 w-4'
-                                : 'bg-gray-300 hover:bg-gray-400'
-                                }`}
-                        />
-                    ))}
-                    {canFindOthers && (
-                        <span className="text-xs text-gray-400 ml-2">
-                            +{placeCandidates.length - visibleCandidates.length} more
-                        </span>
-                    )}
+            {/* Candidates List (Swipeable) */}
+            <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        Swipe to see more options
+                    </p>
+                    <span className="text-xs text-gray-400">
+                        {placeCandidates.length} spots
+                    </span>
                 </div>
 
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={goToNext}
-                    className="h-10 w-10"
-                >
-                    <ChevronRight className="w-5 h-5" />
-                </Button>
+                <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 px-1 -mx-4 sm:mx-0 sm:px-0 scrollbar-hide">
+                    {/* Add padding start to account for negative margin on mobile */}
+                    <div className="w-2 shrink-0 sm:hidden" />
+
+                    {placeCandidates.map((place) => (
+                        <div key={place.placeId} className="w-[85vw] sm:w-[350px] shrink-0 snap-center">
+                            <PlaceCard
+                                place={place}
+                                isSelected={currentSelection === place.placeId}
+                                isOtherChoice={otherChoice?.placeId === place.placeId}
+                                isLoading={isSettingChoice && currentSelection !== place.placeId}
+                                onSelect={() => onSelectPlace(place.placeId, place.rank)}
+                            />
+                        </div>
+                    ))}
+
+                    <div className="w-2 shrink-0 sm:hidden" />
+                </div>
             </div>
 
             {/* Their Choice Section */}
@@ -252,32 +190,21 @@ export function LocationDecisionPanel({
                             </div>
                         </motion.div>
                     ) : (
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-gray-500">{otherUserName} picked:</p>
-                                    <p className="font-medium text-gray-900">
-                                        {otherChosenCandidate?.name || 'Unknown place'}
-                                    </p>
+                        <div className="space-y-2">
+                            <p className="text-sm text-gray-500 mb-2">{otherUserName} picked:</p>
+                            {otherChosenCandidate ? (
+                                <PlaceCard
+                                    place={otherChosenCandidate}
+                                    isSelected={false}
+                                    isOtherChoice={true}
+                                    isLoading={isSettingChoice}
+                                    onSelect={onGoWithTheirChoice}
+                                />
+                            ) : (
+                                <div className="p-4 bg-gray-100 rounded-lg text-sm text-gray-500">
+                                    Unknown place selected (#{otherChoice.placeRank})
                                 </div>
-                                <span className="text-xs text-orange-600">
-                                    #{otherChoice.placeRank}
-                                </span>
-                            </div>
-                            <Button
-                                onClick={onGoWithTheirChoice}
-                                disabled={isSettingChoice}
-                                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
-                            >
-                                {isSettingChoice ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <>
-                                        <Check className="w-4 h-4 mr-1" />
-                                        Go with their choice
-                                    </>
-                                )}
-                            </Button>
+                            )}
                         </div>
                     )}
                 </CardContent>
