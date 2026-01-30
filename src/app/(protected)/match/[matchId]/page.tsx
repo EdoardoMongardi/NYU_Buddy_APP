@@ -274,6 +274,7 @@ export default function MatchPage() {
             onGoWithTheirChoice={handleGoWithTheirChoice}
             onCancel={handleCancelClick}
             isCancelling={isCancelling}
+            isLoading={placeCandidates.length === 0}
           />
         </motion.div>
       )}
