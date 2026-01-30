@@ -37,6 +37,7 @@ export function useMatch(matchId: string | null) {
   const [match, setMatch] = useState<Match | null>(null);
   const [otherUserProfile, setOtherUserProfile] = useState<{
     displayName: string;
+    photoURL?: string | null;
     interests: string[];
   } | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -100,11 +101,13 @@ export function useMatch(matchId: string | null) {
           const userData = snap.data();
           setOtherUserProfile({
             displayName: userData.displayName || 'Unknown User',
+            photoURL: userData.photoURL || null,
             interests: userData.interests || [],
           });
         } else {
           setOtherUserProfile({
             displayName: 'Unknown User',
+            photoURL: null,
             interests: []
           });
         }
