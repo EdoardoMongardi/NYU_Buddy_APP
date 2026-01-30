@@ -34,6 +34,7 @@ interface LocationDecisionPanelProps {
     onGoWithTheirChoice: () => void;
     onCancel: () => void;
     isCancelling: boolean;
+    isLoading?: boolean;
 }
 
 export function LocationDecisionPanel({
@@ -48,11 +49,24 @@ export function LocationDecisionPanel({
     onGoWithTheirChoice,
     onCancel,
     isCancelling,
+    isLoading = false,
 }: LocationDecisionPanelProps) {
     const [infoOpen, setInfoOpen] = useState(false);
 
     const bothChoseSame = myChoice && otherChoice && myChoice.placeId === otherChoice.placeId;
     const currentSelection = myChoice?.placeId;
+
+    // Loading State
+    if (isLoading && placeCandidates.length === 0) {
+        return (
+            <Card className="border-0 shadow-lg bg-gray-50">
+                <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+                    <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+                    <p className="text-gray-500 font-medium">Finding the best place to meet...</p>
+                </CardContent>
+            </Card>
+        );
+    }
 
     // Empty state
     if (placeCandidates.length === 0) {
@@ -151,6 +165,12 @@ export function LocationDecisionPanel({
                                 isLoading={isSettingChoice && currentSelection !== place.placeId}
                                 onSelect={() => onSelectPlace(place.placeId, place.rank)}
                             />
+                            {/* Label for own selection */}
+                            {currentSelection === place.placeId && (
+                                <p className="text-center text-sm font-medium text-violet-600 mt-2">
+                                    You picked this
+                                </p>
+                            )}
                         </div>
                     ))}
 
@@ -159,10 +179,7 @@ export function LocationDecisionPanel({
             </div>
 
             {/* Their Choice Section */}
-            <Card className={`border-0 shadow-md ${bothChoseSame ? 'bg-green-50 border-green-500' :
-                otherChoice ? 'bg-orange-50 border-orange-300' :
-                    'bg-gray-50'
-                }`}>
+            <Card className={`border-0 shadow-md ${bothChoseSame ? 'bg-green-50 border-green-500' : 'bg-white'}`}>
                 <CardContent className="p-4">
                     {!otherChoice ? (
                         <div className="flex items-center gap-3">
@@ -191,7 +208,9 @@ export function LocationDecisionPanel({
                         </motion.div>
                     ) : (
                         <div className="space-y-2">
-                            <p className="text-sm text-gray-500 mb-2">{otherUserName} picked:</p>
+                            <p className="text-sm font-medium text-gray-700 mb-2">
+                                {otherUserName} picked:
+                            </p>
                             {otherChosenCandidate ? (
                                 <PlaceCard
                                     place={otherChosenCandidate}
