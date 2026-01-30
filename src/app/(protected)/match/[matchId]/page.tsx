@@ -72,11 +72,9 @@ export default function MatchPage() {
     formattedCountdown,
     canFindOthers,
     isSettingChoice,
-    isConfirmed,
     handleFindOthers,
     handleSetChoice,
     handleGoWithTheirChoice,
-    loading: locationLoading,
   } = useLocationDecision(matchId);
 
   const [isUpdating, setIsUpdating] = useState(false);
