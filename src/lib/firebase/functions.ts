@@ -190,7 +190,7 @@ export const matchResolvePlaceIfNeeded = createCallable<
 >('matchResolvePlaceIfNeeded');
 
 export const checkAvailabilityForUser = createCallable<
-  { activityType?: string },
+  { activityType?: string; lat?: number; lng?: number },
   {
     ok: boolean;
     available: boolean;

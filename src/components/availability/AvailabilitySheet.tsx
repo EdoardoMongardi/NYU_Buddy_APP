@@ -92,7 +92,11 @@ export default function AvailabilitySheet() {
 
       // PRD v2.4: Check availability before starting
       // This "gates" the search if no spots are nearby
-      const availability = await checkAvailabilityForUser({ activityType: activity });
+      const availability = await checkAvailabilityForUser({
+        activityType: activity,
+        lat: latitude,
+        lng: longitude
+      });
 
       if (!availability.data.ok || !availability.data.available) {
         setNoPlacesMessage(availability.data.message || `No meetup spots found for ${activity}.`);

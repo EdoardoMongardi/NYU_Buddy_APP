@@ -13,6 +13,8 @@ import {
 
 interface CheckAvailabilityData {
     activityType?: string;
+    lat?: number;
+    lng?: number;
 }
 
 interface CheckAvailabilityResponse {
@@ -36,44 +38,53 @@ export async function checkAvailabilityForUserHandler(
     }
 
     const uid = request.auth.uid;
-    const { activityType } = request.data || {};
+    const { activityType, lat, lng } = request.data || {};
+    let center: [number, number] | null = null;
 
-    // Get user's location from presence
-    const location = await getUserLocation(uid);
+    // 1. Prefer provided location (assumed fresh from client)
+    if (typeof lat === 'number' && typeof lng === 'number') {
+        center = [lat, lng];
+        console.log(`[checkAvailability] Using provided location: ${lat}, ${lng}`);
+    } else {
+        // 2. Fallback to stored user location
+        const location = await getUserLocation(uid);
 
-    if (!location) {
-        return {
-            ok: false,
-            available: false,
-            candidateCount: 0,
-            code: 'LOCATION_MISSING',
-            message: 'Unable to determine your location. Please enable location services.',
-            details: {
-                activityType: activityType || null,
-                radiusTriedKm: [],
-                suggestedActions: ['enable_location'],
-            },
-        };
-    }
+        if (!location) {
+            return {
+                ok: false,
+                available: false,
+                candidateCount: 0,
+                code: 'LOCATION_MISSING',
+                message: 'Unable to determine your location. Please enable location services.',
+                details: {
+                    activityType: activityType || null,
+                    radiusTriedKm: [],
+                    suggestedActions: ['enable_location'],
+                },
+            };
+        }
 
-    if (location.isStale) {
-        return {
-            ok: false,
-            available: false,
-            candidateCount: 0,
-            code: 'LOCATION_STALE',
-            message: 'Your location is outdated. Please refresh the app.',
-            details: {
-                activityType: activityType || null,
-                radiusTriedKm: [],
-                suggestedActions: ['refresh_location'],
-            },
-        };
+        if (location.isStale) {
+            return {
+                ok: false,
+                available: false,
+                candidateCount: 0,
+                code: 'LOCATION_STALE',
+                message: 'Your location is outdated. Please refresh the app.',
+                details: {
+                    activityType: activityType || null,
+                    radiusTriedKm: [],
+                    suggestedActions: ['refresh_location'],
+                },
+            };
+        }
+        center = [location.lat, location.lng];
+        console.log(`[checkAvailability] Using stored location: ${location.lat}, ${location.lng}`);
     }
 
     // Get place candidates
     const candidates = await getPlaceCandidates({
-        center: [location.lat, location.lng],
+        center: center!,
         activityType: activityType || null,
     });
 
