@@ -25,20 +25,35 @@ export function BlockedUsersList() {
     const [unblockingId, setUnblockingId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            console.log('[BlockedUsersList] No user, skipping');
+            return;
+        }
 
+        console.log('[BlockedUsersList] Subscribing to blocks for user:', user.uid);
         const db = getFirebaseDb();
         const blocksRef = collection(db, 'blocks', user.uid, 'blocked');
 
         const unsubscribe = onSnapshot(blocksRef, async (snapshot) => {
+            console.log('[BlockedUsersList] Snapshot received, docs count:', snapshot.docs.length);
+
+            if (snapshot.docs.length === 0) {
+                console.log('[BlockedUsersList] No blocked users found');
+                setBlockedUsers([]);
+                setLoading(false);
+                return;
+            }
+
             // Create promises to fetch user details
             const userPromises = snapshot.docs.map(async (blockDoc) => {
                 const uid = blockDoc.id;
                 const data = blockDoc.data();
+                console.log('[BlockedUsersList] Processing blocked user:', uid, data);
 
                 try {
                     const userDoc = await getDoc(doc(db, 'users', uid));
                     const userData = userDoc.data();
+                    console.log('[BlockedUsersList] User data for', uid, ':', userData?.displayName);
 
                     return {
                         uid,
@@ -57,7 +72,11 @@ export function BlockedUsersList() {
             });
 
             const resolvedUsers = await Promise.all(userPromises);
+            console.log('[BlockedUsersList] Final blocked users list:', resolvedUsers);
             setBlockedUsers(resolvedUsers);
+            setLoading(false);
+        }, (error) => {
+            console.error('[BlockedUsersList] Snapshot error:', error);
             setLoading(false);
         });
 
