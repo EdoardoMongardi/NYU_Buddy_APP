@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  User,
   MapPin,
   Navigation,
   Check,
@@ -20,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import {
   Dialog,
   DialogContent,
@@ -222,9 +222,11 @@ export default function MatchPage() {
         <Card className="border-0 shadow-lg overflow-hidden">
           <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white">
             <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
-                <User className="w-8 h-8" />
-              </div>
+              <ProfileAvatar
+                photoURL={otherUserProfile?.photoURL}
+                displayName={otherUserProfile?.displayName}
+                size="lg"
+              />
               <div>
                 <h2 className="text-xl font-bold">
                   {otherUserProfile?.displayName || 'Your Buddy'}

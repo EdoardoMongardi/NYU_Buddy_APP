@@ -479,16 +479,17 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Get display name
+  // Get display name and photo URL
   const candidateUserDoc = await db.collection('users').doc(topCandidate.uid).get();
-  const displayName = candidateUserDoc.exists
-    ? candidateUserDoc.data()!.displayName
-    : 'NYU Student';
+  const candidateUserData = candidateUserDoc.exists ? candidateUserDoc.data()! : {};
+  const displayName = candidateUserData.displayName || 'NYU Student';
+  const photoURL = candidateUserData.photoURL || null;
 
   return {
     suggestion: {
       uid: topCandidate.uid,
       displayName,
+      photoURL,
       interests: topCandidate.interests,
       activity: topCandidate.activity,
       distance: topCandidate.distance,

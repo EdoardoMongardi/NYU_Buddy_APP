@@ -7,6 +7,7 @@ import { X, Check, MapPin, Clock, Coffee, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { InboxOffer } from '@/lib/firebase/functions';
 
 interface OfferCardProps {
@@ -55,9 +56,11 @@ export default function OfferCard({
           <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-4 text-white">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                  <Coffee className="w-6 h-6" />
-                </div>
+                <ProfileAvatar
+                  photoURL={offer.fromPhotoURL}
+                  displayName={offer.fromDisplayName}
+                  size="sm"
+                />
                 <div>
                   <h3 className="font-bold text-lg">{offer.fromDisplayName}</h3>
                   <div className="flex items-center gap-1 text-white/80 text-sm">
