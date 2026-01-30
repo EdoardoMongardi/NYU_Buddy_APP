@@ -28,6 +28,30 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     throw new HttpsError('invalid-argument', 'Invalid target user');
   }
 
+  // Symmetric blocking: Check if sender blocked target
+  const senderBlockedTarget = await db
+    .collection('blocks')
+    .doc(fromUid)
+    .collection('blocked')
+    .doc(targetUid)
+    .get();
+
+  if (senderBlockedTarget.exists) {
+    throw new HttpsError('failed-precondition', 'Cannot send offer to this user');
+  }
+
+  // Symmetric blocking: Check if target blocked sender
+  const targetBlockedSender = await db
+    .collection('blocks')
+    .doc(targetUid)
+    .collection('blocked')
+    .doc(fromUid)
+    .get();
+
+  if (targetBlockedSender.exists) {
+    throw new HttpsError('failed-precondition', 'This user is not available');
+  }
+
   // Get sender's presence
   const fromPresenceDoc = await db.collection('presence').doc(fromUid).get();
   if (!fromPresenceDoc.exists) {
