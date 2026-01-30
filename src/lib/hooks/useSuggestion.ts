@@ -6,6 +6,7 @@ import { suggestionGetTop1, suggestionRespond, offerCreate } from '@/lib/firebas
 interface Suggestion {
   uid: string;
   displayName: string;
+  photoURL?: string | null;
   interests: string[];
   activity: string;
   distance: number;

@@ -63,7 +63,7 @@ export default function InvitesTab({
     return (
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
         <CardContent className="pt-6 text-center py-12">
-          <div className="mx-auto mb-4">
+          <div className="mx-auto mb-4 flex justify-center">
             <ProfileAvatar
               photoURL={userPhotoURL}
               displayName={userDisplayName}

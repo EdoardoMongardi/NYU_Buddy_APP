@@ -7,6 +7,7 @@ interface InboxOffer {
   offerId: string;
   fromUid: string;
   fromDisplayName: string;
+  fromPhotoURL: string | null;
   fromInterests: string[];
   activity: string;
   distanceMeters: number;
@@ -82,6 +83,7 @@ export async function offersGetInboxHandler(request: CallableRequest) {
       offerId: offerDoc.id,
       fromUid: offer.fromUid,
       fromDisplayName: senderData.displayName || 'NYU Student',
+      fromPhotoURL: senderData.photoURL || null,
       fromInterests: senderData.interests || [],
       activity: offer.activity,
       distanceMeters: offer.distanceMeters || 0,

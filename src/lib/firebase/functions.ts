@@ -27,6 +27,7 @@ export const suggestionGetTop1 = createCallable<
     suggestion: {
       uid: string;
       displayName: string;
+      photoURL: string | null;
       interests: string[];
       activity: string;
       distance: number;
@@ -89,6 +90,7 @@ export interface InboxOffer {
   offerId: string;
   fromUid: string;
   fromDisplayName: string;
+  fromPhotoURL: string | null;
   fromInterests: string[];
   activity: string;
   distanceMeters: number;

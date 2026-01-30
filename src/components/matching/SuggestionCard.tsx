@@ -213,9 +213,11 @@ export default function SuggestionCard({ isAvailable }: SuggestionCardProps) {
             <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
-                    <User className="w-8 h-8" />
-                  </div>
+                  <ProfileAvatar
+                    photoURL={suggestion.photoURL}
+                    displayName={suggestion.displayName}
+                    size="md"
+                  />
                   <div>
                     <h3 className="text-xl font-bold">
                       {suggestion.displayName}
