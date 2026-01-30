@@ -139,10 +139,7 @@ export default function MatchPage() {
 
     setIsBlocking(true);
     try {
-      // 1. Cancel the match with 'blocked' reason (no penalty for either side)
-      await matchCancel({ matchId, reason: 'blocked' });
-
-      // 2. Create the block document
+      // 1. Create the block document FIRST (before cancel triggers redirect)
       const blockRef = doc(getFirebaseDb(), 'blocks', user.uid, 'blocked', otherUid);
       const blockDoc = await getDoc(blockRef);
 
@@ -150,7 +147,11 @@ export default function MatchPage() {
         await setDoc(blockRef, {
           blockedAt: serverTimestamp(),
         });
+        console.log('[handleBlock] Block document created for', otherUid);
       }
+
+      // 2. THEN cancel the match (this triggers the redirect via listener)
+      await matchCancel({ matchId, reason: 'blocked' });
 
       toast({
         title: 'User blocked',
