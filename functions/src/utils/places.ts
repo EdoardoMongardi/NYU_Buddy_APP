@@ -24,7 +24,7 @@ export interface PlaceCandidate {
     rank: number;     // 1-indexed
     tags?: string[];
     priceLevel?: number;
-    photoUrl?: string;
+    photoUrl?: string | null;
 }
 
 export interface GetPlaceCandidatesOptions {
@@ -145,7 +145,7 @@ async function fetchPlacesWithinRadius(
                 rank: 0, // Will be assigned after sorting
                 tags: data.tags || [],
                 priceLevel: data.priceLevel || 2,
-                photoUrl: data.photoUrl || undefined,
+                photoUrl: data.photoUrl || null,
             });
         }
     }
