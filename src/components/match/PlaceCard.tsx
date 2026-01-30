@@ -52,10 +52,10 @@ export function PlaceCard({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             className={`rounded-xl overflow-hidden shadow-lg border-2 transition-all ${isSelected
-                    ? 'border-violet-500 bg-violet-50'
-                    : isOtherChoice
-                        ? 'border-orange-300 bg-orange-50'
-                        : 'border-gray-200 bg-white'
+                ? 'border-green-500 bg-green-50'
+                : isOtherChoice
+                    ? 'border-orange-300 bg-orange-50'
+                    : 'border-gray-200 bg-white'
                 }`}
         >
             {/* Photo Section */}
@@ -83,7 +83,7 @@ export function PlaceCard({
                 {/* Selected/Other choice indicator */}
                 {isSelected && (
                     <div className="absolute bottom-2 right-2">
-                        <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
                             <Check className="w-5 h-5 text-white" />
                         </div>
                     </div>
@@ -134,8 +134,8 @@ export function PlaceCard({
                     onClick={onSelect}
                     disabled={isLoading}
                     className={`w-full ${isSelected
-                            ? 'bg-violet-600 hover:bg-violet-700'
-                            : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700'
+                        ? 'bg-violet-600 hover:bg-violet-700'
+                        : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700'
                         }`}
                 >
                     {isLoading ? (

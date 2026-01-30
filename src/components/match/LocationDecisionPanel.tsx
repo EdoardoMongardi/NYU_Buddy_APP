@@ -167,7 +167,7 @@ export function LocationDecisionPanel({
                             />
                             {/* Label for own selection */}
                             {currentSelection === place.placeId && (
-                                <p className="text-center text-sm font-medium text-violet-600 mt-2">
+                                <p className="text-center text-sm font-medium text-green-600 mt-2">
                                     You picked this
                                 </p>
                             )}
