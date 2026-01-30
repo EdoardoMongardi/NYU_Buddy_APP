@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, getDoc, doc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { Loader2, ShieldOff, UserX } from 'lucide-react';
+import { Loader2, ShieldOff } from 'lucide-react';
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -31,8 +31,6 @@ export function BlockedUsersList() {
         const blocksRef = collection(db, 'blocks', user.uid, 'blocked');
 
         const unsubscribe = onSnapshot(blocksRef, async (snapshot) => {
-            const blockedList: BlockedUser[] = [];
-
             // Create promises to fetch user details
             const userPromises = snapshot.docs.map(async (blockDoc) => {
                 const uid = blockDoc.id;
