@@ -30,10 +30,12 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { LocationDecisionPanel } from '@/components/match/LocationDecisionPanel';
 
 import { getFirebaseDb } from '@/lib/firebase/client';
-import { matchConfirmPlace, matchCancel } from '@/lib/firebase/functions';
+import { matchCancel } from '@/lib/firebase/functions';
 import { useMatch } from '@/lib/hooks/useMatch';
+import { useLocationDecision } from '@/lib/hooks/useLocationDecision';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePresence } from '@/lib/hooks/usePresence';
 
@@ -54,27 +56,34 @@ export default function MatchPage() {
   const {
     match,
     otherUserProfile,
-    places,
     loading,
     error,
     updateStatus,
-    fetchRecommendations,
     myStatus,
   } = useMatch(matchId);
+
+  // PRD v2.4: Location Decision Hook
+  const {
+    placeCandidates,
+    visibleCandidates,
+    myChoice,
+    otherChoice,
+    otherChosenCandidate,
+    formattedCountdown,
+    canFindOthers,
+    isSettingChoice,
+    isConfirmed,
+    handleFindOthers,
+    handleSetChoice,
+    handleGoWithTheirChoice,
+    loading: locationLoading,
+  } = useLocationDecision(matchId);
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [isReporting, setIsReporting] = useState(false);
   const [isBlocking, setIsBlocking] = useState(false);
-  const [isConfirmingPlace, setIsConfirmingPlace] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-
-  // Fetch place recommendations when match loads
-  useEffect(() => {
-    if (match) {
-      fetchRecommendations();
-    }
-  }, [match, fetchRecommendations]);
 
   const handleStatusUpdate = async (
     status: 'heading_there' | 'arrived' | 'completed'
@@ -150,20 +159,6 @@ export default function MatchPage() {
       window.location.href = '/?cancelled=true';
     }
   }, [match?.status]);
-
-  const handleConfirmPlace = async (placeId: string) => {
-    if (!matchId) return;
-
-    setIsConfirmingPlace(placeId);
-    try {
-      await matchConfirmPlace({ matchId, placeId });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to confirm place';
-      alert(message);
-    } finally {
-      setIsConfirmingPlace(null);
-    }
-  };
 
   const handleCancelMatch = async () => {
     if (!matchId || !confirm('Are you sure you want to cancel this match?')) return;
@@ -256,116 +251,30 @@ export default function MatchPage() {
         </Card>
       </motion.div>
 
-      {/* STEP 1: Location Selection View */}
+      {/* STEP 1: PRD v2.4 Location Decision View */}
       {showLocationSelection && (
-        <>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Select a Location</h3>
-              <p className="text-sm text-gray-500">Agree on a place to meet to continue</p>
-            </div>
-          </motion.div>
-
-          {/* Recommended Places */}
-          {places.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-lg">Nearby Spots</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {places.map((place) => (
-                    <div
-                      key={place.id}
-                      className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
-                        <Coffee className="w-5 h-5 text-violet-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900">{place.name}</p>
-                        <p className="text-sm text-gray-500 truncate">
-                          {place.address}
-                        </p>
-                        <Badge variant="outline" className="mt-1">
-                          {place.distance}m away
-                        </Badge>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleConfirmPlace(place.id)}
-                        disabled={isConfirmingPlace !== null}
-                        className="bg-gradient-to-r from-violet-600 to-purple-600"
-                      >
-                        {isConfirmingPlace === place.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          'Meet here'
-                        )}
-                      </Button>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* No Recommendations Fallback */}
-          {places.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <Card className="border-0 shadow-lg bg-orange-50 border-orange-100">
-                <CardHeader>
-                  <CardTitle className="text-lg text-orange-800">No Spots Found</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-orange-700 mb-4">
-                    We couldn&apos;t find specific spots nearby.
-                  </p>
-                  <Button
-                    onClick={() => handleConfirmPlace('custom_central_location')}
-                    variant="secondary"
-                    className="w-full bg-orange-100 text-orange-800 hover:bg-orange-200"
-                    disabled
-                  >
-                    Waiting for features...
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* Cancel Match Button (Step 1) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="pt-4"
-          >
-            <Button
-              variant="outline"
-              className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-              onClick={handleCancelMatch}
-              disabled={isCancelling}
-            >
-              {isCancelling ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
-              Cancel Match
-            </Button>
-          </motion.div>
-        </>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <LocationDecisionPanel
+            placeCandidates={placeCandidates}
+            visibleCandidates={visibleCandidates}
+            myChoice={myChoice}
+            otherChoice={otherChoice}
+            otherChosenCandidate={otherChosenCandidate ?? null}
+            otherUserName={otherUserProfile?.displayName || 'Your buddy'}
+            formattedCountdown={formattedCountdown}
+            canFindOthers={canFindOthers}
+            isSettingChoice={isSettingChoice}
+            onSelectPlace={handleSetChoice}
+            onFindOthers={handleFindOthers}
+            onGoWithTheirChoice={handleGoWithTheirChoice}
+            onCancel={handleCancelMatch}
+            isCancelling={isCancelling}
+          />
+        </motion.div>
       )}
 
       {/* STEP 2: Meetup Status View */}
@@ -605,8 +514,8 @@ export default function MatchPage() {
         <p>My Stored Location (from DB): {myPresence ? `${myPresence.lat.toFixed(5)}, ${myPresence.lng.toFixed(5)}` : 'Loading...'}</p>
         <div className="mt-2">
           <strong>Recommended Places:</strong>
-          {places.map(p => (
-            <div key={p.id} className="ml-2 mt-1">
+          {placeCandidates.map((p: { placeId: string; name: string; distance: number; lat: number; lng: number }) => (
+            <div key={p.placeId} className="ml-2 mt-1">
               - {p.name}: {p.distance}m  (Loc: {p.lat?.toFixed(5)}, {p.lng?.toFixed(5)})
             </div>
           ))}

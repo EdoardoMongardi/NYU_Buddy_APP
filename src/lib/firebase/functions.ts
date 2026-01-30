@@ -136,3 +136,55 @@ export const matchCancel = createCallable<
   { matchId: string; reason?: string },
   { success: boolean; wasSevereCancel: boolean }
 >('matchCancel');
+
+// PRD v2.4: Location Decision Functions
+export interface PlaceCandidate {
+  placeId: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  distance: number;
+  rank: number;
+}
+
+export const matchFetchAllPlaces = createCallable<
+  { matchId: string },
+  {
+    success: boolean;
+    placeCandidates: PlaceCandidate[];
+    expiresAt: string | null;
+    alreadyFetched: boolean;
+  }
+>('matchFetchAllPlaces');
+
+export const matchSetPlaceChoice = createCallable<
+  {
+    matchId: string;
+    placeId: string;
+    placeRank: number;
+    action?: 'choose' | 'tick' | 'findOthers';
+  },
+  {
+    success: boolean;
+    action: string;
+    chosenPlaceId?: string;
+    bothChoseSame?: boolean;
+    shouldResolve?: boolean;
+  }
+>('matchSetPlaceChoice');
+
+export const matchResolvePlaceIfNeeded = createCallable<
+  { matchId: string },
+  {
+    success: boolean;
+    alreadyConfirmed: boolean;
+    confirmedPlaceId: string;
+    confirmedPlaceName: string;
+    confirmedPlaceAddress: string;
+    confirmedPlaceLat: number;
+    confirmedPlaceLng: number;
+    resolutionReason: string;
+    usedFallback?: boolean;
+  }
+>('matchResolvePlaceIfNeeded');

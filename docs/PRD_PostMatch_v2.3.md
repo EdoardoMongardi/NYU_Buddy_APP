@@ -1,6 +1,6 @@
-# PRD — NYU Buddy Post-Match v2.3 (Final)
+# PRD — NYU Buddy Post-Match v2.3
 
-> **Version:** 2.3 Final  
+> **Version:** 2.3
 > **Date:** 2026-01-30  
 > **Status:** Ready for Implementation
 
