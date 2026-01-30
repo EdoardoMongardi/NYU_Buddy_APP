@@ -61,8 +61,8 @@ export async function matchCancelHandler(request: CallableRequest<MatchCancelDat
     // Calculate penalty multiplier
     let penaltyMultiplier = 0.3; // Default minor penalty
 
-    // 1. No penalty for system reasons or safety
-    if (reason === 'no_places_available' || reason === 'safety_concern') {
+    // 1. No penalty for system reasons, safety, or blocks
+    if (reason === 'no_places_available' || reason === 'safety_concern' || reason === 'blocked') {
       penaltyMultiplier = 0;
     }
     // 2. No penalty for 15s grace period

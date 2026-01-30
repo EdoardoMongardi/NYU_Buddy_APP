@@ -39,6 +39,7 @@ import { useMatch } from '@/lib/hooks/useMatch';
 import { useLocationDecision } from '@/lib/hooks/useLocationDecision';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePresence } from '@/lib/hooks/usePresence';
+import { useToast } from '@/hooks/use-toast';
 
 const STATUS_STEPS = [
   { key: 'pending', label: 'Matched', icon: Check },
@@ -52,6 +53,7 @@ export default function MatchPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { presence: myPresence } = usePresence();
+  const { toast } = useToast();
   const matchId = params.matchId as string;
 
   const {
@@ -123,14 +125,24 @@ export default function MatchPage() {
   };
 
   const handleBlock = async () => {
-    if (!match || !user) return;
+    if (!match || !user || !matchId) return;
+
+    const otherUid =
+      match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
+
+    // Confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to block ${otherUserProfile?.displayName || 'this user'}?\n\nThey will no longer appear in your future searches, and this match will end immediately.`
+    );
+
+    if (!confirmed) return;
 
     setIsBlocking(true);
     try {
-      const otherUid =
-        match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
+      // 1. Cancel the match with 'blocked' reason (no penalty for either side)
+      await matchCancel({ matchId, reason: 'blocked' });
 
-      // Check if block already exists
+      // 2. Create the block document
       const blockRef = doc(getFirebaseDb(), 'blocks', user.uid, 'blocked', otherUid);
       const blockDoc = await getDoc(blockRef);
 
@@ -140,10 +152,18 @@ export default function MatchPage() {
         });
       }
 
-      alert('User blocked. You won\'t see them in suggestions anymore.');
+      toast({
+        title: 'User blocked',
+        description: `${otherUserProfile?.displayName || 'This user'} won't appear in your suggestions anymore.`,
+      });
       router.push('/');
-    } catch {
-      alert('Failed to block user. Please try again.');
+    } catch (err) {
+      console.error('Failed to block user:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to block user. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsBlocking(false);
     }
@@ -153,9 +173,10 @@ export default function MatchPage() {
   useEffect(() => {
     if (match?.status === 'cancelled') {
       console.log('Match status changed to cancelled in background, redirecting...');
-      window.location.href = '/?cancelled=true';
+      const reason = match?.cancelReason || 'cancelled';
+      window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
     }
-  }, [match?.status]);
+  }, [match?.status, match?.cancelReason]);
 
   const handleCancelClick = () => {
     setCancelModalOpen(true);
