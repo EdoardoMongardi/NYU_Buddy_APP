@@ -31,6 +31,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { LocationDecisionPanel } from '@/components/match/LocationDecisionPanel';
+import { CancelReasonModal } from '@/components/match/CancelReasonModal';
 
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { matchCancel } from '@/lib/firebase/functions';
@@ -75,6 +76,7 @@ export default function MatchPage() {
     handleFindOthers,
     handleSetChoice,
     handleGoWithTheirChoice,
+    windowIndex,
   } = useLocationDecision(matchId);
 
   const [isUpdating, setIsUpdating] = useState(false);
@@ -82,6 +84,7 @@ export default function MatchPage() {
   const [isReporting, setIsReporting] = useState(false);
   const [isBlocking, setIsBlocking] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const handleStatusUpdate = async (
     status: 'heading_there' | 'arrived' | 'completed'
@@ -158,12 +161,18 @@ export default function MatchPage() {
     }
   }, [match?.status]);
 
-  const handleCancelMatch = async () => {
-    if (!matchId || !confirm('Are you sure you want to cancel this match?')) return;
+  const handleCancelClick = () => {
+    setCancelModalOpen(true);
+  };
+
+  const handleConfirmCancel = async (reason: string, details?: string) => {
+    if (!matchId) return;
 
     setIsCancelling(true);
     try {
-      await matchCancel({ matchId });
+      // Pass reason and details (if "other", combine them or just pass reason)
+      const finalReason = details ? `${reason}: ${details}` : reason;
+      await matchCancel({ matchId, reason: finalReason });
       router.push('/');
     } catch (err) {
       console.error('Cancel Match Error:', err);
@@ -177,6 +186,7 @@ export default function MatchPage() {
       }
       alert(message);
     } finally {
+      setCancelModalOpen(false);
       // setIsCancelling(false); // Don't reset if we might be redirecting to avoid flicker
     }
   };
@@ -269,11 +279,20 @@ export default function MatchPage() {
             onSelectPlace={handleSetChoice}
             onFindOthers={handleFindOthers}
             onGoWithTheirChoice={handleGoWithTheirChoice}
-            onCancel={handleCancelMatch}
+            onCancel={handleCancelClick}
             isCancelling={isCancelling}
+            windowIndex={windowIndex}
           />
         </motion.div>
       )}
+
+      {/* Cancel Reason Modal */}
+      <CancelReasonModal
+        open={cancelModalOpen}
+        onOpenChange={setCancelModalOpen}
+        onConfirmCancel={handleConfirmCancel}
+        isCancelling={isCancelling}
+      />
 
       {/* STEP 2: Meetup Status View */}
       {!showLocationSelection && (
@@ -430,7 +449,7 @@ export default function MatchPage() {
                     <Button
                       variant="outline"
                       className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                      onClick={handleCancelMatch}
+                      onClick={handleCancelClick}
                       disabled={isCancelling}
                     >
                       {isCancelling ? (

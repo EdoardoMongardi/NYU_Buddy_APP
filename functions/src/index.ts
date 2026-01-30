@@ -21,6 +21,7 @@ import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
 import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
 import { matchResolveExpiredHandler } from './matches/resolveExpired';
+import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -115,4 +116,9 @@ export const matchResolvePlaceIfNeeded = onCall(
 export const matchResolveExpired = onSchedule(
   { schedule: 'every 1 minutes', region: 'us-east1' },
   matchResolveExpiredHandler
+);
+
+export const checkAvailabilityForUser = onCall(
+  { region: 'us-east1' },
+  checkAvailabilityForUserHandler
 );

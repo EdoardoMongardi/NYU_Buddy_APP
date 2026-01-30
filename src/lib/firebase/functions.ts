@@ -188,3 +188,19 @@ export const matchResolvePlaceIfNeeded = createCallable<
     usedFallback?: boolean;
   }
 >('matchResolvePlaceIfNeeded');
+
+export const checkAvailabilityForUser = createCallable<
+  { activityType?: string },
+  {
+    ok: boolean;
+    available: boolean;
+    candidateCount: number;
+    code?: 'OK' | 'NO_PLACES_AVAILABLE' | 'LOCATION_STALE' | 'LOCATION_MISSING';
+    message?: string;
+    details?: {
+      activityType: string | null;
+      radiusTriedKm: number[];
+      suggestedActions: string[];
+    };
+  }
+>('checkAvailabilityForUser');

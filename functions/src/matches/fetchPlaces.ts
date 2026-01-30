@@ -1,25 +1,21 @@
+/**
+ * matchFetchAllPlaces - Fetch place candidates for a match
+ * PRD v2.4: Uses shared getPlaceCandidates, handles empty candidates with immediate cancel
+ */
+
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
-import * as geofire from 'geofire-common';
+import {
+    getPlaceCandidates,
+    getUserLocation,
+    calculateMidpoint,
+    DEFAULT_LOCATION,
+    LOCATION_DECISION_SECONDS,
+    PlaceCandidate,
+} from '../utils/places';
 
 interface MatchFetchAllPlacesData {
     matchId: string;
-}
-
-// PRD v2.4: Hard cap 9, soft min 6, radius fallback
-const HARD_CAP = 9;
-const SOFT_MIN = 6;
-const SEARCH_RADII_KM = [2, 3, 5]; // Fallback sequence
-const LOCATION_DECISION_SECONDS = 120;
-
-interface PlaceCandidate {
-    placeId: string;
-    name: string;
-    address: string;
-    lat: number;
-    lng: number;
-    distance: number;
-    rank: number;
 }
 
 export async function matchFetchAllPlacesHandler(
@@ -51,7 +47,19 @@ export async function matchFetchAllPlacesHandler(
         throw new HttpsError('permission-denied', 'You are not part of this match');
     }
 
-    // Idempotent: If already fetched, return existing candidates
+    // If match is already cancelled, return early
+    if (match.status === 'cancelled') {
+        return {
+            success: false,
+            placeCandidates: [],
+            expiresAt: null,
+            alreadyFetched: true,
+            cancelled: true,
+            cancellationReason: match.cancellationReason || null,
+        };
+    }
+
+    // Idempotent: If already fetched with candidates, return existing
     if (match.placeCandidates && match.placeCandidates.length > 0) {
         return {
             success: true,
@@ -61,85 +69,79 @@ export async function matchFetchAllPlacesHandler(
         };
     }
 
-    // Get both users' presence for midpoint calculation
-    const [presence1Doc, presence2Doc] = await Promise.all([
-        db.collection('presence').doc(match.user1Uid).get(),
-        db.collection('presence').doc(match.user2Uid).get(),
+    // Get both users' locations for midpoint calculation
+    const [loc1, loc2] = await Promise.all([
+        getUserLocation(match.user1Uid),
+        getUserLocation(match.user2Uid),
     ]);
 
     // Calculate center point
-    let centerLat: number;
-    let centerLng: number;
+    let center: [number, number];
 
-    if (presence1Doc.exists && presence2Doc.exists) {
-        const p1 = presence1Doc.data()!;
-        const p2 = presence2Doc.data()!;
-        centerLat = (p1.lat + p2.lat) / 2;
-        centerLng = (p1.lng + p2.lng) / 2;
-    } else if (presence1Doc.exists) {
-        const p1 = presence1Doc.data()!;
-        centerLat = p1.lat;
-        centerLng = p1.lng;
-    } else if (presence2Doc.exists) {
-        const p2 = presence2Doc.data()!;
-        centerLat = p2.lat;
-        centerLng = p2.lng;
+    if (loc1 && loc2) {
+        center = calculateMidpoint(loc1, loc2);
+    } else if (loc1) {
+        center = [loc1.lat, loc1.lng];
+    } else if (loc2) {
+        center = [loc2.lat, loc2.lng];
     } else {
         // Default: NYU Washington Square
-        centerLat = 40.7295;
-        centerLng = -73.9965;
+        center = DEFAULT_LOCATION;
     }
 
-    const center: [number, number] = [centerLat, centerLng];
     const matchActivity = match.activity || null;
 
-    // Try each radius until we have enough candidates
-    let allPlaces: PlaceCandidate[] = [];
-
-    for (const radiusKm of SEARCH_RADII_KM) {
-        const places = await fetchPlacesWithinRadius(
-            db,
-            center,
-            radiusKm,
-            matchActivity,
-            HARD_CAP
-        );
-
-        allPlaces = places;
-
-        if (places.length >= SOFT_MIN) {
-            console.log(`[matchFetchAllPlaces] Found ${places.length} candidates at ${radiusKm}km radius`);
-            break;
-        }
-
-        console.log(`[matchFetchAllPlaces] Only ${places.length} candidates at ${radiusKm}km, expanding...`);
-    }
-
-    // Ensure we don't exceed hard cap and assign ranks
-    const placeCandidates: PlaceCandidate[] = allPlaces
-        .slice(0, HARD_CAP)
-        .map((p, idx) => ({
-            ...p,
-            rank: idx + 1, // 1-indexed
-        }));
+    // Fetch candidates using shared utility
+    const placeCandidates = await getPlaceCandidates({
+        center,
+        activityType: matchActivity,
+    });
 
     // Calculate expiresAt from matchedAt
     const matchedAt = match.matchedAt as admin.firestore.Timestamp;
     const expiresAtMillis = matchedAt.toMillis() + LOCATION_DECISION_SECONDS * 1000;
     const expiresAt = admin.firestore.Timestamp.fromMillis(expiresAtMillis);
 
-    // Write to match document
+    // CRITICAL: If 0 candidates, cancel immediately (don't make them wait 120s)
+    if (placeCandidates.length === 0) {
+        console.log(`[matchFetchAllPlaces] No candidates found for match ${matchId}, cancelling immediately`);
+
+        await matchRef.update({
+            placeCandidates: [], // Write empty array explicitly
+            status: 'cancelled',
+            cancelledBy: 'system',
+            cancellationReason: 'no_places_available',
+            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+            endedAt: admin.firestore.FieldValue.serverTimestamp(),
+            locationDecision: {
+                expiresAt,
+                resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+                resolutionReason: 'no_places_available',
+            },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {
+            success: false,
+            placeCandidates: [],
+            expiresAt: null,
+            alreadyFetched: false,
+            cancelled: true,
+            cancellationReason: 'no_places_available',
+        };
+    }
+
+    // Write candidates and initialize location decision
     await matchRef.update({
         placeCandidates,
         locationDecision: {
             expiresAt,
         },
-        // Initialize statusByUser if not already set (should be set on match creation)
+        // Initialize statusByUser if not already set
         statusByUser: match.statusByUser || {
             [match.user1Uid]: 'pending',
             [match.user2Uid]: 'pending',
         },
-        // Set status to location_deciding
         status: 'location_deciding',
         lastActivityAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -155,68 +157,5 @@ export async function matchFetchAllPlacesHandler(
     };
 }
 
-async function fetchPlacesWithinRadius(
-    db: admin.firestore.Firestore,
-    center: [number, number],
-    radiusKm: number,
-    matchActivity: string | null,
-    limit: number
-): Promise<PlaceCandidate[]> {
-    const radiusInM = radiusKm * 1000;
-    const bounds = geofire.geohashQueryBounds(center, radiusInM);
-
-    const placePromises: Promise<admin.firestore.QuerySnapshot>[] = [];
-
-    for (const b of bounds) {
-        const q = db
-            .collection('places')
-            .where('active', '==', true)
-            .orderBy('geohash')
-            .startAt(b[0])
-            .endAt(b[1]);
-        placePromises.push(q.get());
-    }
-
-    const snapshots = await Promise.all(placePromises);
-
-    const places: PlaceCandidate[] = [];
-    const seenIds = new Set<string>();
-
-    for (const snap of snapshots) {
-        for (const doc of snap.docs) {
-            // Avoid duplicates from overlapping geohash ranges
-            if (seenIds.has(doc.id)) continue;
-            seenIds.add(doc.id);
-
-            const data = doc.data();
-
-            // Calculate actual distance
-            const distanceInM = geofire.distanceBetween(center, [data.lat, data.lng]) * 1000;
-
-            // Only include if within radius
-            if (distanceInM > radiusInM) continue;
-
-            // Filter by activity if specified
-            const allowedActivities: string[] = data.allowedActivities || [];
-            if (matchActivity && allowedActivities.length > 0) {
-                if (!allowedActivities.includes(matchActivity)) continue;
-            }
-
-            // PRD v2.4: Keep candidates lean (no photos, long descriptions)
-            places.push({
-                placeId: doc.id,
-                name: data.name,
-                address: data.address,
-                lat: data.lat,
-                lng: data.lng,
-                distance: Math.round(distanceInM),
-                rank: 0, // Will be assigned after sorting
-            });
-        }
-    }
-
-    // Sort by distance
-    places.sort((a, b) => a.distance - b.distance);
-
-    return places.slice(0, limit);
-}
+// Re-export PlaceCandidate for convenience
+export type { PlaceCandidate };

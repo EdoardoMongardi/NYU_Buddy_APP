@@ -74,8 +74,25 @@ export async function matchResolvePlaceIfNeededHandler(
         }
 
         const placeCandidates: PlaceCandidate[] = match.placeCandidates || [];
+
+        // GUARD: If 0 candidates, cancel with no_places_available
         if (placeCandidates.length === 0) {
-            throw new HttpsError('failed-precondition', 'No place candidates available');
+            transaction.update(matchRef, {
+                status: 'cancelled',
+                cancelledBy: 'system',
+                cancellationReason: 'no_places_available',
+                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+                endedAt: admin.firestore.FieldValue.serverTimestamp(),
+                'locationDecision.resolvedAt': admin.firestore.FieldValue.serverTimestamp(),
+                'locationDecision.resolutionReason': 'no_places_available',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            return {
+                success: false,
+                cancelled: true,
+                cancellationReason: 'no_places_available',
+            };
         }
 
         const user1Choice: PlaceChoice | null = match.placeChoiceByUser?.[match.user1Uid] || null;
@@ -236,7 +253,22 @@ export async function resolveMatchPlaceInternal(
         }
 
         const placeCandidates: PlaceCandidate[] = match.placeCandidates || [];
-        if (placeCandidates.length === 0) return;
+
+        // GUARD: If 0 candidates, cancel with no_places_available
+        if (placeCandidates.length === 0) {
+            transaction.update(matchRef, {
+                status: 'cancelled',
+                cancelledBy: 'system',
+                cancellationReason: 'no_places_available',
+                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+                endedAt: admin.firestore.FieldValue.serverTimestamp(),
+                'locationDecision.resolvedAt': admin.firestore.FieldValue.serverTimestamp(),
+                'locationDecision.resolutionReason': 'no_places_available',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            console.log(`[resolveMatchPlaceInternal] Match ${matchId} cancelled: no_places_available`);
+            return;
+        }
 
         const user1Choice: PlaceChoice | null = match.placeChoiceByUser?.[match.user1Uid] || null;
         const user2Choice: PlaceChoice | null = match.placeChoiceByUser?.[match.user2Uid] || null;
