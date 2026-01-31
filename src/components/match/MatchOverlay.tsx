@@ -16,7 +16,7 @@ interface MatchOverlayProps {
 }
 
 export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto, onComplete }: MatchOverlayProps) {
-    const { match, loading } = useMatch(matchId);
+    const { match } = useMatch(matchId); // loading state ignored for timer to prevent flash
     const [visible, setVisible] = useState(true);
     const [otherUserPhoto, setOtherUserPhoto] = useState<string | null>(null);
 
@@ -36,21 +36,16 @@ export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto,
         }
     }, [match, currentUserId]);
 
-    // Auto-dismiss logic
+    // Auto-dismiss logic - Unconditional timer to prevent flash
     useEffect(() => {
-        // Start timer only when match data is loaded (to ensure we show names/avatars if possible)
-        // OR if it takes too long (>3s), proceed anyway? 
-        // For now, wait for match.
-        if (!loading && match && visible) {
-            const timer = setTimeout(() => {
-                setVisible(false);
-                // Wait for exit animation then complete
-                setTimeout(onComplete, 500);
-            }, 2500); // Increased to 2.5s for better visibility
+        const timer = setTimeout(() => {
+            setVisible(false);
+            // Wait for exit animation then complete
+            setTimeout(onComplete, 500);
+        }, 3000); // 3 seconds constraint
 
-            return () => clearTimeout(timer);
-        }
-    }, [loading, match, visible, onComplete]);
+        return () => clearTimeout(timer);
+    }, [onComplete]);
 
     if (!visible) return null;
 
@@ -79,7 +74,7 @@ export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto,
 
                         <div>
                             <h3 className="font-bold text-lg leading-tight">It&apos;s a Match!</h3>
-                            <p className="text-white/80 text-sm">Heading to location selection...</p>
+                            <p className="text-white/80 text-sm">You both invited each other. Heading to location selection...</p>
                         </div>
                     </div>
 
