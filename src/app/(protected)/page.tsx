@@ -7,7 +7,7 @@ import AvailabilitySheet from '@/components/availability/AvailabilitySheet';
 import SuggestionCard from '@/components/matching/SuggestionCard';
 import TabNavigation from '@/components/home/TabNavigation';
 import InvitesTab from '@/components/home/InvitesTab';
-import OutgoingOfferCard from '@/components/offers/OutgoingOfferCard';
+import { ActiveInvitesRow } from '@/components/match/ActiveInvitesRow';
 import { usePresence } from '@/lib/hooks/usePresence';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -40,6 +40,7 @@ export default function HomePage() {
       });
     }
   }, [searchParams, toast, router]);
+
   const {
     inboxOffers,
     inboxCount,
@@ -47,15 +48,13 @@ export default function HomePage() {
     inboxError,
     fetchInbox,
     respondToOffer,
-    outgoingOffer,
-    hasActiveOffer,
+    outgoingOffers,
+    canSendMore,
     fetchOutgoing,
     cancelOutgoingOffer,
-    outgoingLoading,
   } = useOffers();
 
   const [activeTab, setActiveTab] = useState<'discover' | 'invites'>('discover');
-  const [isCancelling, setIsCancelling] = useState(false);
 
   // Block features if email not verified
   const emailVerified = user?.emailVerified;
@@ -82,10 +81,11 @@ export default function HomePage() {
 
   // Redirect if offer is accepted
   useEffect(() => {
-    if (outgoingOffer?.status === 'accepted' && outgoingOffer.matchId) {
-      router.push(`/match/${outgoingOffer.matchId}`);
+    const acceptedOffer = outgoingOffers.find(o => o.status === 'accepted' && o.matchId);
+    if (acceptedOffer) {
+      router.push(`/match/${acceptedOffer.matchId}`);
     }
-  }, [outgoingOffer, router]);
+  }, [outgoingOffers, router]);
 
   const handleAcceptOffer = async (offerId: string) => {
     const result = await respondToOffer(offerId, 'accept');
@@ -97,12 +97,7 @@ export default function HomePage() {
   };
 
   const handleCancelOffer = async (offerId: string) => {
-    setIsCancelling(true);
-    try {
-      await cancelOutgoingOffer(offerId);
-    } finally {
-      setIsCancelling(false);
-    }
+    await cancelOutgoingOffer(offerId);
   };
 
   return (
@@ -181,21 +176,19 @@ export default function HomePage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                 >
-                  {/* Show outgoing offer if exists */}
-                  {hasActiveOffer && outgoingOffer && (
-                    <div className="mb-4">
-                      <OutgoingOfferCard
-                        offer={outgoingOffer}
-                        onCancel={handleCancelOffer}
-                        isCancelling={isCancelling || outgoingLoading}
-                      />
-                    </div>
+                  {/* Show active invites if exist */}
+                  {outgoingOffers.length > 0 && (
+                    <ActiveInvitesRow
+                      offers={outgoingOffers}
+                      onCancel={handleCancelOffer}
+                    />
                   )}
 
-                  {/* Show suggestion card if no active outgoing offer */}
-                  {!hasActiveOffer && (
-                    <SuggestionCard isAvailable={isAvailable} />
-                  )}
+                  {/* Always show suggestion card (unless functionality changes) */}
+                  <SuggestionCard
+                    isAvailable={isAvailable}
+                    canSendMore={canSendMore}
+                  />
                 </motion.div>
               ) : (
                 <motion.div

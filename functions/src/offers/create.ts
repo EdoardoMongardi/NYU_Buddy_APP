@@ -3,7 +3,8 @@ import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { getPlaceCandidates } from '../utils/places';
 
 const OFFER_TTL_MINUTES = 10;
-const COOLDOWN_SECONDS = 45;
+const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
+const MAX_ACTIVE_OFFERS = 3;
 
 interface OfferCreateData {
   targetUid: string;
@@ -83,9 +84,30 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     throw new HttpsError('failed-precondition', 'NO_PLACES_AVAILABLE');
   }
 
-  // Check for existing active outgoing offer
-  if (fromPresence.activeOutgoingOfferId) {
-    throw new HttpsError('failed-precondition', 'You already have an active offer pending');
+  // Check for max active offers (now supports up to 3)
+
+  // Check if already sent offer to this target
+  const existingOfferToTarget = await db.collection('offers')
+    .where('fromUid', '==', fromUid)
+    .where('toUid', '==', targetUid)
+    .where('status', '==', 'pending')
+    .where('expiresAt', '>', now)
+    .limit(1)
+    .get();
+
+  if (!existingOfferToTarget.empty) {
+    throw new HttpsError('already-exists', 'You already have an offer pending to this user');
+  }
+
+  // Count current active offers (filter out expired ones)
+  const activeOffersQuery = await db.collection('offers')
+    .where('fromUid', '==', fromUid)
+    .where('status', '==', 'pending')
+    .where('expiresAt', '>', now)
+    .get();
+
+  if (activeOffersQuery.size >= MAX_ACTIVE_OFFERS) {
+    throw new HttpsError('resource-exhausted', `Maximum ${MAX_ACTIVE_OFFERS} active offers allowed`);
   }
 
   // Check cooldown
@@ -198,6 +220,12 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     };
   }
 
+  // Get target profile
+  const toUserDoc = await db.collection('users').doc(targetUid).get();
+  const toUserData = toUserDoc.data() || {};
+  const toDisplayName = toUserData.displayName || 'NYU Buddy';
+  const toPhotoURL = toUserData.photoURL || null;
+
   // Calculate offer expiration: min(10 min, sender expires, receiver expires)
   const tenMinFromNow = now.toMillis() + OFFER_TTL_MINUTES * 60 * 1000;
   const expiresAtMillis = Math.min(
@@ -218,6 +246,8 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     transaction.set(offerRef, {
       fromUid,
       toUid: targetUid,
+      toDisplayName,
+      toPhotoURL,
       status: 'pending',
       activity: fromPresence.activity,
       fromDurationMinutes: fromPresence.durationMinutes,
@@ -230,9 +260,9 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       respondedAt: null,
     });
 
-    // Update sender's presence with active offer and cooldown
+    // Update sender's presence with active offer (add to array)
     transaction.update(fromPresenceDoc.ref, {
-      activeOutgoingOfferId: offerRef.id,
+      activeOutgoingOfferIds: admin.firestore.FieldValue.arrayUnion(offerRef.id),
       offerCooldownUntil: cooldownUntil,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });

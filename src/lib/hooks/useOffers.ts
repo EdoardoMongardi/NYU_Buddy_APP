@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { useAuth } from './useAuth';
 import {
@@ -23,9 +23,10 @@ export function useOffers() {
   const [inboxError, setInboxError] = useState<string | null>(null);
 
   // Outgoing state
-  const [outgoingOffer, setOutgoingOffer] = useState<OutgoingOffer | null>(null);
-  const [hasActiveOffer, setHasActiveOffer] = useState(false);
+  const [outgoingOffers, setOutgoingOffers] = useState<OutgoingOffer[]>([]);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [maxOffers, setMaxOffers] = useState(3);
+  const [canSendMore, setCanSendMore] = useState(true);
   const [outgoingLoading, setOutgoingLoading] = useState(false);
   const [outgoingError, setOutgoingError] = useState<string | null>(null);
 
@@ -52,28 +53,25 @@ export function useOffers() {
   // Listen for outgoing offers
   useEffect(() => {
     if (!user) {
-      setHasActiveOffer(false);
-      setOutgoingOffer(null);
+      setOutgoingOffers([]);
       return;
     }
 
     // Query for active outgoing offers from this user
-    // We want the most recent active one
     const q = query(
       collection(getFirebaseDb(), 'offers'),
       where('fromUid', '==', user.uid),
-      where('status', 'in', ['pending', 'accepted']), // Listen for accepted too so we catch the match
-      orderBy('createdAt', 'desc'),
-      limit(1)
+      where('status', 'in', ['pending', 'accepted']),
+      orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0];
+        const activeOffers: OutgoingOffer[] = [];
+
+        snapshot.docs.forEach((doc) => {
           const data = doc.data();
-          console.log('Outgoing offer update:', data.status, data.matchId); // Debug log
 
           // Check for manual expiration first (client-side check)
           const now = new Date();
@@ -81,29 +79,24 @@ export function useOffers() {
           const expiresInSeconds = Math.max(0, Math.floor((expiresAtDate.getTime() - now.getTime()) / 1000));
 
           if (data.status === 'accepted' || expiresInSeconds > 0) {
-            const offer: OutgoingOffer = {
+            activeOffers.push({
               offerId: doc.id,
               toUid: data.toUid,
-              toDisplayName: data.toDisplayName || 'User',
+              toDisplayName: data.toDisplayName || 'User', // May need to fetch if not denormalized
+              toPhotoURL: data.toPhotoURL || null,
               activity: data.activity,
               status: data.status,
               expiresAt: expiresAtDate.toISOString(),
               expiresInSeconds,
               matchId: data.matchId
-            };
-
-            console.log('Setting active outgoing offer:', offer); // Debug log
-            setOutgoingOffer(offer);
-            setHasActiveOffer(true);
-          } else {
-            // Expired and not accepted
-            setHasActiveOffer(false);
-            setOutgoingOffer(null);
+            });
           }
-        } else {
-          setHasActiveOffer(false);
-          setOutgoingOffer(null);
-        }
+        });
+
+        // Filter out accepted ones if we want to show match overlay instead?
+        // For now, keep them so UI can animate success
+        setOutgoingOffers(activeOffers);
+        setCanSendMore(activeOffers.filter(o => o.status === 'pending').length < maxOffers);
         setOutgoingLoading(false);
       },
       (err) => {
@@ -112,20 +105,21 @@ export function useOffers() {
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, maxOffers]);
 
-  // Fetch outgoing offer - Keeping this for manual refresh but adding listener below
+  // Fetch outgoing offers (manual refresh)
   const fetchOutgoing = useCallback(async () => {
     setOutgoingLoading(true);
     setOutgoingError(null);
 
     try {
       const result = await offerGetOutgoing();
-      setHasActiveOffer(result.data.hasActiveOffer);
-      setOutgoingOffer(result.data.offer || null);
+      setOutgoingOffers(result.data.offers);
       setCooldownRemaining(result.data.cooldownRemaining || 0);
+      setMaxOffers(result.data.maxOffers || 3);
+      setCanSendMore(result.data.canSendMore);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch outgoing offer';
+      const message = err instanceof Error ? err.message : 'Failed to fetch outgoing offers';
       setOutgoingError(message);
     } finally {
       setOutgoingLoading(false);
@@ -151,7 +145,6 @@ export function useOffers() {
       });
 
       if (result.data.matchCreated) {
-        // Immediate match (mutual interest)
         return {
           matchCreated: true,
           matchId: result.data.matchId,
@@ -159,7 +152,7 @@ export function useOffers() {
         };
       }
 
-      // Offer created, refresh outgoing state
+      // Offer created, refresh outgoing state to get cooldown
       await fetchOutgoing();
 
       return {
@@ -206,9 +199,8 @@ export function useOffers() {
     try {
       await offerCancel({ offerId });
 
-      // Clear local state
-      setHasActiveOffer(false);
-      setOutgoingOffer(null);
+      // Optimistic update
+      setOutgoingOffers(prev => prev.filter(o => o.offerId !== offerId));
 
       // Refresh to get updated cooldown
       await fetchOutgoing();
@@ -236,8 +228,7 @@ export function useOffers() {
   const clearOffers = useCallback(() => {
     setInboxOffers([]);
     setInboxCount(0);
-    setOutgoingOffer(null);
-    setHasActiveOffer(false);
+    setOutgoingOffers([]);
     setCooldownRemaining(0);
     setInboxError(null);
     setOutgoingError(null);
@@ -253,8 +244,9 @@ export function useOffers() {
     respondToOffer,
 
     // Outgoing
-    outgoingOffer,
-    hasActiveOffer,
+    outgoingOffers,
+    maxOffers,
+    canSendMore,
     cooldownRemaining,
     outgoingLoading,
     outgoingError,

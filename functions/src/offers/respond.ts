@@ -64,11 +64,32 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
         respondedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Clear sender's activeOutgoingOfferId
+      // Remove from sender's activeOutgoingOfferIds array
       const senderPresenceRef = db.collection('presence').doc(offer.fromUid);
       transaction.update(senderPresenceRef, {
-        activeOutgoingOfferId: null,
+        activeOutgoingOfferIds: admin.firestore.FieldValue.arrayRemove(offerId),
+        // Track for cycle deprioritization
+        recentlyExpiredOfferUids: admin.firestore.FieldValue.arrayUnion(uid),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Create 6h mutual rejection cooldown
+      // Both users can't see each other for 6h
+      const rejectionId1 = `${uid}_${offer.fromUid}`;
+      const rejectionId2 = `${offer.fromUid}_${uid}`;
+
+      transaction.set(db.collection('suggestions').doc(rejectionId1), {
+        fromUid: uid,
+        toUid: offer.fromUid,
+        action: 'reject',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(db.collection('suggestions').doc(rejectionId2), {
+        fromUid: offer.fromUid,
+        toUid: uid,
+        action: 'reject',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     });
 
@@ -122,11 +143,16 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   });
 
   if (isFromInMatch) {
+    // First-accept-wins: sender is no longer available
     await offerRef.update({
       status: 'expired',
       respondedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    throw new HttpsError('failed-precondition', 'The other person is already in a match');
+    return {
+      matchCreated: false,
+      code: 'NO_LONGER_AVAILABLE',
+      message: 'Too late — they just matched with someone else.',
+    };
   }
 
   const isToInMatch = activeMatches.docs.some(doc => {
@@ -198,9 +224,9 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
       respondedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update sender's presence
+    // Update sender's presence - clear all outgoing offers
     transaction.update(fromPresenceDoc.ref, {
-      activeOutgoingOfferId: null,
+      activeOutgoingOfferIds: [],
       status: 'matched',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -223,7 +249,7 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
         const otherPresenceDoc = otherPresenceDocs[index];
         if (otherPresenceDoc && otherPresenceDoc.exists) {
           transaction.update(otherPresenceDoc.ref, {
-            activeOutgoingOfferId: null,
+            activeOutgoingOfferIds: admin.firestore.FieldValue.arrayRemove(otherOffer.id),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
         }
