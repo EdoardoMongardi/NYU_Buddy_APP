@@ -15,13 +15,15 @@ import { useOffers } from '@/lib/hooks/useOffers';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import MatchOverlay from '@/components/match/MatchOverlay';
 
 export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
-  const { isAvailable } = usePresence();
+  const { isAvailable, presence } = usePresence();
+  const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
@@ -79,16 +81,34 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
 
-  // Redirect if offer is accepted
+  // Redirect if match detected via Presence (Canonical)
   useEffect(() => {
+    if (presence?.matchId && presence.status === 'matched') {
+      setShowMatchOverlay(presence.matchId);
+    }
+  }, [presence]);
+
+  // Fallback: Redirect if offer is accepted (Legacy/Backup)
+  useEffect(() => {
+    if (showMatchOverlay) return; // Prioritize overlay
+
     const acceptedOffer = outgoingOffers.find(o => o.status === 'accepted' && o.matchId);
     if (acceptedOffer) {
-      router.push(`/match/${acceptedOffer.matchId}`);
+      setShowMatchOverlay(acceptedOffer.matchId || null);
     }
-  }, [outgoingOffers, router]);
+  }, [outgoingOffers, showMatchOverlay]);
+
+  const handleMatchOverlayComplete = () => {
+    if (showMatchOverlay) {
+      router.push(`/match/${showMatchOverlay}`);
+    }
+  };
 
   const handleAcceptOffer = async (offerId: string) => {
     const result = await respondToOffer(offerId, 'accept');
+    if (result && result.matchId) {
+      setShowMatchOverlay(result.matchId);
+    }
     return result;
   };
 
@@ -102,6 +122,14 @@ export default function HomePage() {
 
   return (
     <div className="max-w-md mx-auto space-y-6">
+      {showMatchOverlay && user && (
+        <MatchOverlay
+          matchId={showMatchOverlay}
+          currentUserId={user.uid}
+          onComplete={handleMatchOverlayComplete}
+        />
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

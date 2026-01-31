@@ -338,210 +338,223 @@ export async function suggestionGetCycleHandler(
         throw new HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const uid = request.auth.uid;
-    const db = admin.firestore();
-    const { action } = request.data || {};
+    try {
+        const uid = request.auth.uid;
+        const db = admin.firestore();
+        const { action } = request.data || {};
 
-    // Get presence
-    const presenceRef = db.collection('presence').doc(uid);
-    const presenceDoc = await presenceRef.get();
+        // Get presence
+        const presenceRef = db.collection('presence').doc(uid);
+        const presenceDoc = await presenceRef.get();
 
-    if (!presenceDoc.exists) {
-        throw new HttpsError('failed-precondition', 'You must set your availability first');
-    }
+        if (!presenceDoc.exists) {
+            throw new HttpsError('failed-precondition', 'You must set your availability first');
+        }
 
-    const presence = presenceDoc.data()!;
-    const now = admin.firestore.Timestamp.now();
+        const presence = presenceDoc.data()!;
+        const now = admin.firestore.Timestamp.now();
 
-    // Check if presence expired
-    if (presence.expiresAt.toMillis() < now.toMillis()) {
-        await presenceRef.delete();
-        throw new HttpsError('failed-precondition', 'Your availability has expired');
-    }
+        // Check if presence expired
+        if (presence.expiresAt.toMillis() < now.toMillis()) {
+            await presenceRef.delete();
+            throw new HttpsError('failed-precondition', 'Your availability has expired');
+        }
 
-    // Get current cycle state
-    let currentCycle: CycleState | null = presence.currentCycle || null;
-    const recentlyExpiredOfferUids = new Set<string>(presence.recentlyExpiredOfferUids || []);
+        // Get current cycle state
+        let currentCycle: CycleState | null = presence.currentCycle || null;
+        const recentlyExpiredOfferUids = new Set<string>(presence.recentlyExpiredOfferUids || []);
 
-    // Check if cycle should be reset
-    let shouldResetCycle = action === 'refresh';
+        // Check if cycle should be reset
+        let shouldResetCycle = action === 'refresh';
 
-    if (currentCycle) {
-        const timeSinceLastSeen = now.toMillis() - currentCycle.lastSeenAt.toMillis();
-        if (timeSinceLastSeen > CYCLE_PERSIST_THRESHOLD_MS) {
-            console.log(`[getCycleSuggestion] Cycle expired (${timeSinceLastSeen}ms > ${CYCLE_PERSIST_THRESHOLD_MS}ms)`);
+        if (currentCycle) {
+            const timeSinceLastSeen = now.toMillis() - currentCycle.lastSeenAt.toMillis();
+            if (timeSinceLastSeen > CYCLE_PERSIST_THRESHOLD_MS) {
+                console.log(`[getCycleSuggestion] Cycle expired (${timeSinceLastSeen}ms > ${CYCLE_PERSIST_THRESHOLD_MS}ms)`);
+                shouldResetCycle = true;
+            }
+        } else {
+            // No cycle exists, create new one
             shouldResetCycle = true;
         }
-    } else {
-        // No cycle exists, create new one
-        shouldResetCycle = true;
-    }
 
-    // Build new cycle if needed
-    if (shouldResetCycle) {
-        console.log(`[getCycleSuggestion] Building new cycle for ${uid}`);
-        const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
-
-        if (candidates.length === 0) {
-            // Clear cycle and return no suggestion
-            await presenceRef.update({
-                currentCycle: admin.firestore.FieldValue.delete(),
-                recentlyExpiredOfferUids: [], // Clear expired list on new cycle
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-
-            return {
-                suggestion: null,
-                cycleInfo: { total: 0, current: 0, isNewCycle: true },
-                message: 'No one nearby right now. Try again later.',
-            };
-        }
-
-        currentCycle = {
-            candidateUids: candidates.map((c) => c.uid),
-            currentIndex: 0,
-            startedAt: now,
-            lastSeenAt: now,
-        };
-
-        await presenceRef.update({
-            currentCycle,
-            recentlyExpiredOfferUids: [], // Clear expired list on new cycle
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-    }
-
-    // Get current candidate UID
-    const candidateUids = currentCycle!.candidateUids;
-    let currentIndex = currentCycle!.currentIndex;
-
-    // Filter out candidates who are no longer valid (offline, matched, blocked, have active offer)
-    let validCandidateUid: string | null = null;
-    let skippedCount = 0;
-    const maxSkips = candidateUids.length;
-
-    while (skippedCount < maxSkips) {
-        const candidateUid = candidateUids[currentIndex % candidateUids.length];
-
-        // Quick validation check
-        const isValid = await validateCandidate(db, uid, candidateUid, presence.activity);
-
-        if (isValid) {
-            validCandidateUid = candidateUid;
-            break;
-        }
-
-        // Skip to next
-        currentIndex++;
-        skippedCount++;
-
-        // Check if we've wrapped around (end of cycle)
-        if (currentIndex >= candidateUids.length) {
-            console.log(`[getCycleSuggestion] Reached end of cycle, refreshing...`);
-            // Trigger new cycle on next call
+        // Build new cycle if needed
+        if (shouldResetCycle) {
+            console.log(`[getCycleSuggestion] Building new cycle for ${uid}`);
             const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
 
             if (candidates.length === 0) {
+                // Clear cycle and return no suggestion
                 await presenceRef.update({
                     currentCycle: admin.firestore.FieldValue.delete(),
+                    recentlyExpiredOfferUids: [], // Clear expired list on new cycle
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 });
+
                 return {
                     suggestion: null,
-                    cycleInfo: { total: 0, current: 0, isNewCycle: true, isCycleEnd: true },
-                    message: 'You\'ve seen everyone available. Looking for more people...',
+                    cycleInfo: { total: 0, current: 0, isNewCycle: true },
+                    message: 'No one nearby right now. Try again later.',
                 };
             }
 
-            // Start new cycle
             currentCycle = {
                 candidateUids: candidates.map((c) => c.uid),
                 currentIndex: 0,
                 startedAt: now,
                 lastSeenAt: now,
             };
-            currentIndex = 0;
-            validCandidateUid = candidates[0].uid;
 
             await presenceRef.update({
                 currentCycle,
-                recentlyExpiredOfferUids: [],
+                recentlyExpiredOfferUids: [], // Clear expired list on new cycle
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-
-            break;
         }
-    }
 
-    if (!validCandidateUid) {
+        // Get current candidate UID
+        const candidateUids = currentCycle!.candidateUids;
+        let currentIndex = currentCycle!.currentIndex;
+
+        // Filter out candidates who are no longer valid (offline, matched, blocked, have active offer)
+        let validCandidateUid: string | null = null;
+        let skippedCount = 0;
+        const maxSkips = candidateUids.length;
+
+        while (skippedCount < maxSkips) {
+            const candidateUid = candidateUids[currentIndex % candidateUids.length];
+
+            // Quick validation check
+            const isValid = await validateCandidate(db, uid, candidateUid, presence.activity);
+
+            if (isValid) {
+                validCandidateUid = candidateUid;
+                break;
+            }
+
+            // Skip to next
+            currentIndex++;
+            skippedCount++;
+
+            // Check if we've wrapped around (end of cycle)
+            if (currentIndex >= candidateUids.length) {
+                console.log(`[getCycleSuggestion] Reached end of cycle, refreshing...`);
+                // Trigger new cycle on next call
+                const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
+
+                if (candidates.length === 0) {
+                    await presenceRef.update({
+                        currentCycle: admin.firestore.FieldValue.delete(),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                    return {
+                        suggestion: null,
+                        cycleInfo: { total: 0, current: 0, isNewCycle: true, isCycleEnd: true },
+                        message: 'You\'ve seen everyone available. Looking for more people...',
+                    };
+                }
+
+                // Start new cycle
+                currentCycle = {
+                    candidateUids: candidates.map((c) => c.uid),
+                    currentIndex: 0,
+                    startedAt: now,
+                    lastSeenAt: now,
+                };
+                currentIndex = 0;
+                validCandidateUid = candidates[0].uid;
+
+                await presenceRef.update({
+                    currentCycle,
+                    recentlyExpiredOfferUids: [],
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+
+                break;
+            }
+        }
+
+        if (!validCandidateUid) {
+            return {
+                suggestion: null,
+                cycleInfo: { total: candidateUids.length, current: currentIndex, isNewCycle: false },
+                message: 'No one available right now. Try again later.',
+            };
+        }
+
+        // Update cycle state
+        await presenceRef.update({
+            'currentCycle.currentIndex': currentIndex,
+            'currentCycle.lastSeenAt': now,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Build suggestion response
+        const candidatePresence = await db.collection('presence').doc(validCandidateUid).get();
+        const candidateUser = await db.collection('users').doc(validCandidateUid).get();
+
+        if (!candidatePresence.exists || !candidateUser.exists) {
+            // Edge case: user disappeared, try next (recursive but safe due to loop above)
+            // Instead of recursion, just throw error to retry client side or return null to trigger refresh
+            // But we must be careful with recursion depth. 
+            // Better to return special code or just null suggestion.
+            return {
+                suggestion: null,
+                cycleInfo: { total: candidateUids.length, current: currentIndex + 1, isNewCycle: false },
+                message: 'Candidate no longer available. Refreshing...',
+            };
+        }
+
+        const candidateData = candidatePresence.data()!;
+        const userData = candidateUser.data()!;
+        const userDoc = await db.collection('users').doc(uid).get();
+        const userInterests: string[] = userDoc.exists ? userDoc.data()!.interests || [] : [];
+
+        const distanceInKm = geofire.distanceBetween(
+            [presence.lat, presence.lng],
+            [candidateData.lat, candidateData.lng]
+        );
+        const distanceInM = Math.round(distanceInKm * 1000);
+
+        const sharedInterests = userInterests.filter((i) =>
+            (userData.interests || []).includes(i)
+        );
+
+        const explanation = generateExplanation(
+            {
+                uid: validCandidateUid,
+                distance: distanceInM,
+                activity: candidateData.activity,
+                durationMinutes: candidateData.durationMinutes,
+                interests: userData.interests || [],
+                lat: candidateData.lat,
+                lng: candidateData.lng,
+            },
+            sharedInterests
+        );
+
         return {
-            suggestion: null,
-            cycleInfo: { total: candidateUids.length, current: currentIndex, isNewCycle: false },
-            message: 'No one available right now. Try again later.',
+            suggestion: {
+                uid: validCandidateUid,
+                displayName: userData.displayName || 'NYU Student',
+                photoURL: userData.photoURL || null,
+                interests: userData.interests || [],
+                activity: candidateData.activity,
+                distance: distanceInM,
+                durationMinutes: candidateData.durationMinutes || 60,
+                explanation,
+            },
+            cycleInfo: {
+                total: currentCycle!.candidateUids.length,
+                current: currentIndex + 1, // 1-indexed for display
+                isNewCycle: shouldResetCycle,
+            },
         };
+    } catch (err: any) {
+        console.error('[getCycleSuggestion] Error:', err);
+        // Throw detailed error to client for debugging
+        throw new HttpsError('internal', err.message || 'Internal Server Error');
     }
-
-    // Update cycle state
-    await presenceRef.update({
-        'currentCycle.currentIndex': currentIndex,
-        'currentCycle.lastSeenAt': now,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // Build suggestion response
-    const candidatePresence = await db.collection('presence').doc(validCandidateUid).get();
-    const candidateUser = await db.collection('users').doc(validCandidateUid).get();
-
-    if (!candidatePresence.exists || !candidateUser.exists) {
-        // Edge case: user disappeared, try next
-        return suggestionGetCycleHandler(request);
-    }
-
-    const candidateData = candidatePresence.data()!;
-    const userData = candidateUser.data()!;
-    const userDoc = await db.collection('users').doc(uid).get();
-    const userInterests: string[] = userDoc.exists ? userDoc.data()!.interests || [] : [];
-
-    const distanceInKm = geofire.distanceBetween(
-        [presence.lat, presence.lng],
-        [candidateData.lat, candidateData.lng]
-    );
-    const distanceInM = Math.round(distanceInKm * 1000);
-
-    const sharedInterests = userInterests.filter((i) =>
-        (userData.interests || []).includes(i)
-    );
-
-    const explanation = generateExplanation(
-        {
-            uid: validCandidateUid,
-            distance: distanceInM,
-            activity: candidateData.activity,
-            durationMinutes: candidateData.durationMinutes,
-            interests: userData.interests || [],
-            lat: candidateData.lat,
-            lng: candidateData.lng,
-        },
-        sharedInterests
-    );
-
-    return {
-        suggestion: {
-            uid: validCandidateUid,
-            displayName: userData.displayName || 'NYU Student',
-            photoURL: userData.photoURL || null,
-            interests: userData.interests || [],
-            activity: candidateData.activity,
-            distance: distanceInM,
-            durationMinutes: candidateData.durationMinutes || 60,
-            explanation,
-        },
-        cycleInfo: {
-            total: currentCycle!.candidateUids.length,
-            current: currentIndex + 1, // 1-indexed for display
-            isNewCycle: shouldResetCycle,
-        },
-    };
 }
 
 /**

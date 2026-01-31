@@ -196,19 +196,24 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       // Update reverse offer to accepted
       transaction.update(reverseOffer.ref, {
         status: 'accepted',
+        matchId: matchRef.id,
         respondedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Clear target's activeOutgoingOfferId
+      // Update target's presence (User A) - clear offers
       transaction.update(db.collection('presence').doc(targetUid), {
-        activeOutgoingOfferId: null,
+        activeOutgoingOfferIds: [],
+        activeOutgoingOfferId: null, // Legacy cleanup
         status: 'matched',
+        matchId: matchRef.id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Update sender's presence
+      // Update sender's presence (User B) - clear offers
       transaction.update(fromPresenceDoc.ref, {
+        activeOutgoingOfferIds: [],
         status: 'matched',
+        matchId: matchRef.id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     });
