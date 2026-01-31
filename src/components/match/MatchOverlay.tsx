@@ -12,7 +12,7 @@ interface MatchOverlayProps {
     onComplete: () => void;
 }
 
-export default function MatchOverlay({ matchId, currentUserId, onComplete }: MatchOverlayProps) {
+export default function MatchOverlay({ matchId, onComplete }: MatchOverlayProps) {
     const { match, loading } = useMatch(matchId);
     const [visible, setVisible] = useState(true);
 
@@ -29,15 +29,6 @@ export default function MatchOverlay({ matchId, currentUserId, onComplete }: Mat
     }, [loading, match, visible, onComplete]);
 
     if (!visible) return null;
-
-    // Identify other user
-    const otherUserUid = match?.user1Uid === currentUserId ? match.user2Uid : match?.user1Uid;
-    // We might need to fetch profile if not in match doc. 
-    // Match doc usually has IDs. 
-    // For now, we can show "Match Found" and maybe avatars if available in match doc (PostMatch v2.2 simplified match doc doesn't strictly copy active profile data except maybe in offers?).
-
-    // Actually, offer has denormalized data. Match might not.
-    // We will try to show generic "Match Found" if data is missing to avoid delays.
 
     return (
         <AnimatePresence>
@@ -62,7 +53,7 @@ export default function MatchOverlay({ matchId, currentUserId, onComplete }: Mat
                         </div>
 
                         <div>
-                            <h3 className="font-bold text-lg leading-tight">It's a Match!</h3>
+                            <h3 className="font-bold text-lg leading-tight">It&apos;s a Match!</h3>
                             <p className="text-white/80 text-sm">Heading to location selection...</p>
                         </div>
                     </div>
