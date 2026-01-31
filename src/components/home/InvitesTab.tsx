@@ -41,9 +41,10 @@ export default function InvitesTab({
     setRespondingOfferId(offerId);
     try {
       const result = await onAccept(offerId);
-      if (result.matchCreated && result.matchId) {
-        router.push(`/match/${result.matchId}`);
-      }
+      // Logic handled by parent (MatchOverlay)
+      // if (result.matchCreated && result.matchId) {
+      //   router.push(`/match/${result.matchId}`);
+      // }
     } finally {
       setRespondingOfferId(null);
     }
