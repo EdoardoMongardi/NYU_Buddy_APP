@@ -430,6 +430,10 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
       suggestion: null,
       searchRadiusKm: currentRadiusKm,
       message: 'No one nearby right now. Try again later.',
+      debug: {
+        filterReasons,
+        totalCandidatesBeforeFilter: Object.values(filterReasons).reduce((a, b) => a + b, 0),
+      },
     };
   }
 
