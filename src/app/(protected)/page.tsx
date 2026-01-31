@@ -128,6 +128,7 @@ export default function HomePage() {
           currentUserId={user.uid}
           currentUserPhoto={userProfile?.photoURL}
           onComplete={handleMatchOverlayComplete}
+          isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)}
         />
       )}
 

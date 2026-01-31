@@ -13,14 +13,21 @@ interface MatchOverlayProps {
     currentUserId: string;
     currentUserPhoto?: string | null;
     onComplete: () => void;
+    isSender?: boolean;
 }
 
-export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto, onComplete }: MatchOverlayProps) {
+export default function MatchOverlay({
+    matchId,
+    currentUserId,
+    currentUserPhoto,
+    onComplete,
+    isSender = false
+}: MatchOverlayProps) {
     const { match } = useMatch(matchId); // loading state ignored for timer to prevent flash
     const [visible, setVisible] = useState(true);
-    const [otherUserPhoto, setOtherUserPhoto] = useState<string | null>(null);
+    const [otherUserInfo, setOtherUserInfo] = useState<{ photoURL?: string | null, displayName?: string } | null>(null);
 
-    // Fetch other user's photo once match is loaded
+    // Fetch other user's info once match is loaded
     useEffect(() => {
         if (match) {
             const otherUid = match.user1Uid === currentUserId ? match.user2Uid : match.user1Uid;
@@ -28,10 +35,14 @@ export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto,
                 getDoc(doc(getFirebaseDb(), 'users', otherUid))
                     .then((snap) => {
                         if (snap.exists()) {
-                            setOtherUserPhoto(snap.data().photoURL || null);
+                            const data = snap.data();
+                            setOtherUserInfo({
+                                photoURL: data.photoURL || null,
+                                displayName: data.displayName || 'User'
+                            });
                         }
                     })
-                    .catch((err) => console.error('Error fetching other user photo:', err));
+                    .catch((err) => console.error('Error fetching other user info:', err));
             }
         }
     }, [match, currentUserId]);
@@ -48,6 +59,8 @@ export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto,
     }, [onComplete]);
 
     if (!visible) return null;
+
+    const otherDisplayName = otherUserInfo?.displayName || 'User';
 
     return (
         <AnimatePresence>
@@ -67,14 +80,23 @@ export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto,
                             </Avatar>
                             {/* Other User */}
                             <Avatar className="w-10 h-10 border-2 border-white bg-indigo-200">
-                                <AvatarImage src={otherUserPhoto || undefined} />
+                                <AvatarImage src={otherUserInfo?.photoURL || undefined} />
                                 <AvatarFallback className="bg-indigo-500 text-white">?</AvatarFallback>
                             </Avatar>
                         </div>
 
                         <div>
-                            <h3 className="font-bold text-lg leading-tight">It&apos;s a Match!</h3>
-                            <p className="text-white/80 text-sm">You both invited each other. Heading to location selection...</p>
+                            {isSender ? (
+                                <>
+                                    <h3 className="font-bold text-lg leading-tight">It&apos;s a Match!</h3>
+                                    <p className="text-white/80 text-sm">{otherDisplayName} accepted your offer — choose a location...</p>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="font-bold text-lg leading-tight">It&apos;s a Match!</h3>
+                                    <p className="text-white/80 text-sm">You both invited each other. Heading to location selection...</p>
+                                </>
+                            )}
                         </div>
                     </div>
 
