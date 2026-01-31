@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, MapPin, Coffee, Loader2, RefreshCw, UserX, Clock } from 'lucide-react';
 
@@ -19,7 +18,6 @@ interface SuggestionCardProps {
 }
 
 export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionCardProps) {
-  const router = useRouter();
   const { userProfile } = useAuth();
   const {
     suggestion,
@@ -55,11 +53,8 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     if (!suggestion) return;
     setIsResponding(true);
     try {
-      const result = await sendInvite();
-      if (result?.matchCreated) {
-        // Redirect to match page
-        router.push(`/match/${result.matchId}`);
-      }
+      await sendInvite();
+      // Match redirection logic handled by HomePage match listener
     } catch {
       // Error handled by hook
     } finally {
