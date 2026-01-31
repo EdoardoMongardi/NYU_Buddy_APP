@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import AvailabilitySheet from '@/components/availability/AvailabilitySheet';
@@ -24,6 +24,10 @@ export default function HomePage() {
   const { user, userProfile } = useAuth();
   const { isAvailable, presence } = usePresence();
   const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
+
+  // Suppression flag: If true, we are currently accepting an offer manually,
+  // so we should suppress the banner (and let InvitesTab redirect).
+  const isAcceptingRef = useRef(false);
 
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
@@ -83,6 +87,10 @@ export default function HomePage() {
 
   // Redirect if match detected via Presence (Canonical)
   useEffect(() => {
+    // If we are actively accepting an invite, suppress the presence listener
+    // to avoid the banner flashing before redirect.
+    if (isAcceptingRef.current) return;
+
     if (presence?.matchId && presence.status === 'matched') {
       setShowMatchOverlay(presence.matchId);
     }
@@ -91,6 +99,7 @@ export default function HomePage() {
   // Fallback: Redirect if offer is accepted (Legacy/Backup)
   useEffect(() => {
     if (showMatchOverlay) return; // Prioritize overlay
+    if (isAcceptingRef.current) return;
 
     const acceptedOffer = outgoingOffers.find(o => o.status === 'accepted' && o.matchId);
     if (acceptedOffer) {
@@ -105,11 +114,17 @@ export default function HomePage() {
   };
 
   const handleAcceptOffer = async (offerId: string) => {
-    const result = await respondToOffer(offerId, 'accept');
-    if (result && result.matchId) {
-      setShowMatchOverlay(result.matchId);
+    // Set suppression flag to block Presence Overlay
+    isAcceptingRef.current = true;
+    try {
+      const result = await respondToOffer(offerId, 'accept');
+      // Intentionally NOT setting showMatchOverlay here.
+      // InvitesTab will handle the redirect.
+      return result;
+    } catch (error) {
+      isAcceptingRef.current = false; // Reset on failure
+      throw error;
     }
-    return result;
   };
 
   const handleDeclineOffer = async (offerId: string) => {
