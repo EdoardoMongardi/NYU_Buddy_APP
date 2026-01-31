@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
 import { Inbox, RefreshCw, Loader2 } from 'lucide-react';
 
@@ -34,17 +33,13 @@ export default function InvitesTab({
   userPhotoURL,
   userDisplayName,
 }: InvitesTabProps) {
-  const router = useRouter();
   const [respondingOfferId, setRespondingOfferId] = useState<string | null>(null);
 
   const handleAccept = async (offerId: string) => {
     setRespondingOfferId(offerId);
     try {
-      const result = await onAccept(offerId);
+      await onAccept(offerId);
       // Logic handled by parent (MatchOverlay)
-      // if (result.matchCreated && result.matchId) {
-      //   router.push(`/match/${result.matchId}`);
-      // }
     } finally {
       setRespondingOfferId(null);
     }

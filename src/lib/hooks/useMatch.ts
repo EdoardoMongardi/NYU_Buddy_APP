@@ -80,9 +80,6 @@ export function useMatch(matchId: string | null) {
   // 2. Listen for other user's profile (dependent on match)
   useEffect(() => {
     if (!match || !user) {
-      if (!match && !loading) {
-        // If match is null and we are not loading match anymore, we are done
-      }
       return;
     }
 
