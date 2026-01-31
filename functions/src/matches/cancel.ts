@@ -54,10 +54,30 @@ export async function matchCancelHandler(request: CallableRequest<MatchCancelDat
       throw new HttpsError('failed-precondition', 'Match is already cancelled');
     }
 
-    // Determine if other user was already heading/arrived (more severe)
     const otherUid = match.user1Uid === uid ? match.user2Uid : match.user1Uid;
     const otherStatus = match.statusByUser?.[otherUid];
     const wasSevereCancel = ['heading_there', 'arrived'].includes(otherStatus);
+
+    // Calculate penalty multiplier
+    let penaltyMultiplier = 0.3; // Default minor penalty
+
+    // 1. No penalty for system reasons, safety, or blocks
+    if (reason === 'no_places_available' || reason === 'safety_concern' || reason === 'blocked') {
+      penaltyMultiplier = 0;
+    }
+    // 2. No penalty for 15s grace period
+    else if (match.matchedAt) {
+      const matchedAtMillis = (match.matchedAt as admin.firestore.Timestamp).toMillis();
+      const nowMillis = admin.firestore.Timestamp.now().toMillis();
+      if (nowMillis - matchedAtMillis < 15000) { // 15 seconds
+        penaltyMultiplier = 0;
+      }
+    }
+
+    // 3. Higher penalty for severe cancels (other user waiting/arrived)
+    if (wasSevereCancel && penaltyMultiplier > 0) {
+      penaltyMultiplier = 0.5;
+    }
 
     await db.runTransaction(async (transaction) => {
       const uidsToUpdate = [match.user1Uid, match.user2Uid]
@@ -107,7 +127,7 @@ export async function matchCancelHandler(request: CallableRequest<MatchCancelDat
         const total = stats.totalMatches || 1;
         const rawScore = (
           (stats.metConfirmed || 0) * 1.0 -
-          (stats.cancelledByUser || 0) * (wasSevereCancel ? 0.5 : 0.3) -
+          (stats.cancelledByUser || 0) * penaltyMultiplier -
           (stats.noShow || 0) * 0.5
         ) / total;
         const reliabilityScore = Math.max(0, Math.min(1, 0.5 + rawScore * 0.5));

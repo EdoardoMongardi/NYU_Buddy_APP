@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { doc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { Loader2, User, Heart, Coffee, ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { Loader2, User, Heart, Coffee, ArrowLeft, Save, Trash2, Shield } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import { BlockedUsersList } from '@/components/profile/BlockedUsersList';
 
 import { getFirebaseDb, getFirebaseStorage } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -217,10 +218,11 @@ export default function ProfilePage() {
 
             <form onSubmit={handleSubmit(onSubmit)}>
                 <Tabs defaultValue="basics" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 mb-6">
+                    <TabsList className="grid w-full grid-cols-4 mb-6">
                         <TabsTrigger value="basics">Basics</TabsTrigger>
                         <TabsTrigger value="interests">Interests</TabsTrigger>
                         <TabsTrigger value="activities">Activities</TabsTrigger>
+                        <TabsTrigger value="privacy">Privacy</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="basics">
@@ -374,6 +376,23 @@ export default function ProfilePage() {
                                 <p className="text-sm text-center text-gray-500">
                                     Selected: {selectedActivities?.length || 0}/5
                                 </p>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="privacy">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Shield className="w-5 h-5 text-violet-600" />
+                                    Privacy & Safety
+                                </CardTitle>
+                                <CardDescription>
+                                    Manage your blocked users
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <BlockedUsersList />
                             </CardContent>
                         </Card>
                     </TabsContent>

@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { presenceStartHandler } from './presence/start';
 import { presenceEndHandler } from './presence/end';
@@ -16,6 +17,11 @@ import { offersGetInboxHandler } from './offers/getInbox';
 import { offerGetOutgoingHandler } from './offers/getOutgoing';
 import { matchConfirmPlaceHandler } from './matches/confirmPlace';
 import { matchCancelHandler } from './matches/cancel';
+import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
+import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
+import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
+import { matchResolveExpiredHandler } from './matches/resolveExpired';
+import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -88,4 +94,31 @@ export const matchConfirmPlace = onCall(
 export const matchCancel = onCall(
   { region: 'us-east1' },
   matchCancelHandler
+);
+
+// PRD v2.4: Location Decision Functions
+export const matchFetchAllPlaces = onCall(
+  { region: 'us-east1' },
+  matchFetchAllPlacesHandler
+);
+
+export const matchSetPlaceChoice = onCall(
+  { region: 'us-east1' },
+  matchSetPlaceChoiceHandler
+);
+
+export const matchResolvePlaceIfNeeded = onCall(
+  { region: 'us-east1' },
+  matchResolvePlaceIfNeededHandler
+);
+
+// Scheduled: Resolve expired location decisions every minute
+export const matchResolveExpired = onSchedule(
+  { schedule: 'every 1 minutes', region: 'us-east1' },
+  matchResolveExpiredHandler
+);
+
+export const checkAvailabilityForUser = onCall(
+  { region: 'us-east1' },
+  checkAvailabilityForUserHandler
 );

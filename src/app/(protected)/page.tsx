@@ -28,9 +28,14 @@ export default function HomePage() {
       // Clear the param
       router.replace('/');
 
+      const reason = searchParams.get('reason');
+      const isBlocked = reason === 'blocked';
+
       toast({
-        title: "Meetup Cancelled",
-        description: "The meetup was cancelled.",
+        title: isBlocked ? "Match Ended" : "Meetup Cancelled",
+        description: isBlocked
+          ? "The other user is no longer available."
+          : "The meetup was cancelled.",
         variant: "destructive",
       });
     }

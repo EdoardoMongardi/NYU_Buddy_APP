@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
+import { getPlaceCandidates } from '../utils/places';
 
 const OFFER_TTL_MINUTES = 10;
 const COOLDOWN_SECONDS = 45;
@@ -9,6 +10,7 @@ interface OfferCreateData {
   explanation?: string;
   matchScore?: number;
   distanceMeters?: number;
+  activityType?: string; // For place availability check
 }
 
 export async function offerCreateHandler(request: CallableRequest<OfferCreateData>) {
@@ -26,6 +28,30 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     throw new HttpsError('invalid-argument', 'Invalid target user');
   }
 
+  // Symmetric blocking: Check if sender blocked target
+  const senderBlockedTarget = await db
+    .collection('blocks')
+    .doc(fromUid)
+    .collection('blocked')
+    .doc(targetUid)
+    .get();
+
+  if (senderBlockedTarget.exists) {
+    throw new HttpsError('failed-precondition', 'Cannot send offer to this user');
+  }
+
+  // Symmetric blocking: Check if target blocked sender
+  const targetBlockedSender = await db
+    .collection('blocks')
+    .doc(targetUid)
+    .collection('blocked')
+    .doc(fromUid)
+    .get();
+
+  if (targetBlockedSender.exists) {
+    throw new HttpsError('failed-precondition', 'This user is not available');
+  }
+
   // Get sender's presence
   const fromPresenceDoc = await db.collection('presence').doc(fromUid).get();
   if (!fromPresenceDoc.exists) {
@@ -40,6 +66,23 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     throw new HttpsError('failed-precondition', 'Your availability has expired');
   }
 
+  // PRD v2.4: Pre-offer Guard - Check place availability
+  // Prevents "dead flows" where no meetup spots exist
+  const { activityType } = request.data;
+  if (!fromPresence.lat || !fromPresence.lng) {
+    throw new HttpsError('failed-precondition', 'Your location is unknown');
+  }
+
+  const candidates = await getPlaceCandidates({
+    center: [fromPresence.lat, fromPresence.lng],
+    activityType: activityType || null,
+    hardCap: 1, // We only need to know if > 0 exist
+  });
+
+  if (candidates.length === 0) {
+    throw new HttpsError('failed-precondition', 'NO_PLACES_AVAILABLE');
+  }
+
   // Check for existing active outgoing offer
   if (fromPresence.activeOutgoingOfferId) {
     throw new HttpsError('failed-precondition', 'You already have an active offer pending');
@@ -47,7 +90,7 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
 
   // Check cooldown
   if (fromPresence.offerCooldownUntil &&
-      fromPresence.offerCooldownUntil.toMillis() > now.toMillis()) {
+    fromPresence.offerCooldownUntil.toMillis() > now.toMillis()) {
     const remaining = Math.ceil((fromPresence.offerCooldownUntil.toMillis() - now.toMillis()) / 1000);
     throw new HttpsError('failed-precondition', `Please wait ${remaining} seconds before sending another offer`);
   }

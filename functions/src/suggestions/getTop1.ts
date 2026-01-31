@@ -325,9 +325,21 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
         continue;
       }
 
-      // Hard filter 3: Skip blocked users
+      // Hard filter 3: Skip blocked users (I blocked them)
       if (blockedUids.has(doc.id)) {
         filterReasons['blocked'] = (filterReasons['blocked'] || 0) + 1;
+        continue;
+      }
+
+      // Hard filter 3b: Skip users who blocked ME (symmetric blocking)
+      const theyBlockedMe = await db
+        .collection('blocks')
+        .doc(doc.id)
+        .collection('blocked')
+        .doc(uid)
+        .get();
+      if (theyBlockedMe.exists) {
+        filterReasons['blocked_by'] = (filterReasons['blocked_by'] || 0) + 1;
         continue;
       }
 
@@ -418,6 +430,10 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
       suggestion: null,
       searchRadiusKm: currentRadiusKm,
       message: 'No one nearby right now. Try again later.',
+      debug: {
+        filterReasons,
+        totalCandidatesBeforeFilter: Object.values(filterReasons).reduce((a, b) => a + b, 0),
+      },
     };
   }
 

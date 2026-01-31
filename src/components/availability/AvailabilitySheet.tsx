@@ -22,8 +22,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 import { usePresence } from '@/lib/hooks/usePresence';
+import { checkAvailabilityForUser } from '@/lib/firebase/functions';
 import { ACTIVITIES } from '@/lib/schemas/user';
 
 const DURATIONS = [
@@ -48,6 +57,10 @@ export default function AvailabilitySheet() {
   const [duration, setDuration] = useState<string>('60');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // No places dialog state
+  const [showNoPlacesDialog, setShowNoPlacesDialog] = useState(false);
+  const [noPlacesMessage, setNoPlacesMessage] = useState('');
 
   const handleSetAvailability = async () => {
     if (!activity) return;
@@ -76,6 +89,21 @@ export default function AvailabilitySheet() {
       );
 
       const { latitude, longitude } = position.coords;
+
+      // PRD v2.4: Check availability before starting
+      // This "gates" the search if no spots are nearby
+      const availability = await checkAvailabilityForUser({
+        activityType: activity,
+        lat: latitude,
+        lng: longitude
+      });
+
+      if (!availability.data.ok || !availability.data.available) {
+        setNoPlacesMessage(availability.data.message || `No meetup spots found for ${activity}.`);
+        setShowNoPlacesDialog(true);
+        setIsSubmitting(false);
+        return;
+      }
 
       await startPresence(activity, parseInt(duration), latitude, longitude);
       setIsOpen(false);
@@ -241,6 +269,32 @@ export default function AvailabilitySheet() {
           </Button>
         </div>
       </SheetContent>
+
+      {/* No Places Available Dialog */}
+      <Dialog open={showNoPlacesDialog} onOpenChange={setShowNoPlacesDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-orange-600 flex items-center gap-2">
+              <Coffee className="w-5 h-5" />
+              No Spots Nearby
+            </DialogTitle>
+            <DialogDescription>
+              {noPlacesMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 text-sm text-gray-500">
+            Calculated for your current location (5km radius).
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowNoPlacesDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => setShowNoPlacesDialog(false)}>
+              Change Activity
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
