@@ -126,6 +126,7 @@ export default function HomePage() {
         <MatchOverlay
           matchId={showMatchOverlay}
           currentUserId={user.uid}
+          currentUserPhoto={userProfile?.photoURL}
           onComplete={handleMatchOverlayComplete}
         />
       )}

@@ -5,24 +5,48 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMatch } from '@/lib/hooks/useMatch';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { User } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { getFirebaseDb } from '@/lib/firebase/client';
 
 interface MatchOverlayProps {
     matchId: string;
     currentUserId: string;
+    currentUserPhoto?: string | null;
     onComplete: () => void;
 }
 
-export default function MatchOverlay({ matchId, onComplete }: MatchOverlayProps) {
+export default function MatchOverlay({ matchId, currentUserId, currentUserPhoto, onComplete }: MatchOverlayProps) {
     const { match, loading } = useMatch(matchId);
     const [visible, setVisible] = useState(true);
+    const [otherUserPhoto, setOtherUserPhoto] = useState<string | null>(null);
 
-    // Auto-dismiss after delay (once loaded)
+    // Fetch other user's photo once match is loaded
     useEffect(() => {
+        if (match) {
+            const otherUid = match.user1Uid === currentUserId ? match.user2Uid : match.user1Uid;
+            if (otherUid) {
+                getDoc(doc(getFirebaseDb(), 'users', otherUid))
+                    .then((snap) => {
+                        if (snap.exists()) {
+                            setOtherUserPhoto(snap.data().photoURL || null);
+                        }
+                    })
+                    .catch((err) => console.error('Error fetching other user photo:', err));
+            }
+        }
+    }, [match, currentUserId]);
+
+    // Auto-dismiss logic
+    useEffect(() => {
+        // Start timer only when match data is loaded (to ensure we show names/avatars if possible)
+        // OR if it takes too long (>3s), proceed anyway? 
+        // For now, wait for match.
         if (!loading && match && visible) {
             const timer = setTimeout(() => {
                 setVisible(false);
-                setTimeout(onComplete, 500); // Wait for exit animation
-            }, 2000); // Show for 2 seconds
+                // Wait for exit animation then complete
+                setTimeout(onComplete, 500);
+            }, 2500); // Increased to 2.5s for better visibility
 
             return () => clearTimeout(timer);
         }
@@ -43,11 +67,12 @@ export default function MatchOverlay({ matchId, onComplete }: MatchOverlayProps)
                         <div className="flex -space-x-3">
                             {/* Current User */}
                             <Avatar className="w-10 h-10 border-2 border-white">
-                                <AvatarImage src={undefined} /> {/* We could pass current user photo */}
+                                <AvatarImage src={currentUserPhoto || undefined} />
                                 <AvatarFallback><User className="w-5 h-5" /></AvatarFallback>
                             </Avatar>
-                            {/* Other User (Generic if loading) */}
+                            {/* Other User */}
                             <Avatar className="w-10 h-10 border-2 border-white bg-indigo-200">
+                                <AvatarImage src={otherUserPhoto || undefined} />
                                 <AvatarFallback className="bg-indigo-500 text-white">?</AvatarFallback>
                             </Avatar>
                         </div>
