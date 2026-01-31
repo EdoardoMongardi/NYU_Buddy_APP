@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, AlertCircle } from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
 import { OutgoingOffer } from '@/lib/firebase/functions';
 import Image from 'next/image';
 
@@ -43,7 +43,7 @@ export function CollapsibleInviteCard({
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [offer.expiresAt, isExpanded, onExpand]);
+    }, [offer.expiresAt, isExpanded, onExpand, offer.expiresInSeconds]);
 
     // Initial auto-expand
     useEffect(() => {
@@ -54,6 +54,7 @@ export function CollapsibleInviteCard({
             const timer = setTimeout(onCollapse, 3000);
             return () => clearTimeout(timer);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const formatTime = (seconds: number) => {

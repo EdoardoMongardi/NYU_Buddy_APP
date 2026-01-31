@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { OutgoingOffer } from '@/lib/firebase/functions';
 import { CollapsibleInviteCard } from './CollapsibleInviteCard';
 
