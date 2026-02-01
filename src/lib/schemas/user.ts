@@ -1,13 +1,15 @@
 import { z } from 'zod';
 
-// Admin emails that bypass @nyu.edu restriction
-const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [
+const ENV_ADMINS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',').filter(Boolean) || [];
+const HARDCODED_ADMINS = [
   'edoardo.mongardi18@gmail.com',
   '468327494@qq.com',
 ];
+const ADMIN_EMAILS = [...ENV_ADMINS, ...HARDCODED_ADMINS].map(email => email.trim().toLowerCase());
 
 const isAllowedEmail = (email: string) => {
-  return email.endsWith('@nyu.edu') || ADMIN_EMAILS.includes(email);
+  const normalized = email.trim().toLowerCase();
+  return normalized.endsWith('@nyu.edu') || ADMIN_EMAILS.includes(normalized);
 };
 
 export const loginSchema = z.object({
