@@ -49,6 +49,7 @@ interface CycleState {
     currentIndex: number;
     startedAt: admin.firestore.Timestamp;
     lastSeenAt: admin.firestore.Timestamp;
+    debug?: string; // Debug info
 }
 
 interface GetSuggestionData {
@@ -383,6 +384,8 @@ export async function suggestionGetCycleHandler(
             console.log(`[getCycleSuggestion] Building new cycle for ${uid}`);
             const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
 
+            let debugMsg = `F:${candidates.length}`;
+
             // Logic: If the top candidate is the one we JUST saw, rotate them to the end
             // to allow showing others first (Use splice to be robust)
             if (candidates.length > 1 && presence.lastViewedUid) {
@@ -391,6 +394,9 @@ export async function suggestionGetCycleHandler(
                     console.log(`[getCycleSuggestion] Moving recently viewed user ${presence.lastViewedUid} to end`);
                     const viewed = candidates.splice(viewedIndex, 1)[0];
                     candidates.push(viewed);
+                    debugMsg += ` R:${presence.lastViewedUid.slice(0, 3)}`;
+                } else {
+                    debugMsg += ` NR:${presence.lastViewedUid.slice(0, 3)}`;
                 }
             }
 
@@ -414,6 +420,7 @@ export async function suggestionGetCycleHandler(
                 currentIndex: 0,
                 startedAt: now,
                 lastSeenAt: now,
+                debug: debugMsg,
             };
 
             await presenceRef.update({
@@ -547,7 +554,7 @@ export async function suggestionGetCycleHandler(
         return {
             suggestion: {
                 uid: validCandidateUid,
-                displayName: userData.displayName || 'NYU Student',
+                displayName: process.env.FUNCTIONS_EMULATOR ? userData.displayName : `${userData.displayName || 'User'} [${currentCycle?.debug || ''}]`,
                 photoURL: userData.photoURL || null,
                 interests: userData.interests || [],
                 activity: candidateData.activity,
