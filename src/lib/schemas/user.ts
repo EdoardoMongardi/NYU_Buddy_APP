@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 // Admin emails that bypass @nyu.edu restriction
-const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [];
+const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [
+  'edoardo.mongardi18@gmail.com',
+  '468327494@qq.com',
+];
 
 const isAllowedEmail = (email: string) => {
   return email.endsWith('@nyu.edu') || ADMIN_EMAILS.includes(email);
