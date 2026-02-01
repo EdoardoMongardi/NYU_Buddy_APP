@@ -195,17 +195,6 @@ async function fetchAndRankCandidates(
         myActiveOffers.docs.map((doc) => doc.data().toUid)
     );
 
-    // Get users who have pending offers to me (show in Inbox instead)
-    const pendingOffersToMe = await db
-        .collection('offers')
-        .where('toUid', '==', uid)
-        .where('status', '==', 'pending')
-        .where('expiresAt', '>', now)
-        .get();
-    const usersWithPendingOffers = new Set(
-        pendingOffersToMe.docs.map((doc) => doc.data().fromUid)
-    );
-
     // Query nearby presences
     const radiusInM = RADIUS_KM * 1000;
     const center: [number, number] = [lat, lng];
@@ -243,7 +232,6 @@ async function fetchAndRankCandidates(
             if (rejectionCooldownUids.has(doc.id)) continue; // Rejection cooldown
             if (matchedUids.has(doc.id)) continue; // Already matched
             if (activeOfferTargetUids.has(doc.id)) continue; // Already sent offer
-            if (usersWithPendingOffers.has(doc.id)) continue; // They have offer to me
             if (data.activity !== activity) continue; // Different activity
 
             // Check symmetric block (they blocked me)
