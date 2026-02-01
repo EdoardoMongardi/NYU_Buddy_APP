@@ -625,18 +625,23 @@ export async function suggestionPassHandler(
     }
 
     // Identify the candidate being passed
-    const candidateUid = currentCycle.candidateUids[currentCycle.currentIndex];
+    const candidateUid = currentCycle.candidateUids[currentCycle.currentIndex] || null;
 
     // Advance index and set lastViewedUid
     const newIndex = currentCycle.currentIndex + 1;
     const now = admin.firestore.Timestamp.now();
 
-    await presenceRef.update({
+    const updateData: any = {
         'currentCycle.currentIndex': newIndex,
         'currentCycle.lastSeenAt': now,
-        lastViewedUid: candidateUid, // Track explicitly for rotation logic
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (candidateUid) {
+        updateData.lastViewedUid = candidateUid;
+    }
+
+    await presenceRef.update(updateData);
 
     return { success: true, newIndex };
 }
