@@ -131,25 +131,38 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
   }
 
   // Check neither is in an active match
-  const fromMatches = await db.collection('matches')
-    .where('status', 'in', ['pending', 'place_confirmed', 'heading_there', 'arrived'])
+  // Optimized Query: Check specifically for fromUid and targetUid
+  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+
+  const fromMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
     .get();
 
-  const isFromInMatch = fromMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === fromUid || data.user2Uid === fromUid;
-  });
+  const fromMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
 
-  if (isFromInMatch) {
+  if (!fromMatchesQuery.empty || !fromMatchesQuery2.empty) {
     throw new HttpsError('failed-precondition', 'You are already in an active match');
   }
 
-  const isToInMatch = fromMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === targetUid || data.user2Uid === targetUid;
-  });
+  const toMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', targetUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
 
-  if (isToInMatch) {
+  const toMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', targetUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
+
+  if (!toMatchesQuery.empty || !toMatchesQuery2.empty) {
     throw new HttpsError('failed-precondition', 'This person is already in an active match');
   }
 
@@ -217,6 +230,14 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     });
+
+    // Cleanup other pending offers (Post-transaction)
+    // We don't await this to return faster, or we await to ensure consistency?
+    // Safer to await to ensure user state is clean.
+    await import('./cleanup').then(m => Promise.all([
+      m.cleanupPendingOffers(db, fromUid, reverseOffer.id),
+      m.cleanupPendingOffers(db, targetUid, reverseOffer.id)
+    ]));
 
     return {
       offerId: reverseOffer.id,

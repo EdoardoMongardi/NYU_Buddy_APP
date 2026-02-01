@@ -133,16 +133,21 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   }
 
   // Check neither is in an active match
-  const activeMatches = await db.collection('matches')
-    .where('status', 'in', ['pending', 'place_confirmed', 'heading_there', 'arrived'])
+  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+
+  // Check Sender (fromUid)
+  const fromMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', offer.fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
+  const fromMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', offer.fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
     .get();
 
-  const isFromInMatch = activeMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === offer.fromUid || data.user2Uid === offer.fromUid;
-  });
-
-  if (isFromInMatch) {
+  if (!fromMatchesQuery.empty || !fromMatchesQuery2.empty) {
     // First-accept-wins: sender is no longer available
     await offerRef.update({
       status: 'expired',
@@ -155,12 +160,19 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     };
   }
 
-  const isToInMatch = activeMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === uid || data.user2Uid === uid;
-  });
+  // Check Receiver (uid)
+  const toMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', uid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
+  const toMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', uid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
 
-  if (isToInMatch) {
+  if (!toMatchesQuery.empty || !toMatchesQuery2.empty) {
     throw new HttpsError('failed-precondition', 'You are already in an active match');
   }
 
@@ -178,21 +190,6 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   const [user1Uid, user2Uid] = offer.fromUid < uid
     ? [offer.fromUid, uid]
     : [uid, offer.fromUid];
-
-  // Get other pending offers to this user before transaction
-  const otherOffersSnapshot = await db.collection('offers')
-    .where('toUid', '==', uid)
-    .where('status', '==', 'pending')
-    .get();
-
-  // Get presence docs for other offer senders (to check if they exist)
-  const otherSenderUids = otherOffersSnapshot.docs
-    .filter(doc => doc.id !== offerId)
-    .map(doc => doc.data().fromUid);
-
-  const otherPresenceDocs = await Promise.all(
-    otherSenderUids.map(senderUid => db.collection('presence').doc(senderUid).get())
-  );
 
   await db.runTransaction(async (transaction) => {
     // Create match
@@ -236,29 +233,17 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
       status: 'matched',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
-    // Decline all other pending offers to receiver
-    otherOffersSnapshot.docs.forEach((otherOffer, index) => {
-      if (otherOffer.id !== offerId) {
-        transaction.update(otherOffer.ref, {
-          status: 'expired',
-          respondedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        // Only update presence if it exists
-        const otherPresenceDoc = otherPresenceDocs[index];
-        if (otherPresenceDoc && otherPresenceDoc.exists) {
-          transaction.update(otherPresenceDoc.ref, {
-            activeOutgoingOfferIds: admin.firestore.FieldValue.arrayRemove(otherOffer.id),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
-      }
-    });
   });
+
+  // Post-match Cleanup using utility (Cancels all other offers involved)
+  await import('./cleanup').then(m => Promise.all([
+    m.cleanupPendingOffers(db, offer.fromUid, offerId),
+    m.cleanupPendingOffers(db, uid, offerId)
+  ]));
 
   return {
     matchCreated: true,
     matchId: matchRef.id,
+    activeMatchId: matchRef.id // Return ID for client state update
   };
 }
