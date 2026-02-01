@@ -383,6 +383,13 @@ export async function suggestionGetCycleHandler(
             console.log(`[getCycleSuggestion] Building new cycle for ${uid}`);
             const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
 
+            // Logic: If the top candidate is the one we JUST saw, rotate them to the end
+            // to allow showing others first (User Requirement: Pass A -> Show B)
+            if (candidates.length > 1 && presence.lastViewedUid === candidates[0].uid) {
+                console.log(`[getCycleSuggestion] Rotating recently viewed user ${candidates[0].uid} to end`);
+                candidates.push(candidates.shift()!);
+            }
+
             if (candidates.length === 0) {
                 // Clear cycle and return no suggestion
                 await presenceRef.update({
@@ -617,13 +624,17 @@ export async function suggestionPassHandler(
         throw new HttpsError('failed-precondition', 'No active cycle');
     }
 
-    // Advance index
+    // Identify the candidate being passed
+    const candidateUid = currentCycle.candidateUids[currentCycle.currentIndex];
+
+    // Advance index and set lastViewedUid
     const newIndex = currentCycle.currentIndex + 1;
     const now = admin.firestore.Timestamp.now();
 
     await presenceRef.update({
         'currentCycle.currentIndex': newIndex,
         'currentCycle.lastSeenAt': now,
+        lastViewedUid: candidateUid, // Track explicitly for rotation logic
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
