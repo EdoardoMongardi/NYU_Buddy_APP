@@ -384,10 +384,14 @@ export async function suggestionGetCycleHandler(
             const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
 
             // Logic: If the top candidate is the one we JUST saw, rotate them to the end
-            // to allow showing others first (User Requirement: Pass A -> Show B)
-            if (candidates.length > 1 && presence.lastViewedUid === candidates[0].uid) {
-                console.log(`[getCycleSuggestion] Rotating recently viewed user ${candidates[0].uid} to end`);
-                candidates.push(candidates.shift()!);
+            // to allow showing others first (Use splice to be robust)
+            if (candidates.length > 1 && presence.lastViewedUid) {
+                const viewedIndex = candidates.findIndex(c => c.uid === presence.lastViewedUid);
+                if (viewedIndex !== -1) {
+                    console.log(`[getCycleSuggestion] Moving recently viewed user ${presence.lastViewedUid} to end`);
+                    const viewed = candidates.splice(viewedIndex, 1)[0];
+                    candidates.push(viewed);
+                }
             }
 
             if (candidates.length === 0) {
