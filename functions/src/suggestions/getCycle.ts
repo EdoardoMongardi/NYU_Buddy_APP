@@ -14,7 +14,6 @@ import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import * as geofire from 'geofire-common';
 
 // Configuration
-const CYCLE_PERSIST_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 const REJECTION_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
 const MAX_CANDIDATES_PER_RADIUS = 50;
 const RADIUS_KM = 5; // Fixed 5km radius for cycle
@@ -44,16 +43,9 @@ interface Candidate {
     score?: number;
 }
 
-interface CycleState {
-    candidateUids: string[];
-    currentIndex: number;
-    startedAt: admin.firestore.Timestamp;
-    lastSeenAt: admin.firestore.Timestamp;
-    debug?: string; // Debug info
-}
-
 interface GetSuggestionData {
     action?: 'next' | 'refresh'; // 'next' = get next in cycle, 'refresh' = force new cycle
+    targetUid?: string; // For pass action (not used in GetSuggestionData but used in pass handler request)
 }
 
 // Calculate distance score (bucketed)
@@ -332,6 +324,9 @@ async function fetchAndRankCandidates(
 /**
  * Main handler
  */
+/**
+ * Main handler - Stateless "Fresh Fetch" approach
+ */
 export async function suggestionGetCycleHandler(
     request: CallableRequest<GetSuggestionData>
 ) {
@@ -361,165 +356,73 @@ export async function suggestionGetCycleHandler(
             throw new HttpsError('failed-precondition', 'Your availability has expired');
         }
 
-        // Get current cycle state
-        let currentCycle: CycleState | null = presence.currentCycle || null;
+        // 1. Fetch ALL valid candidates (Fresh Query)
         const recentlyExpiredOfferUids = new Set<string>(presence.recentlyExpiredOfferUids || []);
+        let candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
 
-        // Check if cycle should be reset
-        let shouldResetCycle = action === 'refresh';
-
-        if (currentCycle) {
-            const timeSinceLastSeen = now.toMillis() - currentCycle.lastSeenAt.toMillis();
-            if (timeSinceLastSeen > CYCLE_PERSIST_THRESHOLD_MS) {
-                console.log(`[getCycleSuggestion] Cycle expired (${timeSinceLastSeen}ms > ${CYCLE_PERSIST_THRESHOLD_MS}ms)`);
-                shouldResetCycle = true;
-            }
-        } else {
-            // No cycle exists, create new one
-            shouldResetCycle = true;
+        // 2. Filter out already seen users (Session history)
+        // If action is 'refresh', we clear seen list (Force Reset)
+        let seenUids = new Set<string>(presence.seenUids || []);
+        if (action === 'refresh') {
+            console.log(`[getCycleSuggestion] Force refresh requested. Clearing seen list.`);
+            seenUids.clear();
+            await presenceRef.update({ seenUids: [] });
         }
 
-        // Build new cycle if needed
-        if (shouldResetCycle) {
-            console.log(`[getCycleSuggestion] Building new cycle for ${uid}`);
-            const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
+        let availableCandidates = candidates.filter(c => !seenUids.has(c.uid));
+        let isReset = false;
 
-            let debugMsg = `F:${candidates.length}`;
-
-            // Logic: If the top candidate is the one we JUST saw, rotate them to the end
-            // to allow showing others first (Use splice to be robust)
-            if (candidates.length > 1 && presence.lastViewedUid) {
-                const viewedIndex = candidates.findIndex(c => c.uid === presence.lastViewedUid);
-                if (viewedIndex !== -1) {
-                    console.log(`[getCycleSuggestion] Moving recently viewed user ${presence.lastViewedUid} to end`);
-                    const viewed = candidates.splice(viewedIndex, 1)[0];
-                    candidates.push(viewed);
-                    debugMsg += ` R:${presence.lastViewedUid.slice(0, 3)}`;
-                } else {
-                    debugMsg += ` NR:${presence.lastViewedUid.slice(0, 3)}`;
-                }
-            }
-
-            if (candidates.length === 0) {
-                // Clear cycle and return no suggestion
-                await presenceRef.update({
-                    currentCycle: admin.firestore.FieldValue.delete(),
-                    recentlyExpiredOfferUids: [], // Clear expired list on new cycle
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-
-                return {
-                    suggestion: null,
-                    cycleInfo: { total: 0, current: 0, isNewCycle: true },
-                    message: 'No one nearby right now. Try again later.',
-                };
-            }
-
-            currentCycle = {
-                candidateUids: candidates.map((c) => c.uid),
-                currentIndex: 0,
-                startedAt: now,
-                lastSeenAt: now,
-                debug: debugMsg,
-            };
-
-            await presenceRef.update({
-                currentCycle,
-                recentlyExpiredOfferUids: [], // Clear expired list on new cycle
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+        // 3. If no new candidates, RESET seen list and show everyone again
+        if (availableCandidates.length === 0 && candidates.length > 0) {
+            console.log(`[getCycleSuggestion] Cycle exhausted. Resetting seen list.`);
+            seenUids.clear();
+            await presenceRef.update({ seenUids: [] });
+            availableCandidates = candidates;
+            isReset = true;
         }
 
-        // Get current candidate UID
-        const candidateUids = currentCycle!.candidateUids;
-        let currentIndex = currentCycle!.currentIndex;
-
-        // Filter out candidates who are no longer valid (offline, matched, blocked, have active offer)
-        let validCandidateUid: string | null = null;
-        let skippedCount = 0;
-        const maxSkips = candidateUids.length;
-
-        while (skippedCount < maxSkips) {
-            const candidateUid = candidateUids[currentIndex % candidateUids.length];
-
-            // Quick validation check
-            const isValid = await validateCandidate(db, uid, candidateUid, presence.activity);
-
-            if (isValid) {
-                validCandidateUid = candidateUid;
-                break;
-            }
-
-            // Skip to next
-            currentIndex++;
-            skippedCount++;
-
-            // Check if we've wrapped around (end of cycle)
-            if (currentIndex >= candidateUids.length) {
-                console.log(`[getCycleSuggestion] Reached end of cycle, refreshing...`);
-                // Trigger new cycle on next call
-                const candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);
-
-                if (candidates.length === 0) {
-                    await presenceRef.update({
-                        currentCycle: admin.firestore.FieldValue.delete(),
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    });
-                    return {
-                        suggestion: null,
-                        cycleInfo: { total: 0, current: 0, isNewCycle: true, isCycleEnd: true },
-                        message: 'You\'ve seen everyone available. Looking for more people...',
-                    };
-                }
-
-                // Start new cycle
-                currentCycle = {
-                    candidateUids: candidates.map((c) => c.uid),
-                    currentIndex: 0,
-                    startedAt: now,
-                    lastSeenAt: now,
-                };
-                currentIndex = 0;
-                validCandidateUid = candidates[0].uid;
-
-                await presenceRef.update({
-                    currentCycle,
-                    recentlyExpiredOfferUids: [],
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-
-                break;
-            }
-        }
-
-        if (!validCandidateUid) {
+        if (availableCandidates.length === 0) {
             return {
                 suggestion: null,
-                cycleInfo: { total: candidateUids.length, current: currentIndex, isNewCycle: false },
-                message: 'No one available right now. Try again later.',
+                cycleInfo: { total: 0, current: 0, isNewCycle: isReset },
+                message: 'No one nearby right now. Try again later.',
             };
         }
 
-        // Update cycle state
-        await presenceRef.update({
-            'currentCycle.currentIndex': currentIndex,
-            'currentCycle.lastSeenAt': now,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        // 4. Sort (Already sorted by fetchAndRank, but good to be sure)
+        // fetchAndRank sorts by Score Descending.
 
-        // Build suggestion response
+        // 5. Apply Rotation Logic ONLY if we just reset (or if it's a tight loop)
+        // If we reset, we might show the person we just passed (lastViewedUid).
+        // To prevent immediate repeat, move them to the end.
+        if (presence.lastViewedUid) {
+            const viewedIndex = availableCandidates.findIndex(c => c.uid === presence.lastViewedUid);
+            // Verify they are effectively the first one (top rank) or we just want to deprioritize them generally?
+            // User wants to see B if A passed.
+            // If list [A, B]. Last=A. Move A to end -> [B, A].
+            // If list [B, A]. Last=A. Index 1. Move A to end -> [B, A].
+            // Safe to always rotate lastViewed to end if present in valid set.
+            if (viewedIndex !== -1) {
+                console.log(`[getCycleSuggestion] Deprioritizing last viewed user ${presence.lastViewedUid}`);
+                const viewed = availableCandidates.splice(viewedIndex, 1)[0];
+                availableCandidates.push(viewed);
+            }
+        }
+
+        const bestCandidate = availableCandidates[0];
+
+        // Build response
+        const validCandidateUid = bestCandidate.uid;
         const candidatePresence = await db.collection('presence').doc(validCandidateUid).get();
         const candidateUser = await db.collection('users').doc(validCandidateUid).get();
 
         if (!candidatePresence.exists || !candidateUser.exists) {
-            // Edge case: user disappeared, try next (recursive but safe due to loop above)
-            // Instead of recursion, just throw error to retry client side or return null to trigger refresh
-            // But we must be careful with recursion depth. 
-            // Better to return special code or just null suggestion.
+            // Edge case: Race condition. Just recurse or return error to trigger retry?
+            // Simple: Return null/message to force client refresh
             return {
                 suggestion: null,
-                cycleInfo: { total: candidateUids.length, current: currentIndex + 1, isNewCycle: false },
-                message: 'Candidate no longer available. Refreshing...',
+                cycleInfo: { total: 0, current: 0, isNewCycle: false },
+                message: 'User just went offline. Please refresh.',
             };
         }
 
@@ -528,89 +431,38 @@ export async function suggestionGetCycleHandler(
         const userDoc = await db.collection('users').doc(uid).get();
         const userInterests: string[] = userDoc.exists ? userDoc.data()!.interests || [] : [];
 
-        const distanceInKm = geofire.distanceBetween(
-            [presence.lat, presence.lng],
-            [candidateData.lat, candidateData.lng]
-        );
-        const distanceInM = Math.round(distanceInKm * 1000);
-
-        const sharedInterests = userInterests.filter((i) =>
-            (userData.interests || []).includes(i)
-        );
-
         const explanation = generateExplanation(
-            {
-                uid: validCandidateUid,
-                distance: distanceInM,
-                activity: candidateData.activity,
-                durationMinutes: candidateData.durationMinutes,
-                interests: userData.interests || [],
-                lat: candidateData.lat,
-                lng: candidateData.lng,
-            },
-            sharedInterests
+            { ...bestCandidate, interests: userData.interests || [] }, // Merge minimal data
+            userInterests.filter(i => (userData.interests || []).includes(i))
         );
 
         return {
             suggestion: {
                 uid: validCandidateUid,
-                displayName: process.env.FUNCTIONS_EMULATOR ? userData.displayName : `${userData.displayName || 'User'} [${currentCycle?.debug || ''}]`,
+                displayName: userData.displayName || 'NYU Student',
                 photoURL: userData.photoURL || null,
                 interests: userData.interests || [],
                 activity: candidateData.activity,
-                distance: distanceInM,
+                distance: bestCandidate.distance,
                 durationMinutes: candidateData.durationMinutes || 60,
                 explanation,
             },
             cycleInfo: {
-                total: currentCycle!.candidateUids.length,
-                current: currentIndex + 1, // 1-indexed for display
-                isNewCycle: shouldResetCycle,
+                total: candidates.length,
+                current: seenUids.size + 1,
+                isNewCycle: isReset,
             },
         };
+
     } catch (err: any) {
         console.error('[getCycleSuggestion] Error:', err);
-        // Throw detailed error to client for debugging
         throw new HttpsError('internal', err.message || 'Internal Server Error');
     }
 }
 
 /**
- * Quick validation to check if candidate is still valid
- */
-async function validateCandidate(
-    db: admin.firestore.Firestore,
-    myUid: string,
-    candidateUid: string,
-    myActivity: string
-): Promise<boolean> {
-    const now = admin.firestore.Timestamp.now();
-
-    // Check presence exists and is available
-    const presenceDoc = await db.collection('presence').doc(candidateUid).get();
-    if (!presenceDoc.exists) return false;
-
-    const data = presenceDoc.data()!;
-    if (data.status !== 'available') return false;
-    if (data.expiresAt.toMillis() < now.toMillis()) return false;
-    if (data.activity !== myActivity) return false;
-
-    // Check I don't already have an active offer to them
-    const myOffers = await db
-        .collection('offers')
-        .where('fromUid', '==', myUid)
-        .where('toUid', '==', candidateUid)
-        .where('status', '==', 'pending')
-        .where('expiresAt', '>', now)
-        .limit(1)
-        .get();
-    if (!myOffers.empty) return false;
-
-    return true;
-}
-
-/**
- * Handler to advance to next candidate in cycle (called on Pass)
+ * Handler to advance - Stateless
+ * Now we just track the SEEN user.
  */
 export async function suggestionPassHandler(
     request: CallableRequest<{ targetUid: string }>
@@ -620,39 +472,21 @@ export async function suggestionPassHandler(
     }
 
     const uid = request.auth.uid;
+    const targetUid = request.data.targetUid;
+
+    if (!targetUid) {
+        throw new HttpsError('invalid-argument', 'Target UID required');
+    }
+
     const db = admin.firestore();
     const presenceRef = db.collection('presence').doc(uid);
-    const presenceDoc = await presenceRef.get();
 
-    if (!presenceDoc.exists) {
-        throw new HttpsError('failed-precondition', 'No active session');
-    }
-
-    const presence = presenceDoc.data()!;
-    const currentCycle = presence.currentCycle;
-
-    if (!currentCycle) {
-        throw new HttpsError('failed-precondition', 'No active cycle');
-    }
-
-    // Identify the candidate being passed
-    const candidateUid = currentCycle.candidateUids[currentCycle.currentIndex] || null;
-
-    // Advance index and set lastViewedUid
-    const newIndex = currentCycle.currentIndex + 1;
-    const now = admin.firestore.Timestamp.now();
-
-    const updateData: any = {
-        'currentCycle.currentIndex': newIndex,
-        'currentCycle.lastSeenAt': now,
+    // Add to seen list and valid lastViewed
+    await presenceRef.update({
+        seenUids: admin.firestore.FieldValue.arrayUnion(targetUid),
+        lastViewedUid: targetUid,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
+    });
 
-    if (candidateUid) {
-        updateData.lastViewedUid = candidateUid;
-    }
-
-    await presenceRef.update(updateData);
-
-    return { success: true, newIndex };
+    return { success: true };
 }
