@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 // Admin emails from environment variable (client-side check - server should also validate)
 const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [
   'edoardo.mongardi18@gmail.com',
+  '468327494@qq.com',
 ];
 
 export default function AdminLayout({

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import AvailabilitySheet from '@/components/availability/AvailabilitySheet';
 import SuggestionCard from '@/components/matching/SuggestionCard';
 import TabNavigation from '@/components/home/TabNavigation';
 import InvitesTab from '@/components/home/InvitesTab';
-import OutgoingOfferCard from '@/components/offers/OutgoingOfferCard';
+import { ActiveInvitesRow } from '@/components/match/ActiveInvitesRow';
 import { usePresence } from '@/lib/hooks/usePresence';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -15,13 +15,19 @@ import { useOffers } from '@/lib/hooks/useOffers';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import MatchOverlay from '@/components/match/MatchOverlay';
 
 export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
-  const { isAvailable } = usePresence();
+  const { isAvailable, presence } = usePresence();
+  const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
+
+  // Suppression flag: If true, we are currently accepting an offer manually,
+  // so we should suppress the banner (and let InvitesTab redirect).
+  const isAcceptingRef = useRef(false);
 
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
@@ -40,6 +46,7 @@ export default function HomePage() {
       });
     }
   }, [searchParams, toast, router]);
+
   const {
     inboxOffers,
     inboxCount,
@@ -47,15 +54,13 @@ export default function HomePage() {
     inboxError,
     fetchInbox,
     respondToOffer,
-    outgoingOffer,
-    hasActiveOffer,
+    outgoingOffers,
+    canSendMore,
     fetchOutgoing,
     cancelOutgoingOffer,
-    outgoingLoading,
   } = useOffers();
 
   const [activeTab, setActiveTab] = useState<'discover' | 'invites'>('discover');
-  const [isCancelling, setIsCancelling] = useState(false);
 
   // Block features if email not verified
   const emailVerified = user?.emailVerified;
@@ -80,16 +85,46 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
 
-  // Redirect if offer is accepted
+  // Redirect if match detected via Presence (Canonical)
   useEffect(() => {
-    if (outgoingOffer?.status === 'accepted' && outgoingOffer.matchId) {
-      router.push(`/match/${outgoingOffer.matchId}`);
+    // If we are actively accepting an invite, suppress the presence listener
+    // to avoid the banner flashing before redirect.
+    if (isAcceptingRef.current) return;
+
+    if (presence?.matchId && presence.status === 'matched') {
+      setShowMatchOverlay(presence.matchId);
     }
-  }, [outgoingOffer, router]);
+  }, [presence]);
+
+  // Fallback: Redirect if offer is accepted (Legacy/Backup)
+  useEffect(() => {
+    if (showMatchOverlay) return; // Prioritize overlay
+    if (isAcceptingRef.current) return;
+
+    const acceptedOffer = outgoingOffers.find(o => o.status === 'accepted' && o.matchId);
+    if (acceptedOffer) {
+      setShowMatchOverlay(acceptedOffer.matchId || null);
+    }
+  }, [outgoingOffers, showMatchOverlay]);
+
+  const handleMatchOverlayComplete = () => {
+    if (showMatchOverlay) {
+      router.push(`/match/${showMatchOverlay}`);
+    }
+  };
 
   const handleAcceptOffer = async (offerId: string) => {
-    const result = await respondToOffer(offerId, 'accept');
-    return result;
+    // Set suppression flag to block Presence Overlay
+    isAcceptingRef.current = true;
+    try {
+      const result = await respondToOffer(offerId, 'accept');
+      // Intentionally NOT setting showMatchOverlay here.
+      // InvitesTab will handle the redirect.
+      return result;
+    } catch (error) {
+      isAcceptingRef.current = false; // Reset on failure
+      throw error;
+    }
   };
 
   const handleDeclineOffer = async (offerId: string) => {
@@ -97,16 +132,21 @@ export default function HomePage() {
   };
 
   const handleCancelOffer = async (offerId: string) => {
-    setIsCancelling(true);
-    try {
-      await cancelOutgoingOffer(offerId);
-    } finally {
-      setIsCancelling(false);
-    }
+    await cancelOutgoingOffer(offerId);
   };
 
   return (
     <div className="max-w-md mx-auto space-y-6">
+      {showMatchOverlay && user && (
+        <MatchOverlay
+          matchId={showMatchOverlay}
+          currentUserId={user.uid}
+          currentUserPhoto={userProfile?.photoURL}
+          onComplete={handleMatchOverlayComplete}
+          isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)}
+        />
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -181,21 +221,19 @@ export default function HomePage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                 >
-                  {/* Show outgoing offer if exists */}
-                  {hasActiveOffer && outgoingOffer && (
-                    <div className="mb-4">
-                      <OutgoingOfferCard
-                        offer={outgoingOffer}
-                        onCancel={handleCancelOffer}
-                        isCancelling={isCancelling || outgoingLoading}
-                      />
-                    </div>
+                  {/* Show active invites if exist */}
+                  {outgoingOffers.length > 0 && (
+                    <ActiveInvitesRow
+                      offers={outgoingOffers}
+                      onCancel={handleCancelOffer}
+                    />
                   )}
 
-                  {/* Show suggestion card if no active outgoing offer */}
-                  {!hasActiveOffer && (
-                    <SuggestionCard isAvailable={isAvailable} />
-                  )}
+                  {/* Always show suggestion card (unless functionality changes) */}
+                  <SuggestionCard
+                    isAvailable={isAvailable}
+                    canSendMore={canSendMore}
+                  />
                 </motion.div>
               ) : (
                 <motion.div

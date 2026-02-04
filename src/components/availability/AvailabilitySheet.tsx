@@ -98,8 +98,10 @@ export default function AvailabilitySheet() {
         lng: longitude
       });
 
-      if (!availability.data.ok || !availability.data.available) {
-        setNoPlacesMessage(availability.data.message || `No meetup spots found for ${activity}.`);
+      console.log('Availability check response:', availability);
+
+      if (!availability?.data || !availability.data.ok || !availability.data.available) {
+        setNoPlacesMessage(availability?.data?.message || `No meetup spots found for ${activity}.`);
         setShowNoPlacesDialog(true);
         setIsSubmitting(false);
         return;

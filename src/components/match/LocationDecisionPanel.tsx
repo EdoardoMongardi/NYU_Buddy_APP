@@ -132,7 +132,7 @@ export function LocationDecisionPanel({
                                     <strong>No picks?</strong> We&apos;ll choose the top suggestion.
                                 </p>
                                 <p className="text-sm text-gray-500 pt-2">
-                                    Places are ranked by distance from both of you.
+                                    Places are ranked by multiple factors considering both of you.
                                 </p>
                             </DialogDescription>
                         </DialogHeader>

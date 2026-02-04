@@ -6,6 +6,7 @@ import { presenceStartHandler } from './presence/start';
 import { presenceEndHandler } from './presence/end';
 import { suggestionGetTop1Handler } from './suggestions/getTop1';
 import { suggestionRespondHandler } from './suggestions/respond';
+import { suggestionGetCycleHandler, suggestionPassHandler } from './suggestions/getCycle';
 import {
   meetupRecommendHandler,
   updateMatchStatusHandler,
@@ -37,7 +38,7 @@ export const presenceEnd = onCall(
   presenceEndHandler
 );
 
-// Suggestion functions
+// Suggestion functions (legacy)
 export const suggestionGetTop1 = onCall(
   { region: 'us-east1' },
   suggestionGetTop1Handler
@@ -46,6 +47,17 @@ export const suggestionGetTop1 = onCall(
 export const suggestionRespond = onCall(
   { region: 'us-east1' },
   suggestionRespondHandler
+);
+
+// NEW: Cycle-based suggestion functions
+export const suggestionGetCycle = onCall(
+  { region: 'us-east1' },
+  suggestionGetCycleHandler
+);
+
+export const suggestionPass = onCall(
+  { region: 'us-east1' },
+  suggestionPassHandler
 );
 
 // Meetup functions

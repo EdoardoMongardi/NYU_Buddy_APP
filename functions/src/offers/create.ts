@@ -3,7 +3,8 @@ import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { getPlaceCandidates } from '../utils/places';
 
 const OFFER_TTL_MINUTES = 10;
-const COOLDOWN_SECONDS = 45;
+const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
+const MAX_ACTIVE_OFFERS = 3;
 
 interface OfferCreateData {
   targetUid: string;
@@ -83,9 +84,30 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     throw new HttpsError('failed-precondition', 'NO_PLACES_AVAILABLE');
   }
 
-  // Check for existing active outgoing offer
-  if (fromPresence.activeOutgoingOfferId) {
-    throw new HttpsError('failed-precondition', 'You already have an active offer pending');
+  // Check for max active offers (now supports up to 3)
+
+  // Check if already sent offer to this target
+  const existingOfferToTarget = await db.collection('offers')
+    .where('fromUid', '==', fromUid)
+    .where('toUid', '==', targetUid)
+    .where('status', '==', 'pending')
+    .where('expiresAt', '>', now)
+    .limit(1)
+    .get();
+
+  if (!existingOfferToTarget.empty) {
+    throw new HttpsError('already-exists', 'You already have an offer pending to this user');
+  }
+
+  // Count current active offers (filter out expired ones)
+  const activeOffersQuery = await db.collection('offers')
+    .where('fromUid', '==', fromUid)
+    .where('status', '==', 'pending')
+    .where('expiresAt', '>', now)
+    .get();
+
+  if (activeOffersQuery.size >= MAX_ACTIVE_OFFERS) {
+    throw new HttpsError('resource-exhausted', `Maximum ${MAX_ACTIVE_OFFERS} active offers allowed`);
   }
 
   // Check cooldown
@@ -109,25 +131,38 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
   }
 
   // Check neither is in an active match
-  const fromMatches = await db.collection('matches')
-    .where('status', 'in', ['pending', 'place_confirmed', 'heading_there', 'arrived'])
+  // Optimized Query: Check specifically for fromUid and targetUid
+  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+
+  const fromMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
     .get();
 
-  const isFromInMatch = fromMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === fromUid || data.user2Uid === fromUid;
-  });
+  const fromMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
 
-  if (isFromInMatch) {
+  if (!fromMatchesQuery.empty || !fromMatchesQuery2.empty) {
     throw new HttpsError('failed-precondition', 'You are already in an active match');
   }
 
-  const isToInMatch = fromMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === targetUid || data.user2Uid === targetUid;
-  });
+  const toMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', targetUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
 
-  if (isToInMatch) {
+  const toMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', targetUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
+
+  if (!toMatchesQuery.empty || !toMatchesQuery2.empty) {
     throw new HttpsError('failed-precondition', 'This person is already in an active match');
   }
 
@@ -174,22 +209,35 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       // Update reverse offer to accepted
       transaction.update(reverseOffer.ref, {
         status: 'accepted',
+        matchId: matchRef.id,
         respondedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Clear target's activeOutgoingOfferId
+      // Update target's presence (User A) - clear offers
       transaction.update(db.collection('presence').doc(targetUid), {
-        activeOutgoingOfferId: null,
+        activeOutgoingOfferIds: [],
+        activeOutgoingOfferId: null, // Legacy cleanup
         status: 'matched',
+        matchId: matchRef.id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Update sender's presence
+      // Update sender's presence (User B) - clear offers
       transaction.update(fromPresenceDoc.ref, {
+        activeOutgoingOfferIds: [],
         status: 'matched',
+        matchId: matchRef.id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     });
+
+    // Cleanup other pending offers (Post-transaction)
+    // We don't await this to return faster, or we await to ensure consistency?
+    // Safer to await to ensure user state is clean.
+    await import('./cleanup').then(m => Promise.all([
+      m.cleanupPendingOffers(db, fromUid, reverseOffer.id),
+      m.cleanupPendingOffers(db, targetUid, reverseOffer.id)
+    ]));
 
     return {
       offerId: reverseOffer.id,
@@ -197,6 +245,12 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       matchId: matchRef.id,
     };
   }
+
+  // Get target profile
+  const toUserDoc = await db.collection('users').doc(targetUid).get();
+  const toUserData = toUserDoc.data() || {};
+  const toDisplayName = toUserData.displayName || 'NYU Buddy';
+  const toPhotoURL = toUserData.photoURL || null;
 
   // Calculate offer expiration: min(10 min, sender expires, receiver expires)
   const tenMinFromNow = now.toMillis() + OFFER_TTL_MINUTES * 60 * 1000;
@@ -218,6 +272,8 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     transaction.set(offerRef, {
       fromUid,
       toUid: targetUid,
+      toDisplayName,
+      toPhotoURL,
       status: 'pending',
       activity: fromPresence.activity,
       fromDurationMinutes: fromPresence.durationMinutes,
@@ -230,9 +286,9 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       respondedAt: null,
     });
 
-    // Update sender's presence with active offer and cooldown
+    // Update sender's presence with active offer (add to array)
     transaction.update(fromPresenceDoc.ref, {
-      activeOutgoingOfferId: offerRef.id,
+      activeOutgoingOfferIds: admin.firestore.FieldValue.arrayUnion(offerRef.id),
       offerCooldownUntil: cooldownUntil,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });

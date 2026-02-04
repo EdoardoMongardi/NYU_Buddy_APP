@@ -64,11 +64,32 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
         respondedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Clear sender's activeOutgoingOfferId
+      // Remove from sender's activeOutgoingOfferIds array
       const senderPresenceRef = db.collection('presence').doc(offer.fromUid);
       transaction.update(senderPresenceRef, {
-        activeOutgoingOfferId: null,
+        activeOutgoingOfferIds: admin.firestore.FieldValue.arrayRemove(offerId),
+        // Track for cycle deprioritization
+        recentlyExpiredOfferUids: admin.firestore.FieldValue.arrayUnion(uid),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Create 6h mutual rejection cooldown
+      // Both users can't see each other for 6h
+      const rejectionId1 = `${uid}_${offer.fromUid}`;
+      const rejectionId2 = `${offer.fromUid}_${uid}`;
+
+      transaction.set(db.collection('suggestions').doc(rejectionId1), {
+        fromUid: uid,
+        toUid: offer.fromUid,
+        action: 'reject',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(db.collection('suggestions').doc(rejectionId2), {
+        fromUid: offer.fromUid,
+        toUid: uid,
+        action: 'reject',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     });
 
@@ -112,29 +133,46 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   }
 
   // Check neither is in an active match
-  const activeMatches = await db.collection('matches')
-    .where('status', 'in', ['pending', 'place_confirmed', 'heading_there', 'arrived'])
+  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+
+  // Check Sender (fromUid)
+  const fromMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', offer.fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
+  const fromMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', offer.fromUid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
     .get();
 
-  const isFromInMatch = activeMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === offer.fromUid || data.user2Uid === offer.fromUid;
-  });
-
-  if (isFromInMatch) {
+  if (!fromMatchesQuery.empty || !fromMatchesQuery2.empty) {
+    // First-accept-wins: sender is no longer available
     await offerRef.update({
       status: 'expired',
       respondedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    throw new HttpsError('failed-precondition', 'The other person is already in a match');
+    return {
+      matchCreated: false,
+      code: 'NO_LONGER_AVAILABLE',
+      message: 'Too late — they just matched with someone else.',
+    };
   }
 
-  const isToInMatch = activeMatches.docs.some(doc => {
-    const data = doc.data();
-    return data.user1Uid === uid || data.user2Uid === uid;
-  });
+  // Check Receiver (uid)
+  const toMatchesQuery = await db.collection('matches')
+    .where('user1Uid', '==', uid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
+  const toMatchesQuery2 = await db.collection('matches')
+    .where('user2Uid', '==', uid)
+    .where('status', 'in', activeStatuses)
+    .limit(1)
+    .get();
 
-  if (isToInMatch) {
+  if (!toMatchesQuery.empty || !toMatchesQuery2.empty) {
     throw new HttpsError('failed-precondition', 'You are already in an active match');
   }
 
@@ -152,21 +190,6 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   const [user1Uid, user2Uid] = offer.fromUid < uid
     ? [offer.fromUid, uid]
     : [uid, offer.fromUid];
-
-  // Get other pending offers to this user before transaction
-  const otherOffersSnapshot = await db.collection('offers')
-    .where('toUid', '==', uid)
-    .where('status', '==', 'pending')
-    .get();
-
-  // Get presence docs for other offer senders (to check if they exist)
-  const otherSenderUids = otherOffersSnapshot.docs
-    .filter(doc => doc.id !== offerId)
-    .map(doc => doc.data().fromUid);
-
-  const otherPresenceDocs = await Promise.all(
-    otherSenderUids.map(senderUid => db.collection('presence').doc(senderUid).get())
-  );
 
   await db.runTransaction(async (transaction) => {
     // Create match
@@ -198,9 +221,9 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
       respondedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update sender's presence
+    // Update sender's presence - clear all outgoing offers
     transaction.update(fromPresenceDoc.ref, {
-      activeOutgoingOfferId: null,
+      activeOutgoingOfferIds: [],
       status: 'matched',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -210,29 +233,17 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
       status: 'matched',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
-    // Decline all other pending offers to receiver
-    otherOffersSnapshot.docs.forEach((otherOffer, index) => {
-      if (otherOffer.id !== offerId) {
-        transaction.update(otherOffer.ref, {
-          status: 'expired',
-          respondedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        // Only update presence if it exists
-        const otherPresenceDoc = otherPresenceDocs[index];
-        if (otherPresenceDoc && otherPresenceDoc.exists) {
-          transaction.update(otherPresenceDoc.ref, {
-            activeOutgoingOfferId: null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
-      }
-    });
   });
+
+  // Post-match Cleanup using utility (Cancels all other offers involved)
+  await import('./cleanup').then(m => Promise.all([
+    m.cleanupPendingOffers(db, offer.fromUid, offerId),
+    m.cleanupPendingOffers(db, uid, offerId)
+  ]));
 
   return {
     matchCreated: true,
     matchId: matchRef.id,
+    activeMatchId: matchRef.id // Return ID for client state update
   };
 }

@@ -13,6 +13,7 @@ interface PresenceData {
   lat: number;
   lng: number;
   status: string;
+  matchId?: string;
   expiresAt: { toMillis: () => number };
 }
 

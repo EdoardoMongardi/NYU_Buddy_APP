@@ -18,6 +18,17 @@ export async function presenceEndHandler(request: CallableRequest) {
     return { success: true };
   }
 
+  // Cleanup pending offers (outgoing/incoming)
+  // We do this before deleting presence so the client sees updates
+  try {
+    // Dynamic import to avoid circular dependencies if any
+    const { cleanupPendingOffers } = await import('../offers/cleanup');
+    await cleanupPendingOffers(admin.firestore(), uid);
+  } catch (error) {
+    console.error('Error cleaning up offers:', error);
+    // Continue deleting presence even if cleanup fails
+  }
+
   await presenceRef.delete();
 
   return { success: true };

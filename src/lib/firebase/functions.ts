@@ -20,7 +20,7 @@ export const presenceStart = createCallable<
 
 export const presenceEnd = createCallable<void, { success: boolean }>('presenceEnd');
 
-// Suggestion functions
+// Suggestion functions (legacy)
 export const suggestionGetTop1 = createCallable<
   void,
   {
@@ -39,6 +39,39 @@ export const suggestionRespond = createCallable<
   { targetUid: string; action: 'pass' | 'accept' },
   { matchCreated: boolean; matchId?: string }
 >('suggestionRespond');
+
+// NEW: Cycle-based suggestion functions
+export interface CycleSuggestion {
+  uid: string;
+  displayName: string;
+  photoURL: string | null;
+  interests: string[];
+  activity: string;
+  distance: number;
+  durationMinutes: number;
+  explanation: string;
+}
+
+export interface CycleInfo {
+  total: number;
+  current: number;
+  isNewCycle: boolean;
+  isCycleEnd?: boolean;
+}
+
+export const suggestionGetCycle = createCallable<
+  { action?: 'next' | 'refresh' },
+  {
+    suggestion: CycleSuggestion | null;
+    cycleInfo: CycleInfo;
+    message?: string;
+  }
+>('suggestionGetCycle');
+
+export const suggestionPass = createCallable<
+  { targetUid: string },
+  { success: boolean; newIndex: number }
+>('suggestionPass');
 
 // Meetup functions
 export const meetupRecommend = createCallable<
@@ -109,6 +142,7 @@ export interface OutgoingOffer {
   offerId: string;
   toUid: string;
   toDisplayName: string;
+  toPhotoURL: string | null;
   activity: string;
   status: string;
   expiresAt: string;
@@ -119,10 +153,10 @@ export interface OutgoingOffer {
 export const offerGetOutgoing = createCallable<
   void,
   {
-    hasActiveOffer: boolean;
-    offer?: OutgoingOffer;
-    cooldownRemaining?: number;
-    lastOfferStatus?: string;
+    offers: OutgoingOffer[];
+    cooldownRemaining: number;
+    maxOffers: number;
+    canSendMore: boolean;
   }
 >('offerGetOutgoing');
 

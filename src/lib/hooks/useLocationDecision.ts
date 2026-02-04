@@ -74,6 +74,20 @@ export function useLocationDecision(matchId: string | null) {
     const [isSettingChoice, setIsSettingChoice] = useState(false);
     const [isResolving, setIsResolving] = useState(false);
 
+    // Trigger resolution (Defined early to be used in useEffect)
+    const triggerResolution = useCallback(async () => {
+        if (!matchId || isResolving) return;
+        setIsResolving(true);
+
+        try {
+            await matchResolvePlaceIfNeeded({ matchId });
+        } catch (err) {
+            console.error('Failed to resolve place:', err);
+        } finally {
+            setIsResolving(false);
+        }
+    }, [matchId, isResolving]);
+
     // Subscribe to match document
     useEffect(() => {
         if (!matchId || !user) {
@@ -108,7 +122,7 @@ export function useLocationDecision(matchId: string | null) {
         if (match.status !== 'location_deciding' && match.status !== 'pending') return;
 
         matchFetchAllPlaces({ matchId }).catch(console.error);
-    }, [matchId, match?.status, match?.placeCandidates?.length]);
+    }, [matchId, match]);
 
     // Countdown timer
     useEffect(() => {
@@ -133,10 +147,10 @@ export function useLocationDecision(matchId: string | null) {
         const interval = setInterval(updateCountdown, 1000);
 
         return () => clearInterval(interval);
-    }, [match?.locationDecision?.expiresAt, match?.status]);
+    }, [match?.locationDecision?.expiresAt, match?.status, triggerResolution]);
 
     // Derived state
-    const placeCandidates = match?.placeCandidates || [];
+    const placeCandidates = useMemo(() => match?.placeCandidates || [], [match?.placeCandidates]);
     const windows = useMemo(() => generateWindows(placeCandidates.length), [placeCandidates.length]);
     const currentWindow = windows[windowIndex] || [];
     const visibleCandidates = currentWindow.map(i => placeCandidates[i]).filter(Boolean);
@@ -191,27 +205,13 @@ export function useLocationDecision(matchId: string | null) {
         } finally {
             setIsSettingChoice(false);
         }
-    }, [matchId]);
+    }, [matchId, triggerResolution]);
 
     // "Go with their choice" - tick action
     const handleGoWithTheirChoice = useCallback(async () => {
         if (!otherChoice) return;
         await handleSetChoice(otherChoice.placeId, otherChoice.placeRank, true);
     }, [otherChoice, handleSetChoice]);
-
-    // Trigger resolution
-    const triggerResolution = useCallback(async () => {
-        if (!matchId || isResolving) return;
-        setIsResolving(true);
-
-        try {
-            await matchResolvePlaceIfNeeded({ matchId });
-        } catch (err) {
-            console.error('Failed to resolve place:', err);
-        } finally {
-            setIsResolving(false);
-        }
-    }, [matchId, isResolving]);
 
     // Get candidate by placeId
     const getCandidateByPlaceId = useCallback((placeId: string) => {

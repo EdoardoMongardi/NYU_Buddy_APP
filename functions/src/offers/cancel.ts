@@ -39,7 +39,7 @@ export async function offerCancelHandler(request: CallableRequest<OfferCancelDat
     throw new HttpsError('failed-precondition', 'This offer cannot be cancelled');
   }
 
-  // Cancel offer and clear presence
+  // Cancel offer and update presence
   await db.runTransaction(async (transaction) => {
     // Update offer status
     transaction.update(offerRef, {
@@ -47,10 +47,10 @@ export async function offerCancelHandler(request: CallableRequest<OfferCancelDat
       respondedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Clear sender's activeOutgoingOfferId (but keep cooldown)
+    // Remove offer from sender's activeOutgoingOfferIds array
     const presenceRef = db.collection('presence').doc(uid);
     transaction.update(presenceRef, {
-      activeOutgoingOfferId: null,
+      activeOutgoingOfferIds: admin.firestore.FieldValue.arrayRemove(offerId),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   });
