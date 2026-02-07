@@ -161,9 +161,22 @@ Used in `matches.locationDecision.resolutionReason`:
 
 **Issue:** Field name mismatch. Backend writes `cancellationReason`, but frontend TypeScript interface expects `cancelReason`.
 
-**Impact:** Frontend will not correctly read the cancellation reason field.
+**Impact (Pre-Phase 2):** Frontend will not correctly read the cancellation reason field.
 
 **Phase 1 Action:** Document only. Fixing this requires changing either backend writes or frontend interface, which could affect behavior. Recommend fixing in Phase 2 (interface alignment).
+
+**Phase 2.2-C Implementation (✅ RESOLVED):**
+1. ✅ Frontend Match interface now includes both `cancelReason` and `cancellationReason` fields
+2. ✅ Added `getCancellationReason()` helper function for backward-compatible read
+3. ✅ `useMatch` hook returns normalized `cancellationReason` field
+4. ✅ Match page updated to use normalized field from hook
+5. ✅ No backend changes required (maintains compatibility with existing data)
+
+**Code References:**
+- ✅ Frontend fix: `src/lib/hooks/useMatch.ts:24-30` (helper function)
+- ✅ Frontend fix: `src/lib/hooks/useMatch.ts:165-169` (hook return)
+- ✅ Frontend fix: `src/app/(protected)/match/[matchId]/page.tsx:67,187-189` (usage)
+- Backend writes: `functions/src/matches/cancel.ts:108`
 
 ---
 
@@ -247,7 +260,7 @@ export const TERMINAL_MATCH_STATUSES = [
 **Lifecycle:**
 1. Match created with `status: 'pending'` (via `offerCreate` or `offerRespond`)
 2. Expected transition: `pending` → `location_deciding` via client-invoked `matchFetchAllPlaces`
-3. **Problem:** No server-side timeout or scheduled job forces this transition
+3. **Problem (Pre-Phase 2):** No server-side timeout or scheduled job forces this transition
 
 **When This Occurs:**
 - User closes app immediately after match creation
@@ -261,7 +274,7 @@ export const TERMINAL_MATCH_STATUSES = [
 - User cannot create/accept new offers
 - Both users have committed to the match (offer accepted)
 
-**Impact:**
+**Impact (Pre-Phase 2):**
 - Database growth (stale `pending` matches accumulate)
 - Users remain in "matched" presence state until manual intervention
 - No automatic cleanup mechanism exists
@@ -272,17 +285,74 @@ export const TERMINAL_MATCH_STATUSES = [
 - Discovery filtering works correctly
 - No immediate functional bug, but operational concern
 
-**Phase 2 Recommendations:**
-1. Add scheduled Cloud Function to auto-cancel `pending` matches after timeout (e.g., 15 minutes)
-2. Add `matchedAt` timestamp check in scheduled job
-3. Cancel with reason: `'timeout_pending'` or `'no_place_fetch'`
-4. Restore user presence to `available` status
-5. Document timeout value in constants
+**Phase 2 Implementation (✅ RESOLVED):**
+1. ✅ Added scheduled Cloud Function `matchCleanupStalePending` (runs every 5 minutes)
+2. ✅ Auto-cancels `pending` matches older than 15 minutes based on `matchedAt` timestamp
+3. ✅ Cancellation reason: `'timeout_pending'`
+4. ✅ Restores both users' presence to `available` status (if not expired)
+5. ✅ No reliability penalty applied (system-initiated cancellation)
+6. ✅ Timeout constant: `PENDING_TIMEOUT_MINUTES = 15` in `functions/src/matches/cleanupStalePending.ts`
 
 **Code References:**
 - Match creation: `functions/src/offers/respond.ts:196-215`, `functions/src/offers/create.ts:188-207`
 - Expected transition: `functions/src/matches/fetchPlaces.ts:157`
-- No timeout mechanism: Verified via grep (no scheduled job for pending matches)
+- ✅ Cleanup job: `functions/src/matches/cleanupStalePending.ts`
+- ✅ Shared cancellation logic: `functions/src/matches/cancel.ts:cancelMatchInternal`
+
+---
+
+### 8.2 Expired `pending` Offers
+
+**Issue:** Offers can remain in `pending` status after `expiresAt` passes until someone responds.
+
+**Lifecycle:**
+1. Offer created with `status: 'pending'` and `expiresAt` timestamp (TTL: 10 minutes)
+2. Expected transition: `pending` → `accepted`/`declined` via user response
+3. **Problem (Pre-Phase 2):** If no response occurs, offer stays `pending` even after expiry
+
+**When This Occurs:**
+- Recipient never sees the offer (closes app, network issues)
+- Recipient ignores the offer until it expires
+- UI fails to show expired state
+
+**Impact (Pre-Phase 2):**
+- Database growth (expired offers accumulate)
+- Sender's `activeOutgoingOfferIds` slots remain occupied
+- Sender may be blocked from sending new offers due to `MAX_ACTIVE_OFFERS` limit
+
+**Phase 2 Implementation (✅ RESOLVED):**
+1. ✅ Added scheduled Cloud Function `offerExpireStale` (runs every 5 minutes)
+2. ✅ Marks `pending` offers with `expiresAt < now` as `status: 'expired'`
+3. ✅ Frees sender's `activeOutgoingOfferIds` slots in presence document
+4. ✅ Batch processing (up to 100 offers per run)
+5. ✅ Idempotent and safe (checks status before updating)
+
+**Code References:**
+- Offer creation: `functions/src/offers/create.ts:266-303`
+- ✅ Cleanup job: `functions/src/offers/expireStale.ts`
+- Expected manual expiry: `functions/src/offers/respond.ts:49-55`
+
+---
+
+## 9. Phase 2 Cancellation Reason Strings
+
+**New Cancellation Reasons (Phase 2):**
+
+| Reason String | Usage | Penalty |
+|---------------|-------|---------|
+| `timeout_pending` | Match stuck in `pending` for >15 min (auto-cancelled by `matchCleanupStalePending`) | None (system) |
+| `system_cleanup` | Generic system-initiated cancellation | None (system) |
+
+**Existing Cancellation Reasons:**
+
+| Reason String | Usage | Penalty |
+|---------------|-------|---------|
+| `no_places_available` | Match cancelled due to zero place candidates | None (system) |
+| `safety_concern` | User-reported safety issue | None (user) |
+| `blocked` | Match cancelled due to blocking action | None (system) |
+| (user-provided) | Free-form user cancellation reason | 0.3 default, 0.5 severe |
+
+**Code Reference:** `functions/src/matches/cancel.ts:65-80`
 
 ---
 

@@ -19,7 +19,21 @@ interface Match {
   placeConfirmedBy?: string;
   cancelledBy?: string;
   cancelledAt?: { toDate: () => Date };
+  // Phase 2.2-C: Backend writes 'cancellationReason', frontend previously expected 'cancelReason'
+  // Support both for backward compatibility
   cancelReason?: string;
+  cancellationReason?: string;
+}
+
+/**
+ * Phase 2.2-C: Normalize cancellation reason field.
+ * Backend writes 'cancellationReason', but frontend previously expected 'cancelReason'.
+ * This helper provides backward-compatible read.
+ */
+function getCancellationReason(match: Match | null): string | undefined {
+  if (!match) return undefined;
+  // Prefer cancelReason (legacy), fallback to cancellationReason (current backend field)
+  return match.cancelReason ?? match.cancellationReason;
 }
 
 interface Place {
@@ -150,6 +164,7 @@ export function useMatch(matchId: string | null) {
   }, [matchId]);
 
   const myStatus = match && user ? match.statusByUser[user.uid] : null;
+  const cancellationReason = getCancellationReason(match);
 
   return {
     match,
@@ -160,5 +175,6 @@ export function useMatch(matchId: string | null) {
     updateStatus,
     fetchRecommendations,
     myStatus,
+    cancellationReason, // Phase 2.2-C: Normalized cancellation reason
   };
 }

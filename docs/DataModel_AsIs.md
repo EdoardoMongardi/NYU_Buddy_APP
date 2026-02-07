@@ -786,13 +786,16 @@ The following data is denormalized for performance:
 | Task | Schedule | Action | Code Reference |
 |------|----------|--------|----------------|
 | `matchResolveExpired` | Every 1 minute | Resolve `location_deciding` matches past deadline | `functions/src/matches/resolveExpired.ts` |
+| `matchCleanupStalePending` ✅ Phase 2 | Every 5 minutes | Cancel `pending` matches older than 15 minutes | `functions/src/matches/cleanupStalePending.ts` |
+| `offerExpireStale` ✅ Phase 2 | Every 5 minutes | Mark expired `pending` offers as `expired`, free sender slots | `functions/src/offers/expireStale.ts` |
 
 ### No Cleanup (Potential Data Growth)
 
 | Collection | Issue | Notes |
 |------------|-------|-------|
-| `offers` | Expired offers remain | Status marked `'expired'` but document persists |
-| `matches` | Completed/cancelled matches remain | No TTL or archival |
+| `offers` | ~~Expired offers remain~~ ✅ Phase 2: RESOLVED | ~~Status marked `'expired'` but document persists~~ Now auto-marked by `offerExpireStale` |
+| `matches` | ~~Stale pending matches~~ ✅ Phase 2: RESOLVED | ~~No timeout for pending state~~ Now auto-cancelled by `matchCleanupStalePending` after 15 min |
+| `matches` | Completed/cancelled matches remain | No TTL or archival (terminal state cleanup not in scope) |
 | `feedback` | All feedback retained | No deletion policy |
 | `reports` | All reports retained | No deletion policy |
 | `suggestions` | All rejection records retained | Filtered by timestamp, but documents persist |
@@ -820,11 +823,23 @@ The following data is denormalized for performance:
 
 ### 15.3 Frontend/Backend Field Name Mismatch
 
-| Collection | Backend Field | Frontend Field | Issue |
-|------------|---------------|----------------|-------|
-| `matches` | `cancellationReason` | `cancelReason` (in `useMatch.ts:21`) | Frontend interface won't read the field correctly |
+| Collection | Backend Field | Frontend Field | Status |
+|------------|---------------|----------------|--------|
+| `matches` | `cancellationReason` | `cancelReason` (in `useMatch.ts:21`) | ✅ Phase 2.2-C: RESOLVED |
 
-The backend writes `cancellationReason` (`matches/cancel.ts:108`) but the frontend TypeScript interface expects `cancelReason`.
+**Pre-Phase 2 Issue:** The backend writes `cancellationReason` (`matches/cancel.ts:108`) but the frontend TypeScript interface expects `cancelReason`.
+
+**Phase 2.2-C Resolution:**
+- Frontend Match interface now includes both `cancelReason` and `cancellationReason` fields for backward compatibility
+- Added `getCancellationReason()` helper function that prefers `cancelReason` (legacy) and falls back to `cancellationReason` (current)
+- `useMatch` hook returns normalized `cancellationReason` field
+- Match page updated to use normalized field from hook
+- No backend changes required (maintains compatibility with existing data)
+
+**Code References:**
+- Backend: `functions/src/matches/cancel.ts:108`
+- Frontend: `src/lib/hooks/useMatch.ts:24-30` (helper), `src/lib/hooks/useMatch.ts:165-169` (return)
+- Usage: `src/app/(protected)/match/[matchId]/page.tsx:67,187-189`
 
 ### 15.4 Missing Security Rules
 
@@ -836,7 +851,7 @@ The following collection has no security rules defined in `firestore.rules`:
 
 ### 15.5 Index Requirements
 
-**Declared Indexes** (`firestore.indexes.json` — 12 composite indexes):
+**Declared Indexes** (`firestore.indexes.json` — 15 composite indexes):
 
 | # | Collection | Fields | Purpose |
 |---|------------|--------|---------|
@@ -852,12 +867,14 @@ The following collection has no security rules defined in `firestore.rules`:
 | 10 | `offers` | `fromUid`, `status`, `expiresAt` | Active offer count |
 | 11 | `offers` | `toUid`, `status`, `expiresAt` | Cleanup query |
 | 12 | `places` | `active`, `geohash` | Place geohash query |
+| 13 ✅ Phase 2 | `matches` | `status`, `matchedAt` | Stale pending match cleanup (`matchCleanupStalePending`) |
+| 14 ✅ Phase 2 | `offers` | `status`, `expiresAt` | Expired offer cleanup (`offerExpireStale`) |
+| 15 ✅ Phase 2 | `matches` | `status`, `locationDecision.expiresAt` | Expired location decision resolution (`matchResolveExpired`) |
 
 **Missing Indexes** (required by code but NOT in `firestore.indexes.json`):
 
 | Collection | Fields | Query Location | Impact |
 |------------|--------|----------------|--------|
-| `matches` | `status`, `locationDecision.expiresAt` | `resolveExpired.ts:15-18` | Scheduled job may fail or require full scan |
 | `sessionHistory/{uid}/sessions` | `createdAt` | `presence/start.ts:53-58` | Subcollection index; rate limit query may be slow |
 
 ### 15.6 Activity List Mismatch

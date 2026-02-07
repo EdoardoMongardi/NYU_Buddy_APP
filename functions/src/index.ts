@@ -22,6 +22,8 @@ import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
 import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
 import { matchResolveExpiredHandler } from './matches/resolveExpired';
+import { matchCleanupStalePendingHandler } from './matches/cleanupStalePending';
+import { offerExpireStaleHandler } from './offers/expireStale';
 import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
 
 // Initialize Firebase Admin
@@ -128,6 +130,18 @@ export const matchResolvePlaceIfNeeded = onCall(
 export const matchResolveExpired = onSchedule(
   { schedule: 'every 1 minutes', region: 'us-east1' },
   matchResolveExpiredHandler
+);
+
+// Phase 2.1-A: Auto-cancel stale pending matches every 5 minutes
+export const matchCleanupStalePending = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  matchCleanupStalePendingHandler
+);
+
+// Phase 2.1-B: Mark expired pending offers as expired every 5 minutes
+export const offerExpireStale = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  offerExpireStaleHandler
 );
 
 export const checkAvailabilityForUser = onCall(
