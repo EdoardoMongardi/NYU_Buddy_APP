@@ -45,8 +45,22 @@ All timestamps use `admin.firestore.Timestamp` (server) or `serverTimestamp()` (
 
 ### Entity Relationship Diagram
 
+> **Note on Subcollections:** Collections `blocks` and `sessionHistory` use Firestore's subcollection pattern. The parent documents (`blocks/{uid}` and `sessionHistory/{uid}`) serve as path containers and may not exist as actual documents—only their subcollections (`blocked` and `sessions`) contain data.
+
 ```mermaid
 erDiagram
+    %% Firestore Collection Paths:
+    %% users/{uid}
+    %% presence/{uid}
+    %% offers/{offerId}
+    %% matches/{matchId}
+    %% places/{placeId}
+    %% feedback/{matchId}_{uid}
+    %% reports/{matchId}_{uid}
+    %% suggestions/{fromUid}_{toUid}
+    %% blocks/{uid}/blocked/{blockedUid} (subcollection)
+    %% sessionHistory/{uid}/sessions/{sessionId} (subcollection)
+
     users {
         string uid PK
         string email
@@ -69,9 +83,9 @@ erDiagram
         number lat
         number lng
         string geohash
-        string status "available|matched"
+        string status
         string sessionId
-        string[] activeOutgoingOfferIds FK
+        string[] activeOutgoingOfferIds
         string matchId FK
         number exposureScore
         Timestamp expiresAt
@@ -83,9 +97,9 @@ erDiagram
         string id PK
         string fromUid FK
         string toUid FK
-        string toDisplayName "denormalized"
-        string toPhotoURL "denormalized"
-        string status "pending|accepted|declined|expired|cancelled"
+        string toDisplayName
+        string toPhotoURL
+        string status
         string activity
         number distanceMeters
         string matchId FK
@@ -98,14 +112,14 @@ erDiagram
         string id PK
         string user1Uid FK
         string user2Uid FK
-        string status "pending|location_deciding|place_confirmed|heading_there|arrived|completed|cancelled"
+        string status
         object statusByUser
         string offerId FK
         string activity
-        array placeCandidates "denormalized"
+        array placeCandidates
         string confirmedPlaceId FK
-        string confirmedPlaceName "denormalized"
-        string confirmedPlaceAddress "denormalized"
+        string confirmedPlaceName
+        string confirmedPlaceAddress
         string cancelledBy FK
         Timestamp matchedAt
         Timestamp updatedAt
@@ -127,7 +141,7 @@ erDiagram
     }
 
     feedback {
-        string id PK "matchId_uid"
+        string id PK
         string matchId FK
         string uid FK
         boolean didMeet
@@ -138,7 +152,7 @@ erDiagram
     }
 
     reports {
-        string id PK "matchId_reportingUid"
+        string id PK
         string reportedBy FK
         string reportedUser FK
         string matchId FK
@@ -146,20 +160,11 @@ erDiagram
         Timestamp createdAt
     }
 
-    blocks {
-        string blockerUid PK,FK
-    }
-
-    blocked_subcollection {
-        string blockedUid PK,FK
-        Timestamp blockedAt
-    }
-
     suggestions {
-        string id PK "fromUid_toUid"
+        string id PK
         string fromUid FK
         string toUid FK
-        string action "pass|accept|reject"
+        string action
         Timestamp createdAt
     }
 
@@ -174,35 +179,33 @@ erDiagram
         Timestamp createdAt
     }
 
-    %% Core user relationships
-    users ||--o| presence : "has active"
-    users ||--o{ sessionHistory : "has history"
-    users ||--o{ blocks : "can block"
+    blocks {
+        string blockerUid PK,FK
+    }
 
-    %% Offer relationships
-    users ||--o{ offers : "sends (fromUid)"
-    users ||--o{ offers : "receives (toUid)"
-    offers |o--o| matches : "creates"
+    blocked_subcollection {
+        string blockedUid PK,FK
+        Timestamp blockedAt
+    }
 
-    %% Match relationships
-    users ||--o{ matches : "participates (user1Uid)"
-    users ||--o{ matches : "participates (user2Uid)"
-    matches }o--o| places : "confirms place"
-    matches ||--o{ feedback : "receives"
-    matches ||--o{ reports : "receives"
-
-    %% Presence relationships
-    presence }o--o{ offers : "has active (activeOutgoingOfferIds)"
-    presence |o--o| matches : "linked to (matchId)"
-
-    %% Suggestion relationships
-    users ||--o{ suggestions : "initiates (fromUid)"
-    users ||--o{ suggestions : "targets (toUid)"
-
-    %% Subcollection relationships
+    %% Relationships
+    users ||--o| presence : "has"
+    users ||--o| sessionHistory : "has"
+    sessionHistory ||--o{ sessions_subcollection : "contains"
+    users ||--o| blocks : "has"
     blocks ||--o{ blocked_subcollection : "contains"
     blocked_subcollection }o--|| users : "references"
-    sessionHistory ||--o{ sessions_subcollection : "contains"
+    users ||--o{ offers : "sends"
+    users ||--o{ offers : "receives"
+    offers |o--o| matches : "creates"
+    users ||--o{ matches : "participates"
+    users ||--o{ matches : "participates"
+    matches }o--o| places : "at"
+    matches ||--o{ feedback : "receives"
+    matches ||--o{ reports : "receives"
+    users ||--o{ suggestions : "from"
+    users ||--o{ suggestions : "to"
+    presence |o--o| matches : "linked"
 ```
 
 ### Relationship Summary
