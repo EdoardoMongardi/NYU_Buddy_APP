@@ -34,11 +34,11 @@ service cloud.firestore {
     }
 
     // Presence collection
-    // Anyone authenticated can read (for matching)
-    // Only Cloud Functions should write (but allow for development)
+    // Phase 3: Locked down to Cloud Functions only
+    // Anyone authenticated can read (for matching/discovery)
     match /presence/{uid} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(uid);
+      allow write: if false; // Phase 3: All writes via Cloud Functions (presenceStart, presenceEnd)
     }
 
     // Suggestions collection
@@ -64,15 +64,12 @@ service cloud.firestore {
     }
 
     // Matches collection
-    // Participants can read their matches
-    // Status updates via Cloud Functions
-    // Matches collection
-    // Participants can read their matches
-    // Status updates via Cloud Functions
+    // Phase 3: Locked down to participant-only access
+    // All writes via Cloud Functions only
     match /matches/{matchId} {
-      allow read: if isAuthenticated();
+      allow read: if isMatchParticipant(resource.data);
       allow create: if false; // Created by functions
-      allow update: if isMatchParticipant(resource.data);
+      allow update: if false; // Phase 3: All updates via Cloud Functions
       allow delete: if false;
     }
 
@@ -108,6 +105,13 @@ service cloud.firestore {
     // Users can read and write their own blocks
     match /blocks/{uid}/blocked/{blockedUid} {
       allow read, write: if isOwner(uid);
+    }
+
+    // Session History collection (subcollection under users)
+    // Phase 3: Backend-only collection for rate limiting
+    // Cloud Functions Admin SDK bypasses these rules
+    match /sessionHistory/{uid}/sessions/{sessionId} {
+      allow read, write: if false; // Explicit deny for client SDK
     }
   }
 }
