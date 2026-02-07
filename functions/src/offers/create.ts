@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { getPlaceCandidates } from '../utils/places';
+import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 
 const OFFER_TTL_MINUTES = 10;
 const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
@@ -132,7 +133,7 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
 
   // Check neither is in an active match
   // Optimized Query: Check specifically for fromUid and targetUid
-  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+  const activeStatuses = ACTIVE_MATCH_STATUSES;
 
   const fromMatchesQuery = await db.collection('matches')
     .where('user1Uid', '==', fromUid)

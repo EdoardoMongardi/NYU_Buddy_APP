@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
+import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 
 interface OfferRespondData {
   offerId: string;
@@ -133,7 +134,7 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   }
 
   // Check neither is in an active match
-  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+  const activeStatuses = ACTIVE_MATCH_STATUSES;
 
   // Check Sender (fromUid)
   const fromMatchesQuery = await db.collection('matches')

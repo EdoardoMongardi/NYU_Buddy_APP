@@ -12,6 +12,7 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import * as geofire from 'geofire-common';
+import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 
 // Configuration
 const REJECTION_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -172,12 +173,12 @@ async function fetchAndRankCandidates(
     const matchesAsUser1 = await db
         .collection('matches')
         .where('user1Uid', '==', uid)
-        .where('status', 'in', ['pending', 'location_deciding', 'place_confirmed', 'in_meetup'])
+        .where('status', 'in', ACTIVE_MATCH_STATUSES)
         .get();
     const matchesAsUser2 = await db
         .collection('matches')
         .where('user2Uid', '==', uid)
-        .where('status', 'in', ['pending', 'location_deciding', 'place_confirmed', 'in_meetup'])
+        .where('status', 'in', ACTIVE_MATCH_STATUSES)
         .get();
     const matchedUids = new Set([
         ...matchesAsUser1.docs.map((doc) => doc.data().user2Uid),

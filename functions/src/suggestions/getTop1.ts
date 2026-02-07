@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import * as geofire from 'geofire-common';
+import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 
 // Configuration
 const COOLDOWN_DAYS = 3;
@@ -246,13 +247,13 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
   const matchesAsUser1 = await db
     .collection('matches')
     .where('user1Uid', '==', uid)
-    .where('status', 'in', ['pending', 'heading_there', 'arrived'])
+    .where('status', 'in', ACTIVE_MATCH_STATUSES)
     .get();
 
   const matchesAsUser2 = await db
     .collection('matches')
     .where('user2Uid', '==', uid)
-    .where('status', 'in', ['pending', 'heading_there', 'arrived'])
+    .where('status', 'in', ACTIVE_MATCH_STATUSES)
     .get();
 
   const matchedUids = new Set([
