@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase/client';
-import { updateMatchStatus, meetupRecommend } from '@/lib/firebase/functions';
+import { updateMatchStatus } from '@/lib/firebase/functions';
 import { useAuth } from './useAuth';
 
 interface Match {
@@ -36,16 +36,6 @@ function getCancellationReason(match: Match | null): string | undefined {
   return match.cancelReason ?? match.cancellationReason;
 }
 
-interface Place {
-  id: string;
-  name: string;
-  category: string;
-  address: string;
-  distance: number;
-  lat?: number;
-  lng?: number;
-}
-
 export function useMatch(matchId: string | null) {
   const { user } = useAuth();
   const [match, setMatch] = useState<Match | null>(null);
@@ -54,7 +44,6 @@ export function useMatch(matchId: string | null) {
     photoURL?: string | null;
     interests: string[];
   } | null>(null);
-  const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -152,28 +141,15 @@ export function useMatch(matchId: string | null) {
     [matchId]
   );
 
-  const fetchRecommendations = useCallback(async () => {
-    if (!matchId) return;
-
-    try {
-      const result = await meetupRecommend({ matchId });
-      setPlaces(result.data.places);
-    } catch (err) {
-      console.error('Failed to fetch recommendations:', err);
-    }
-  }, [matchId]);
-
   const myStatus = match && user ? match.statusByUser[user.uid] : null;
   const cancellationReason = getCancellationReason(match);
 
   return {
     match,
     otherUserProfile,
-    places,
     loading,
     error,
     updateStatus,
-    fetchRecommendations,
     myStatus,
     cancellationReason, // Phase 2.2-C: Normalized cancellation reason
   };

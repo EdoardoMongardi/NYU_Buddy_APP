@@ -8,17 +8,13 @@ import { presenceCleanupExpiredHandler } from './presence/cleanupExpired';
 import { suggestionGetTop1Handler } from './suggestions/getTop1';
 import { suggestionRespondHandler } from './suggestions/respond';
 import { suggestionGetCycleHandler, suggestionPassHandler } from './suggestions/getCycle';
-import {
-  meetupRecommendHandler,
-  updateMatchStatusHandler,
-} from './meetup/recommend';
 import { offerCreateHandler } from './offers/create';
 import { offerRespondHandler } from './offers/respond';
 import { offerCancelHandler } from './offers/cancel';
 import { offersGetInboxHandler } from './offers/getInbox';
 import { offerGetOutgoingHandler } from './offers/getOutgoing';
-import { matchConfirmPlaceHandler } from './matches/confirmPlace';
 import { matchCancelHandler } from './matches/cancel';
+import { updateMatchStatusHandler } from './matches/updateStatus';
 import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
 import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
@@ -65,12 +61,7 @@ export const suggestionPass = onCall(
   suggestionPassHandler
 );
 
-// Meetup functions
-export const meetupRecommend = onCall(
-  { region: 'us-east1' },
-  meetupRecommendHandler
-);
-
+// Match Status function
 export const updateMatchStatus = onCall(
   { region: 'us-east1' },
   updateMatchStatusHandler
@@ -103,11 +94,6 @@ export const offerGetOutgoing = onCall(
 );
 
 // Match functions
-export const matchConfirmPlace = onCall(
-  { region: 'us-east1' },
-  matchConfirmPlaceHandler
-);
-
 export const matchCancel = onCall(
   { region: 'us-east1' },
   matchCancelHandler
