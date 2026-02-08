@@ -20,38 +20,73 @@ export function useNotifications() {
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
   const [isSupported, setIsSupported] = useState(false);
 
-  // Check if notifications are supported
+  // Check if notifications are supported and register service worker
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setIsSupported(true);
       setPermissionStatus(Notification.permission);
+
+      // Register service worker for background notifications
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .register('/firebase-messaging-sw.js')
+          .then((registration) => {
+            console.log('[Notifications] Service Worker registered:', registration);
+          })
+          .catch((error) => {
+            console.error('[Notifications] Service Worker registration failed:', error);
+          });
+      }
     }
   }, []);
 
   // Request notification permission and register FCM token
-  const requestPermission = async (): Promise<boolean> => {
-    if (!isSupported || !user || !app || !db) {
-      console.log('[Notifications] Not supported or user not authenticated');
-      return false;
+  const requestPermission = async (): Promise<{ success: boolean; error?: string }> => {
+    console.log('[Notifications] Starting permission request...');
+    console.log('[Notifications] isSupported:', isSupported);
+    console.log('[Notifications] user:', !!user);
+    console.log('[Notifications] app:', !!app);
+    console.log('[Notifications] db:', !!db);
+    console.log('[Notifications] VAPID_KEY:', !!VAPID_KEY);
+
+    if (!isSupported) {
+      const error = 'Notifications are not supported in this browser';
+      console.error('[Notifications]', error);
+      return { success: false, error };
+    }
+
+    if (!user || !app || !db) {
+      const error = 'User not authenticated or Firebase not initialized';
+      console.error('[Notifications]', error);
+      return { success: false, error };
     }
 
     if (!VAPID_KEY) {
-      console.error('[Notifications] VAPID key not configured');
-      return false;
+      const error = 'VAPID key not configured. Please add NEXT_PUBLIC_FIREBASE_VAPID_KEY to your .env.local file';
+      console.error('[Notifications]', error);
+      alert('Configuration Error: VAPID key is missing. Please contact support.');
+      return { success: false, error };
     }
 
     try {
+      console.log('[Notifications] Requesting notification permission...');
+
       // Request notification permission
       const permission = await Notification.requestPermission();
+      console.log('[Notifications] Permission result:', permission);
       setPermissionStatus(permission);
 
       if (permission !== 'granted') {
-        console.log('[Notifications] Permission denied by user');
-        return false;
+        const error = 'Notification permission denied by user';
+        console.log('[Notifications]', error);
+        return { success: false, error };
       }
 
+      console.log('[Notifications] Getting FCM messaging instance...');
       // Get FCM token
       const messaging = getMessaging(app);
+
+      console.log('[Notifications] Requesting FCM token...');
       const token = await getToken(messaging, {
         vapidKey: VAPID_KEY,
       });
@@ -61,12 +96,14 @@ export function useNotifications() {
 
         // Save token to user document
         const userRef = doc(db, 'users', user.uid);
+        console.log('[Notifications] Saving token to Firestore...');
+
         await updateDoc(userRef, {
           fcmToken: token,
           updatedAt: serverTimestamp(),
         });
 
-        console.log('[Notifications] FCM token saved to Firestore');
+        console.log('[Notifications] ✅ FCM token saved to Firestore successfully!');
 
         // Listen for foreground messages
         onMessage(messaging, (payload) => {
@@ -76,19 +113,22 @@ export function useNotifications() {
           if (payload.notification) {
             new Notification(payload.notification.title || 'NYU Buddy', {
               body: payload.notification.body,
-              icon: '/icon.png', // Ensure you have an icon in public folder
+              icon: '/icon.png',
+              badge: '/badge.png',
             });
           }
         });
 
-        return true;
+        return { success: true };
       } else {
-        console.error('[Notifications] Failed to get FCM token');
-        return false;
+        const error = 'Failed to obtain FCM token';
+        console.error('[Notifications]', error);
+        return { success: false, error };
       }
     } catch (error) {
       console.error('[Notifications] Error requesting permission:', error);
-      return false;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      return { success: false, error: errorMessage };
     }
   };
 
