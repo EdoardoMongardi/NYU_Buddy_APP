@@ -23,7 +23,13 @@ export default function NotificationPrompt() {
     if (dismissed === 'true') {
       setIsDismissed(true);
     }
-  }, []);
+
+    // Log why prompt might not be showing
+    console.log('[NotificationPrompt] isSupported:', isSupported);
+    console.log('[NotificationPrompt] permissionStatus:', permissionStatus);
+    console.log('[NotificationPrompt] isDismissed:', dismissed === 'true');
+    console.log('[NotificationPrompt] shouldShow:', isSupported && permissionStatus !== 'granted' && dismissed !== 'true');
+  }, [isSupported, permissionStatus]);
 
   // Only show if:
   // 1. Notifications are supported
