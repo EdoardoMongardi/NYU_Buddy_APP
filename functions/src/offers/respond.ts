@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 import { requireEmailVerification } from '../utils/verifyEmail';
+import { sendMatchCreatedNotification } from '../utils/notifications';
 
 interface OfferRespondData {
   offerId: string;
@@ -247,6 +248,24 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     m.cleanupPendingOffers(db, offer.fromUid, offerId),
     m.cleanupPendingOffers(db, uid, offerId)
   ]));
+
+  // U16: Send push notifications to both users
+  // Fetch user profiles for display names
+  const [user1Doc, user2Doc] = await Promise.all([
+    db.collection('users').doc(user1Uid).get(),
+    db.collection('users').doc(user2Uid).get(),
+  ]);
+
+  const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
+  const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
+
+  // Send notifications to both users (fire-and-forget)
+  Promise.all([
+    sendMatchCreatedNotification(user1Uid, user2DisplayName, matchRef.id),
+    sendMatchCreatedNotification(user2Uid, user1DisplayName, matchRef.id),
+  ]).catch((err) => {
+    console.error('[offerRespond] Failed to send match notifications:', err);
+  });
 
   return {
     matchCreated: true,

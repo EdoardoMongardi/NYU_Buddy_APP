@@ -3,6 +3,7 @@ import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { getPlaceCandidates } from '../utils/places';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 import { requireEmailVerification } from '../utils/verifyEmail';
+import { sendOfferReceivedNotification, sendMatchCreatedNotification } from '../utils/notifications';
 
 const OFFER_TTL_MINUTES = 10;
 const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
@@ -255,6 +256,24 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
         m.cleanupPendingOffers(db, targetUid, reverseOffer.id)
       ]));
 
+      // U16: Send push notifications to both users (mutual match)
+      // Fetch user profiles for display names
+      const [user1Doc, user2Doc] = await Promise.all([
+        db.collection('users').doc(user1Uid).get(),
+        db.collection('users').doc(user2Uid).get(),
+      ]);
+
+      const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
+      const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
+
+      // Send notifications to both users (fire-and-forget)
+      Promise.all([
+        sendMatchCreatedNotification(user1Uid, user2DisplayName, matchRef.id),
+        sendMatchCreatedNotification(user2Uid, user1DisplayName, matchRef.id),
+      ]).catch((err) => {
+        console.error('[offerCreate-mutualMatch] Failed to send match notifications:', err);
+      });
+
       return {
         offerId: reverseOffer.id,
         matchCreated: true,
@@ -263,6 +282,11 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     }
     // If activities don't match, fall through to normal offer creation below
   }
+
+  // Get sender profile (for notification)
+  const fromUserDoc = await db.collection('users').doc(fromUid).get();
+  const fromUserData = fromUserDoc.data() || {};
+  const fromDisplayName = fromUserData.displayName || 'Someone';
 
   // Get target profile
   const toUserDoc = await db.collection('users').doc(targetUid).get();
@@ -318,6 +342,12 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       lastExposedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+  });
+
+  // U16: Send push notification to target user
+  // Fire-and-forget: Don't block the response on notification delivery
+  sendOfferReceivedNotification(targetUid, fromDisplayName, offerRef.id).catch((err) => {
+    console.error('[offerCreate] Failed to send offer notification:', err);
   });
 
   return {
