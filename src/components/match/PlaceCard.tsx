@@ -24,10 +24,6 @@ interface PlaceCardProps {
     onSelect: () => void;
 }
 
-function getPriceIndicator(level: number): string {
-    return '$'.repeat(Math.min(Math.max(level, 1), 4));
-}
-
 function getTagIcon(tag: string) {
     const lowerTag = tag.toLowerCase();
     if (lowerTag.includes('wifi')) return <Wifi className="w-3 h-3" />;
