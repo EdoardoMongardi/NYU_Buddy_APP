@@ -28,7 +28,6 @@ import {
   ref,
   uploadBytesResumable,
   getDownloadURL,
-  deleteObject,
 } from 'firebase/storage';
 import * as geofire from 'geofire-common';
 
