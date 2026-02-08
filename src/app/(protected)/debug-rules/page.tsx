@@ -21,7 +21,6 @@ import {
   query,
   limit,
   getDocs,
-  Timestamp,
 } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,11 +70,12 @@ export default function DebugRulesPage() {
         { merge: true }
       );
       append('❌ UNEXPECTED: Presence write succeeded - RULES NOT ENFORCED!');
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append('✅ Expected: permission-denied');
       } else {
-        append(`⚠️ Unexpected error: ${e?.code || e?.message || String(e)}`);
+        append(`⚠️ Unexpected error: ${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -92,11 +92,12 @@ export default function DebugRulesPage() {
         hackedAt: serverTimestamp(),
       });
       append('❌ UNEXPECTED: Match update succeeded - RULES NOT ENFORCED!');
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append('✅ Expected: permission-denied');
       } else {
-        append(`⚠️ Unexpected error: ${e?.code || e?.message || String(e)}`);
+        append(`⚠️ Unexpected error: ${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -121,11 +122,12 @@ export default function DebugRulesPage() {
           }
         });
       }
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append('✅ Expected: permission-denied (no global read access)');
       } else {
-        append(`⚠️ Unexpected error: ${e?.code || e?.message || String(e)}`);
+        append(`⚠️ Unexpected error: ${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -149,11 +151,12 @@ export default function DebugRulesPage() {
         hackedAt: serverTimestamp(),
       });
       append('❌ UNEXPECTED: sessionHistory write succeeded - RULES NOT ENFORCED!');
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append('✅ Expected: permission-denied');
       } else {
-        append(`⚠️ Unexpected error: ${e?.code || e?.message || String(e)}`);
+        append(`⚠️ Unexpected error: ${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -172,8 +175,9 @@ export default function DebugRulesPage() {
         lng: -73.9965,
       });
       append('✅ presenceStart succeeded: ' + JSON.stringify(result.data));
-    } catch (e: any) {
-      append(`❌ presenceStart failed: ${e?.code || e?.message || String(e)}`);
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      append(`❌ presenceStart failed: ${error?.code || error?.message || String(e)}`);
     }
   }
 
@@ -182,12 +186,13 @@ export default function DebugRulesPage() {
     try {
       const result = await presenceEnd();
       append('✅ presenceEnd succeeded: ' + JSON.stringify(result.data));
-    } catch (e: any) {
+    } catch (e: unknown) {
       // If no presence exists, this might fail with a business logic error (not permission-denied)
-      if (e?.code === 'permission-denied') {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append(`❌ UNEXPECTED: permission-denied (Cloud Function should use Admin SDK)`);
       } else {
-        append(`ℹ️ presenceEnd: ${e?.code || e?.message || String(e)}`);
+        append(`ℹ️ presenceEnd: ${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -203,11 +208,12 @@ export default function DebugRulesPage() {
         reason: 'Testing Phase 3 rules',
       });
       append('✅ matchCancel succeeded: ' + JSON.stringify(result.data));
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append(`❌ UNEXPECTED: permission-denied (Cloud Function should use Admin SDK)`);
       } else {
-        append(`ℹ️ matchCancel: ${e?.code || e?.message || String(e)}`);
+        append(`ℹ️ matchCancel: \${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -223,11 +229,12 @@ export default function DebugRulesPage() {
         status: 'heading_there',
       });
       append('✅ updateMatchStatus succeeded: ' + JSON.stringify(result.data));
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append(`❌ UNEXPECTED: permission-denied (Cloud Function should use Admin SDK)`);
       } else {
-        append(`ℹ️ updateMatchStatus: ${e?.code || e?.message || String(e)}`);
+        append(`ℹ️ updateMatchStatus: \${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -240,11 +247,12 @@ export default function DebugRulesPage() {
     try {
       const result = await matchFetchAllPlaces({ matchId });
       append('✅ matchFetchAllPlaces succeeded: ' + JSON.stringify(result.data));
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append(`❌ UNEXPECTED: permission-denied (Cloud Function should use Admin SDK)`);
       } else {
-        append(`ℹ️ matchFetchAllPlaces: ${e?.code || e?.message || String(e)}`);
+        append(`ℹ️ matchFetchAllPlaces: \${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -263,11 +271,12 @@ export default function DebugRulesPage() {
         action: 'choose',
       });
       append('✅ matchSetPlaceChoice succeeded: ' + JSON.stringify(result.data));
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append(`❌ UNEXPECTED: permission-denied (Cloud Function should use Admin SDK)`);
       } else {
-        append(`ℹ️ matchSetPlaceChoice: ${e?.code || e?.message || String(e)}`);
+        append(`ℹ️ matchSetPlaceChoice: \${error?.code || error?.message || String(e)}`);
       }
     }
   }
@@ -280,11 +289,12 @@ export default function DebugRulesPage() {
     try {
       const result = await matchResolvePlaceIfNeeded({ matchId });
       append('✅ matchResolvePlaceIfNeeded succeeded: ' + JSON.stringify(result.data));
-    } catch (e: any) {
-      if (e?.code === 'permission-denied') {
+    } catch (e: unknown) {
+      const error = e as { code?: string; message?: string };
+      if (error?.code === 'permission-denied') {
         append(`❌ UNEXPECTED: permission-denied (Cloud Function should use Admin SDK)`);
       } else {
-        append(`ℹ️ matchResolvePlaceIfNeeded: ${e?.code || e?.message || String(e)}`);
+        append(`ℹ️ matchResolvePlaceIfNeeded: \${error?.code || error?.message || String(e)}`);
       }
     }
   }
