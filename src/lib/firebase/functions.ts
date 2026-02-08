@@ -182,6 +182,7 @@ export interface PlaceCandidate {
   rank: number;
   tags?: string[];
   priceLevel?: number;
+  priceRange?: string; // U11: e.g., "$20-$50" (preferred over priceLevel)
   photoUrl?: string;
 }
 

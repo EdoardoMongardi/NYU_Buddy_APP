@@ -24,6 +24,7 @@ export interface PlaceCandidate {
     rank: number;     // 1-indexed
     tags?: string[];
     priceLevel?: number;
+    priceRange?: string | null; // U11: e.g., "$20-$50" (preferred over priceLevel)
     photoUrl?: string | null;
 }
 
@@ -145,6 +146,7 @@ async function fetchPlacesWithinRadius(
                 rank: 0, // Will be assigned after sorting
                 tags: data.tags || [],
                 priceLevel: data.priceLevel || 2,
+                priceRange: data.priceRange || null, // U11: Custom price range from admin
                 photoUrl: data.photoUrl || null,
             });
         }
