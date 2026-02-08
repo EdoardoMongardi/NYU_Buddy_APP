@@ -631,13 +631,22 @@ See: DataModel_AsIs.md#151-phantom-fields-read-but-never-written for details on 
 
 **Mitigation:** None currently implemented
 
-### 11.4 Place Selection Inconsistency
+### 11.4 ~~Place Selection Inconsistency~~ ✅ RESOLVED (U20 - 2026-02-08)
 
-**Issue:** Two systems exist:
+**Pre-Fix Issue:** Two place selection systems existed:
 1. Legacy: `meetupRecommend` → `matchConfirmPlace` (3 places, first-confirm-wins)
 2. New: `matchFetchAllPlaces` → `matchSetPlaceChoice` → `matchResolvePlace` (dual-choice, countdown)
 
-**Reality:** Match page does not render new system UI. Unclear which is active.
+UI used new system, but legacy functions remained causing confusion.
+
+**Resolution:**
+- Deleted legacy backend functions: `meetupRecommend`, `matchConfirmPlace`
+- Removed legacy Cloud Functions from production
+- Cleaned up frontend references (functions.ts, useMatch.ts)
+- Preserved `updateMatchStatus` (moved to `matches/updateStatus.ts`)
+- System now uses ONLY dual-choice voting with countdown
+
+**Code:** Legacy functions deleted, `useLocationDecision` hook uses new system exclusively
 
 ### 11.5 ~~Activity List Mismatch (Places vs Users)~~ ✅ RESOLVED (2026-02-08)
 

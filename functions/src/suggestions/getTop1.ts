@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import * as geofire from 'geofire-common';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
+import { requireEmailVerification } from '../utils/verifyEmail';
 
 // Configuration
 const COOLDOWN_DAYS = 3;
@@ -181,6 +182,9 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
+
+  // U21 Fix: Require email verification (zero grace period)
+  await requireEmailVerification(request);
 
   const uid = request.auth.uid;
   const db = admin.firestore();

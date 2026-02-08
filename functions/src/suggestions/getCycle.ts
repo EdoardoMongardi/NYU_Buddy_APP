@@ -13,6 +13,7 @@ import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import * as geofire from 'geofire-common';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
+import { requireEmailVerification } from '../utils/verifyEmail';
 
 // Configuration
 const REJECTION_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -322,6 +323,9 @@ export async function suggestionGetCycleHandler(
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'User must be authenticated');
     }
+
+    // U21 Fix: Require email verification (zero grace period)
+    await requireEmailVerification(request);
 
     try {
         const uid = request.auth.uid;

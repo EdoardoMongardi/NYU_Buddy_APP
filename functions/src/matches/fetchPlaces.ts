@@ -13,6 +13,7 @@ import {
     LOCATION_DECISION_SECONDS,
     PlaceCandidate,
 } from '../utils/places';
+import { requireEmailVerification } from '../utils/verifyEmail';
 
 interface MatchFetchAllPlacesData {
     matchId: string;
@@ -25,6 +26,9 @@ export async function matchFetchAllPlacesHandler(
         if (!request.auth) {
             throw new HttpsError('unauthenticated', 'User must be authenticated');
         }
+
+        // U21 Fix: Require email verification (zero grace period)
+        await requireEmailVerification(request);
 
         const uid = request.auth.uid;
         const { matchId } = request.data;

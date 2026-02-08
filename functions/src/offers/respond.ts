@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
+import { requireEmailVerification } from '../utils/verifyEmail';
 
 interface OfferRespondData {
   offerId: string;
@@ -11,6 +12,9 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
+
+  // U21 Fix: Require email verification (zero grace period)
+  await requireEmailVerification(request);
 
   const uid = request.auth.uid;
   const { offerId, action } = request.data;

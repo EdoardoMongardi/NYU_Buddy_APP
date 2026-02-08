@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { getPlaceCandidates } from '../utils/places';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
+import { requireEmailVerification } from '../utils/verifyEmail';
 
 const OFFER_TTL_MINUTES = 10;
 const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
@@ -19,6 +20,9 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
+
+  // U21 Fix: Require email verification (zero grace period)
+  await requireEmailVerification(request);
 
   const fromUid = request.auth.uid;
   const { targetUid, explanation, matchScore, distanceMeters } = request.data;

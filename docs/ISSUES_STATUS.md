@@ -1,6 +1,6 @@
 # NYU Buddy - Issues Status Report
 
-**Last Updated:** 2026-02-08 (Comprehensive documentation audit - added 12 unresolved issues from PRD, DataModel, Architecture, and StateMachine files)
+**Last Updated:** 2026-02-08 (U20, U21 resolved - removed legacy place selection, enforced email verification on all core functions)
 **Audit Scope:** Complete codebase vs. documentation cross-reference (6 doc files audited)
 **Methodology:** Code is the only source of truth
 
@@ -11,11 +11,11 @@
 **Overall Status:** ✅ **PRODUCTION-READY** (with known limitations)
 
 - **Total Issues Identified:** 29
-- **Resolved:** 16 (55%) ✅
-- **Unresolved:** 13 (45%) ⚠️
+- **Resolved:** 18 (62%) ✅
+- **Unresolved:** 11 (38%) ⚠️
   - Critical: 0
   - High: 1 (U16: Push notifications)
-  - Medium: 6 (edge cases, partial implementations)
+  - Medium: 4 (edge cases, partial implementations)
   - Low: 6 (minor gaps, scalability concerns)
 
 **Key Finding:** All critical issues resolved. One high-priority issue (U16: FCM push notifications) is a feature enhancement. Most unresolved issues are edge cases, partial implementations, or architectural limitations that don't block production deployment but should be addressed in future phases.
@@ -449,11 +449,11 @@ Users with presence.status='matched' could theoretically access discovery functi
 
 ## ⚠️ UNRESOLVED ISSUES
 
-**Status:** 13 issues remaining (1 high + 6 medium + 6 low)
+**Status:** 11 issues remaining (1 high + 4 medium + 6 low)
 
 All critical issues have been resolved. Remaining issues are:
 - **High Priority (1):** U16 - Push notifications (feature enhancement)
-- **Medium Priority (6):** Edge cases and partial implementations
+- **Medium Priority (4):** Edge cases and partial implementations
 - **Low Priority (6):** Minor gaps, scalability concerns, reserved fields
 
 ---
@@ -545,51 +545,85 @@ If user's presence expires during an active match:
 
 ---
 
-### U20. Place Selection System Inconsistency
-**Priority:** MEDIUM
-**Doc Reference:** `PRD_AsIs.md:11.4`
+### U20. ~~Place Selection System Inconsistency~~ ✅ RESOLVED (2026-02-08)
 
-**Description:**
-Two place selection systems exist:
+**Status:** ✅ **RESOLVED** (2026-02-08)
+
+**Pre-Fix Issue:**
+Two place selection systems existed creating confusion:
 1. **Legacy:** `meetupRecommend` → `matchConfirmPlace` (3 places, first-confirm-wins)
 2. **New:** `matchFetchAllPlaces` → `matchSetPlaceChoice` → `matchResolvePlace` (dual-choice, countdown)
 
-**Issue:** Match page UI does not render new system. Unclear which is active in production.
+**Problem:** UI used new system exclusively, but legacy functions remained in codebase.
 
-**Impact:**
-- Medium - UI/backend mismatch creates confusion
-- Legacy system may be bypassing intended dual-choice voting logic
+**U20 Resolution:**
+- ✅ **Deleted Legacy Backend Functions:**
+  - `functions/src/meetup/recommend.ts` (meetupRecommend)
+  - `functions/src/matches/confirmPlace.ts` (matchConfirmPlace)
+  - Removed both Cloud Functions from production
 
-**Recommended Action:**
-- Investigate which system is actually used by production UI
-- Remove/deprecate unused system to reduce code complexity
-- Document intended place selection flow
+- ✅ **Cleaned Up Frontend:**
+  - Removed `meetupRecommend` and `matchConfirmPlace` from `src/lib/firebase/functions.ts`
+  - Removed unused `fetchRecommendations` function from `src/lib/hooks/useMatch.ts`
+  - Removed unused imports and state
 
-**Timeline:** Investigation needed
+- ✅ **Preserved Critical Function:**
+  - Moved `updateMatchStatus` to new file `matches/updateStatus.ts`
+  - Redeployed to production (used for heading_there/arrived/completed status)
+
+**Verification:**
+- UI uses `useLocationDecision` hook → calls `matchFetchAllPlaces` (new system only)
+- No code references to legacy functions remain
+- All matches now use dual-choice voting with countdown
+
+**Timeline:** COMPLETED 2026-02-08
 
 ---
 
-### U21. Email Verification Not Enforced
-**Priority:** MEDIUM
-**Doc Reference:** `PRD_AsIs.md:11.6`
+### U21. ~~Email Verification Not Enforced~~ ✅ RESOLVED (2026-02-08)
 
-**Description:**
-Email verification status NOT enforced:
-- Code checks `emailVerified` flag but doesn't actively block unverified users from core actions
-- No UI guidance prompts user to verify email
-- Unverified users can set availability, send offers, create matches
+**Status:** ✅ **RESOLVED** (2026-02-08)
 
-**Impact:**
-- Medium - Security/spam risk
-- Potential for fake accounts or abuse
-- No verification gate prevents bots/spam accounts
+**Pre-Fix Issue:**
+Email verification was not enforced on backend:
+- Frontend checked `emailVerified` but easily bypassed with direct API calls
+- Any fake `@nyu.edu` email (e.g., `fake123@nyu.edu`) could fully use the app
+- No backend verification on critical functions
+- Security/spam risk
 
-**Recommended Action:**
-- Add middleware to block core functions for unverified users
-- Add UI banner prompting email verification
-- Consider grace period (e.g., 24 hours) before enforcement
+**U21 Resolution:**
 
-**Timeline:** Future security enhancement
+**1. Backend Verification Middleware** (`functions/src/utils/verifyEmail.ts` - NEW)
+- Created `requireEmailVerification()` helper function
+- Zero grace period enforcement (immediate blocking)
+- Returns clear error: `EMAIL_NOT_VERIFIED`
+
+**2. Protected 9 Critical Functions:**
+- ✅ `presenceStart` - Set availability
+- ✅ `offerCreate` - Send offers
+- ✅ `offerRespond` - Accept/decline offers
+- ✅ `suggestionGetCycle` - Browse suggestions (new)
+- ✅ `suggestionGetTop1` - Browse suggestions (legacy)
+- ✅ `matchFetchAllPlaces` - Fetch locations
+- ✅ `matchSetPlaceChoice` - Choose location
+- ✅ `matchCancel` - Cancel match
+- ✅ `updateMatchStatus` - Update match status
+
+**3. Frontend Enhancements:**
+- Enhanced error handling in `AvailabilitySheet.tsx`
+- Shows user-friendly verification message on error
+- Existing verification banner already in place (Navbar.tsx)
+- UI blocks features for unverified users (page.tsx)
+
+**User Experience:**
+- Unverified users: Can login, see UI, but cannot use any features
+- Verification banner shown at top: "Please verify your email to access all features"
+- After verification: All features immediately accessible
+- Backend prevents API bypass attempts
+
+**Verification:** ✅ Deployed to production (2026-02-08)
+
+**Timeline:** COMPLETED 2026-02-08
 
 ---
 
@@ -783,13 +817,13 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ⚠️ **U16:** No Push Notification System (feature enhancement)
 - ~~U13: Hardcoded Admin Whitelist Discrepancy~~ → ✅ Resolved (2026-02-08)
 
-### Medium (6)
+### Medium (4)
 - ⚠️ **U18:** Block During Active Match (auto-cancel not implemented)
 - ⚠️ **U19:** Presence Expiry Mid-Match (no safeguards)
-- ⚠️ **U20:** Place Selection System Inconsistency (legacy vs new)
-- ⚠️ **U21:** Email Verification Not Enforced
 - ⚠️ **U22:** Race Conditions (offer/match edge cases)
 - ⚠️ **U23:** No Retry/Idempotency Mechanism
+- ~~U21: Email Verification Not Enforced~~ → ✅ Resolved (2026-02-08)
+- ~~U20: Place Selection System Inconsistency~~ → ✅ Resolved (2026-02-08)
 - ~~U9: Activity List Partial Mismatch~~ → ✅ Resolved (2026-02-08)
 - ~~U14: Two Match Creation Schemas~~ → ✅ Resolved (2026-02-08)
 - ~~U15: Inconsistent presence.matchId Writes~~ → ✅ Resolved (2026-02-08)
@@ -833,7 +867,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ✅ Backward compatibility maintained
 
 ### Known Limitations
-⚠️ **13 UNRESOLVED ISSUES** - None are critical or block production:
+⚠️ **11 UNRESOLVED ISSUES** - None are critical or block production:
 
 **Resolved:**
 - ~~"Explore Campus" activity~~ → ✅ Removed (Task 2)
@@ -844,10 +878,12 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~Phantom fields (priceLevel, photoUrl)~~ → ✅ Admin UI implemented (2026-02-08)
 - ~~Data normalization gaps~~ → ✅ All fixed (2026-02-08)
 - ~~Edge case: active match blocking~~ → ✅ Comprehensive blocking (2026-02-08)
+- ~~Place selection inconsistency~~ → ✅ Legacy system removed (2026-02-08)
+- ~~Email verification not enforced~~ → ✅ Backend enforcement added (2026-02-08)
 
 **Unresolved (Not Blocking Production):**
 - ⚠️ **U16 (HIGH):** No push notifications (feature enhancement)
-- ⚠️ **U18-U23 (MEDIUM):** Edge cases, partial implementations (block auto-cancel, presence expiry, place selection inconsistency, email verification, race conditions, retry/idempotency)
+- ⚠️ **U18-U19, U22-U23 (MEDIUM):** Edge cases, partial implementations (block auto-cancel, presence expiry, race conditions, retry/idempotency)
 - ⚠️ **U10, U24-U28 (LOW):** Minor gaps (reserved fields, legacy confirmation, cleanup edge case, location staleness, missing index, admin scalability)
 
 ---
@@ -860,7 +896,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 3. ✅ Zero breaking changes introduced
 4. ✅ Security hardened (admin whitelist, isAdmin protection, Phase 3 rules)
 5. ✅ **READY FOR PRODUCTION DEPLOYMENT**
-6. ⚠️ **13 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
+6. ⚠️ **11 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
 
 ### Next Phase (Phase 5 - Enhancements & Issue Resolution)
 
@@ -873,9 +909,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
      - Reduce battery drain from polling
 
 2. **Medium Priority (Phase 5.2):**
-   - **U21:** Enforce email verification (security)
    - **U23:** Add retry/idempotency mechanism (reliability)
-   - **U20:** Resolve place selection system inconsistency (investigate & cleanup)
    - **U18:** Block auto-cancel for active matches (UX improvement)
    - **U19:** Add safeguards for presence expiry mid-match
    - **U22:** Race condition hardening (transactions/locks)
