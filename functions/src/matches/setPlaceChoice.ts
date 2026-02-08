@@ -100,6 +100,7 @@ export async function matchSetPlaceChoiceHandler(
             placeId,
             placeRank,
             chosenAt: admin.firestore.FieldValue.serverTimestamp(),
+            source: action === 'tick' ? 'tick' : 'choose', // Track choice provenance for tick_sync resolution
         };
 
         transaction.update(matchRef, updates);

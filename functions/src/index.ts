@@ -4,6 +4,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { presenceStartHandler } from './presence/start';
 import { presenceEndHandler } from './presence/end';
+import { presenceCleanupExpiredHandler } from './presence/cleanupExpired';
 import { suggestionGetTop1Handler } from './suggestions/getTop1';
 import { suggestionRespondHandler } from './suggestions/respond';
 import { suggestionGetCycleHandler, suggestionPassHandler } from './suggestions/getCycle';
@@ -142,6 +143,12 @@ export const matchCleanupStalePending = onSchedule(
 export const offerExpireStale = onSchedule(
   { schedule: 'every 5 minutes', region: 'us-east1' },
   offerExpireStaleHandler
+);
+
+// Task 4: Cleanup expired presence documents every 5 minutes
+export const presenceCleanupExpired = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  presenceCleanupExpiredHandler
 );
 
 export const checkAvailabilityForUser = onCall(

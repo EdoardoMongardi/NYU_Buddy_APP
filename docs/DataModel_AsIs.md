@@ -841,13 +841,24 @@ The following data is denormalized for performance:
 - Frontend: `src/lib/hooks/useMatch.ts:24-30` (helper), `src/lib/hooks/useMatch.ts:165-169` (return)
 - Usage: `src/app/(protected)/match/[matchId]/page.tsx:67,187-189`
 
-### 15.4 Missing Security Rules
+### 15.4 ~~Missing~~ Security Rules ✅ RESOLVED (Phase 3)
 
-The following collection has no security rules defined in `firestore.rules`:
+~~The following collection has no security rules defined in `firestore.rules`:~~
 
-| Collection | Issue | Risk |
-|------------|-------|------|
-| `sessionHistory/{uid}/sessions` | No rules defined | Potentially readable/writable by anyone |
+**Status:** ✅ **RESOLVED** in Phase 3 (2026-02-08)
+
+| Collection | Previous Issue | Resolution |
+|------------|----------------|------------|
+| `sessionHistory/{uid}/sessions` | No rules defined | ✅ Explicit deny rules added in Phase 3 |
+
+**Current rules** (`firestore.rules:113-115`):
+```javascript
+match /sessionHistory/{uid}/sessions/{sessionId} {
+  allow read, write: if false; // Explicit deny for client SDK
+}
+```
+
+**Rationale:** Backend-only collection for rate limiting (MAX_SESSIONS_PER_HOUR = 100). Cloud Functions Admin SDK bypasses these rules. Explicit deny prevents accidental client SDK usage.
 
 ### 15.5 Index Requirements
 

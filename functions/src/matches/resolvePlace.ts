@@ -19,6 +19,7 @@ interface PlaceChoice {
     placeId: string;
     placeRank: number;
     chosenAt: admin.firestore.Timestamp;
+    source?: 'tick' | 'choose'; // Track choice provenance (added for tick_sync resolution)
 }
 
 type ResolutionReason = 'both_same' | 'tick_sync' | 'one_chose' | 'none_chose' | 'rank_tiebreak';
@@ -202,7 +203,10 @@ function resolvePlace(
     // Both chose - check if same
     if (user1Choice!.placeId === user2Choice!.placeId) {
         const place = candidates.find(c => c.placeId === user1Choice!.placeId);
-        return { confirmedPlace: place || rank1, resolutionReason: 'both_same' };
+        // Check if either user used tick action (source provenance)
+        const tickUsed = user1Choice!.source === 'tick' || user2Choice!.source === 'tick';
+        const reason: ResolutionReason = tickUsed ? 'tick_sync' : 'both_same';
+        return { confirmedPlace: place || rank1, resolutionReason: reason };
     }
 
     // Both chose different - use rank-based tie-breaker
