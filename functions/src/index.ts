@@ -26,6 +26,8 @@ import { matchResolveExpiredHandler } from './matches/resolveExpired';
 import { matchCleanupStalePendingHandler } from './matches/cleanupStalePending';
 import { offerExpireStaleHandler } from './offers/expireStale';
 import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
+import { normalizeOfferUpdatedAtHandler } from './migrations/normalizeOfferUpdatedAt';
+import { auditPresenceMatchIdHandler } from './migrations/auditPresenceMatchId';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -154,4 +156,15 @@ export const presenceCleanupExpired = onSchedule(
 export const checkAvailabilityForUser = onCall(
   { region: 'us-east1' },
   checkAvailabilityForUserHandler
+);
+
+// Migration functions (admin-only, run once)
+export const normalizeOfferUpdatedAt = onCall(
+  { region: 'us-east1' },
+  normalizeOfferUpdatedAtHandler
+);
+
+export const auditPresenceMatchId = onCall(
+  { region: 'us-east1' },
+  auditPresenceMatchIdHandler
 );

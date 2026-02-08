@@ -639,9 +639,16 @@ See: DataModel_AsIs.md#151-phantom-fields-read-but-never-written for details on 
 
 **Reality:** Match page does not render new system UI. Unclear which is active.
 
-### 11.5 Activity List Mismatch (Places vs Users)
+### 11.5 ~~Activity List Mismatch (Places vs Users)~~ ✅ RESOLVED (2026-02-08)
 
-See: DataModel_AsIs.md#156-activity-list-mismatch for details. Users selecting "Explore Campus" will find 0 matching places; "Dinner" in places is unreachable from user activities.
+**Pre-Fix Issue:** Users could select "Explore Campus" (no places available); "Dinner" places existed but users couldn't select the activity.
+
+**Resolution:**
+- Removed "Explore Campus" from user activities (Task 2)
+- Added "Dinner" to user-selectable activities (U9 fix)
+- User activities now fully aligned with admin place options: Coffee, Lunch, Dinner, Study, Walk
+
+**Code:** `src/lib/schemas/user.ts:78-84`
 
 ### 11.6 Email Verification Blocking
 

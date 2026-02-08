@@ -514,18 +514,19 @@ Match notifications rely on:
 
 Failed Cloud Function calls have no automatic retry or idempotency keys, which could cause duplicate offers or missed state updates.
 
-### 9.3 Hardcoded Admin Whitelist
+### 9.3 ~~Hardcoded Admin Whitelist Discrepancy~~ ✅ RESOLVED (U13)
 
-Admin access is determined by hardcoded email lists, not a scalable admin management system.
+**Status:** ✅ **RESOLVED** (2026-02-08)
 
-**Discrepancy:** The two admin whitelists do not match:
+**Pre-U13 Issue:** The two admin whitelists did not match - server-side rules had 1 email, client-side had 2 emails, causing the second admin to be blocked from Firestore writes.
 
-| Location | Emails | Code Reference |
-|----------|--------|----------------|
-| `firestore.rules:18` | `edoardo.mongardi18@gmail.com` (1 email) | Server-side security rules |
-| `src/lib/schemas/user.ts:4-7` | `edoardo.mongardi18@gmail.com`, `468327494@qq.com` (2 emails) | Client-side login/route guard |
+**U13 Resolution:**
+- ✅ `firestore.rules:17-23` now includes BOTH emails: `edoardo.mongardi18@gmail.com`, `468327494@qq.com`
+- ✅ Matches client-side `ADMIN_EMAILS` in `src/lib/schemas/user.ts:4-7`
+- ✅ Both admins can now write to `places` and read `reports`
+- ✅ Cloud Functions middleware also enforces same whitelist (`utils/auth.ts`)
 
-**Impact:** The second admin (`468327494@qq.com`) can log in and see admin routes client-side, but Firestore security rules will deny their writes to `places` and reads of `reports`.
+**Remaining Gap:** Admin access still uses hardcoded email lists (not a scalable admin management system), but the discrepancy between client/server whitelists is resolved.
 
 ### 9.4 Client-Side Location Staleness Only
 
@@ -538,18 +539,26 @@ const isStale = updatedAt
   : true;
 ```
 
-### 9.5 Security Rules Enforcement Gap
+### 9.5 ~~Security Rules Enforcement Gap~~ ✅ RESOLVED (Phase 3)
 
-**Status:** PARTIALLY INSECURE / VULNERABLE
+**Status:** ✅ **RESOLVED** in Phase 3 (2026-02-08)
 
-**Code Reality** (`firestore.rules`):
-- **Matches:** Rules allow `isMatchParticipant` to update documents directly, bypassing backend logic. (`firestore.rules:75`)
-- **Presence:** Rules allow `isOwner` to write directly. (`firestore.rules:41`)
-- **Offers:** SECURE. Client writes explicitly denied (`if false`). (`firestore.rules:61-63`)
+**Pre-Phase 3 Issue:**
+- **Matches:** Rules allowed `isMatchParticipant` to update documents directly, bypassing backend logic
+- **Presence:** Rules allowed `isOwner` to write directly
+- **Risk:** Clients could write arbitrary data, bypassing Cloud Function validation logic
 
-**Risk:** Clients can write arbitrary data to `matches` and `presence` collections, bypassing Cloud Function validation logic that enforces state transition guards and data integrity.
+**Phase 3 Resolution** (`firestore.rules` deployed 2026-02-08):
+- **Matches:** `allow update: if false;` (lines 69-74) - ALL updates blocked, Cloud Functions only
+- **Presence:** `allow write: if false;` (lines 39-42) - ALL writes blocked, Cloud Functions only
+- **sessionHistory:** `allow read, write: if false;` (lines 113-115) - Explicit deny for client SDK
 
-Code Evidence: `firestore.rules:39-42, 72-77`
+**Verification:**
+- ✅ Local emulator testing: Direct writes blocked (4/4 permission-denied)
+- ✅ Cloud Functions operational: All callable functions working (7/7 tested)
+- ✅ Production testing: End-to-end flow validated, zero Firestore errors
+
+**Code Evidence:** `firestore.rules:39-42, 69-74, 113-115`
 
 > **Additional known gaps:** See StateMachine_AsIs.md#9-known-inconsistencies--ambiguities (inconsistent status lists, phantom statuses), API_Contract_AsIs.md#6-known-contract-gaps (presence.matchId writes, match creation schemas), and DataModel_AsIs.md#15-known-issues--data-integrity-concerns (missing security rules, phantom fields).
 

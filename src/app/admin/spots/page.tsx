@@ -57,6 +57,8 @@ interface Place {
   tags: string[];
   allowedActivities: string[];
   active: boolean;
+  priceRange?: string; // U11: e.g., "$20-$50"
+  photoUrl?: string; // U11: Custom image URL for the place
 }
 
 const CATEGORIES = [
@@ -102,6 +104,8 @@ export default function AdminSpotsPage() {
   const [lng, setLng] = useState('');
   const [tags, setTags] = useState('');
   const [allowedActivities, setAllowedActivities] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState(''); // U11: Price range input
+  const [photoUrl, setPhotoUrl] = useState(''); // U11: Photo URL input
 
   // Listen for places
   useEffect(() => {
@@ -134,6 +138,8 @@ export default function AdminSpotsPage() {
     setLng('');
     setTags('');
     setAllowedActivities([]);
+    setPriceRange(''); // U11
+    setPhotoUrl(''); // U11
     setEditingPlace(null);
   };
 
@@ -151,6 +157,8 @@ export default function AdminSpotsPage() {
     setLng(place.lng.toString());
     setTags(place.tags.join(', '));
     setAllowedActivities(place.allowedActivities || []);
+    setPriceRange(place.priceRange || ''); // U11
+    setPhotoUrl(place.photoUrl || ''); // U11
     setIsDialogOpen(true);
   };
 
@@ -203,6 +211,8 @@ export default function AdminSpotsPage() {
         tags: tagsArray,
         allowedActivities,
         active: editingPlace?.active ?? true,
+        priceRange: priceRange.trim() || null, // U11: Save price range (null if empty)
+        photoUrl: photoUrl.trim() || null, // U11: Save photo URL (null if empty)
         updatedAt: serverTimestamp(),
       };
 
@@ -360,6 +370,32 @@ export default function AdminSpotsPage() {
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="wifi, quiet, outdoor"
                 />
+              </div>
+
+              {/* U11: Price Range Field */}
+              <div className="space-y-2">
+                <Label>Price Range</Label>
+                <Input
+                  value={priceRange}
+                  onChange={(e) => setPriceRange(e.target.value)}
+                  placeholder="e.g., $20-$50"
+                />
+                <p className="text-xs text-gray-500">
+                  Displayed on place cards to help users budget
+                </p>
+              </div>
+
+              {/* U11: Photo URL Field */}
+              <div className="space-y-2">
+                <Label>Photo URL</Label>
+                <Input
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="https://example.com/photo.jpg"
+                />
+                <p className="text-xs text-gray-500">
+                  Custom image for this place (uses default if not provided)
+                </p>
               </div>
 
               <div className="flex space-x-2 pt-4">

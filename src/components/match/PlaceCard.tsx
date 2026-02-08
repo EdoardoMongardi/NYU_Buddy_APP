@@ -14,7 +14,8 @@ const DEFAULT_PLACE_IMAGE = 'https://images.unsplash.com/photo-1554118811-1e0d58
 interface PlaceCardProps {
     place: PlaceCandidate & {
         photoUrl?: string;
-        priceLevel?: number; // 1-4 ($, $$, $$$, $$$$)
+        priceLevel?: number; // 1-4 ($, $$, $$$, $$$$) - legacy
+        priceRange?: string; // U11: e.g., "$20-$50" - preferred
         tags?: string[];
     };
     isSelected: boolean;
@@ -42,7 +43,8 @@ export function PlaceCard({
     isLoading,
     onSelect,
 }: PlaceCardProps) {
-    const priceLevel = place.priceLevel || 2; // Default $$
+    // U11: Prefer priceRange text over priceLevel number
+    const priceDisplay = place.priceRange || getPriceIndicator(place.priceLevel || 2);
     const tags = place.tags || ['WiFi', 'Outlets'];
     const photoUrl = place.photoUrl || DEFAULT_PLACE_IMAGE;
 
@@ -110,7 +112,7 @@ export function PlaceCard({
                     <div className="flex items-center gap-1 ml-2">
                         <DollarSign className="w-4 h-4 text-green-600" />
                         <span className="text-sm font-medium text-green-700">
-                            {getPriceIndicator(priceLevel)}
+                            {priceDisplay}
                         </span>
                     </div>
                 </div>

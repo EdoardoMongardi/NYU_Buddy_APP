@@ -204,6 +204,11 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
     throw new HttpsError('failed-precondition', 'Your availability has expired');
   }
 
+  // U17 Fix: Block discovery if user is in active match
+  if (presence.status === 'matched') {
+    throw new HttpsError('failed-precondition', 'You are already in an active match');
+  }
+
   const { lat, lng, activity, durationMinutes, createdAt } = presence;
   const sessionStartTime = createdAt || now;
 

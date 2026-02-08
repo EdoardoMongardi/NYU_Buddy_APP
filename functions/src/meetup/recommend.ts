@@ -220,11 +220,35 @@ export async function updateMatchStatusHandler(
     overallStatus = 'heading_there';
   }
 
+  // Update match status
   await matchRef.update({
     statusByUser,
     status: overallStatus,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
+
+  // U15 Fix: Clear presence.matchId when match is completed (terminal state)
+  if (overallStatus === 'completed') {
+    const db = admin.firestore();
+    const batch = db.batch();
+
+    // Clear matchId for both users' presence documents
+    const user1PresenceRef = db.collection('presence').doc(match.user1Uid);
+    const user2PresenceRef = db.collection('presence').doc(match.user2Uid);
+
+    batch.update(user1PresenceRef, {
+      matchId: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    batch.update(user2PresenceRef, {
+      matchId: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+    console.log(`[updateMatchStatus] Cleared presence.matchId for completed match ${matchId}`);
+  }
 
   return { success: true };
 }

@@ -250,10 +250,17 @@ Both filter out (`getCycle.ts:229-234`):
 2.  **Presence Cleanup on Match Cancel** (`functions/src/matches/cancel.ts:161-170`):
     `matchCancel` attempts to restore presence to `available`. However, if `expiresAt < now`, the code silently skips the update (line 161-162). The user effectively becomes **Offline** without explicit deletion (zombie doc).
 
-3.  **Zombie Presences**: No scheduled job deletes expired presence docs. They persist until:
-    - The *owner* calls `suggestionGetCycle` (triggers lazy cleanup at line 343)
-    - The *owner* calls `presenceEnd`
-    - Other users filter them out in-memory, but docs remain in Firestore
+3.  ~~**Zombie Presences**~~ ✅ RESOLVED (Follow-up Task 4 - 2026-02-08):
+
+    **Pre-Task 4 Issue:** No scheduled job deleted expired presence docs. They persisted until owner called `suggestionGetCycle` or `presenceEnd`.
+
+    **Resolution:** Scheduled function `presenceCleanupExpired` (runs every 5 minutes) deletes expired presence documents with safety guards:
+    - Query: `collection('presence').where('expiresAt', '<=', now)`
+    - Batch size: 100 documents per run
+    - Safety: Skip if `status === 'matched'` (user in active match)
+    - Safety: Double-check expiry timestamp (race condition protection)
+
+    **Code:** `functions/src/presence/cleanupExpired.ts`, registered in `functions/src/index.ts:148-152`
 
 ### 9.3 Historical Issues (Resolved in Phase 1)
 

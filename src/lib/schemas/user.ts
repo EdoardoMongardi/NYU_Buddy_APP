@@ -78,6 +78,7 @@ export interface UserProfile {
 export const ACTIVITIES = [
   'Coffee',
   'Lunch',
+  'Dinner',
   'Study',
   'Walk',
 ] as const;

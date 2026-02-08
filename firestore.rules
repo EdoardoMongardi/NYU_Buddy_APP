@@ -13,9 +13,13 @@ service cloud.firestore {
     }
 
     // Helper function to check if user is admin
+    // U13 Fix: Complete whitelist enforcement (matches client-side ADMIN_EMAILS)
     function isAdmin() {
       return isAuthenticated() &&
-        request.auth.token.email in ['edoardo.mongardi18@gmail.com'];
+        request.auth.token.email in [
+          'edoardo.mongardi18@gmail.com',
+          '468327494@qq.com'
+        ];
     }
 
     // Helper function to check if user is participant in a match
@@ -26,10 +30,14 @@ service cloud.firestore {
 
     // Users collection
     // Users can read and write their own documents
+    // U13 Fix: Prevent client writes to isAdmin field (security hardening)
     match /users/{uid} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(uid);
-      allow update: if isOwner(uid);
+      allow create: if isOwner(uid) && !request.resource.data.keys().hasAny(['isAdmin']);
+      allow update: if isOwner(uid) &&
+        // Prevent updating isAdmin field (can only be set by Cloud Functions Admin SDK)
+        (!request.resource.data.keys().hasAny(['isAdmin']) ||
+         request.resource.data.isAdmin == resource.data.isAdmin);
       allow delete: if false; // Users cannot delete their accounts directly
     }
 

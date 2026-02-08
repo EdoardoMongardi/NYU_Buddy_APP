@@ -345,6 +345,11 @@ export async function suggestionGetCycleHandler(
             throw new HttpsError('failed-precondition', 'Your availability has expired');
         }
 
+        // U17 Fix: Block discovery if user is in active match
+        if (presence.status === 'matched') {
+            throw new HttpsError('failed-precondition', 'You are already in an active match');
+        }
+
         // 1. Fetch ALL valid candidates (Fresh Query)
         const recentlyExpiredOfferUids = new Set<string>(presence.recentlyExpiredOfferUids || []);
         let candidates = await fetchAndRankCandidates(db, uid, presence, recentlyExpiredOfferUids);

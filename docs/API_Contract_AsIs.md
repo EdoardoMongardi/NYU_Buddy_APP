@@ -1232,26 +1232,33 @@ matchCancel
 
 ## 6. Known Contract Gaps
 
-### 6.1 Two Match Creation Schemas
+### 6.1 ~~Two Match Creation Schemas~~ ✅ RESOLVED (U14)
 
-**Offer-based match** (`offers/respond.ts:L196-215`):
-- Includes: offerId, activity, confirmedPlace* (null), cancelledBy/At (null)
+**Status:** ✅ **RESOLVED** (2026-02-08)
 
-**Suggestion-based match** (`suggestions/respond.ts:L68-78`):
-- Missing: offerId, activity, confirmedPlace*, cancelledBy/At
+**Pre-U14 Issue:** Offer-based matches included `activity` field, but suggestion-based matches did not, causing potential failures in code expecting this field.
 
-**Issue:** Code paths that expect `offerId` or `activity` on match may fail for suggestion-based matches.
+**U14 Resolution:**
+- ✅ All match creation paths now use consistent schema with `activity` field
+- ✅ `offers/create.ts:184-190` validates activity with safe fallback to 'Coffee' if invalid
+- ✅ `offers/create.ts:209` uses `reverseOfferData.activity` (validated value) for match creation
+- ✅ Fallback logic ensures no matches created with undefined/invalid activity
 
-### 6.2 Inconsistent `presence.matchId` Writes
+**Remaining Note:** Suggestion-based matches still don't include `offerId` (by design - they're not created from offers).
 
-**Location:** Two match creation paths handle presence differently.
+### 6.2 ~~Inconsistent `presence.matchId` Writes~~ ✅ RESOLVED (U14/U15)
 
-| Path | Sets `matchId` on presence? | Location |
-|------|----------------------------|----------|
-| `offerCreate` (mutual interest) | Yes, both users | `offers/create.ts:L221,229` |
-| `offerRespond` (accept) | No, neither user | `offers/respond.ts:L225-235` |
+**Status:** ✅ **RESOLVED** (2026-02-08)
 
-**Issue:** When match is created via `offerRespond`, neither user's presence document gets `matchId` set. When created via `offerCreate` mutual interest path, both get it. This may cause issues for code that relies on `presence.matchId` to detect active matches.
+**Pre-U14 Issue:** `offerRespond` path did not set `presence.matchId`, while `offerCreate` mutual interest path did, causing inconsistent detection of active matches.
+
+**U14/U15 Resolution:**
+- ✅ ALL match creation paths now set `presence.matchId` for both users
+- ✅ `offers/create.ts:228,241` - sets matchId (mutual interest path)
+- ✅ `offers/respond.ts:229,236` - sets matchId (accept offer path)
+- ✅ Match completion/cancellation clears matchId (`matches/cancel.ts:177`, `meetup/recommend.ts:230-251`)
+- ✅ Audit script `auditPresenceMatchId.ts` detects and fixes orphaned matchId references
+- ✅ Discovery blocking now consistently works via `presence.status === 'matched'` check
 
 > **Additional known gaps:** See StateMachine_AsIs.md#9-known-inconsistencies--ambiguities for inconsistent active match status lists, phantom statuses, offer expiry persistence, and match stuck in pending. See DataModel_AsIs.md#15-known-issues--data-integrity-concerns for phantom fields, missing fields at creation, and index requirements.
 

@@ -174,6 +174,7 @@ export async function cancelMatchInternal(
       if (!isExpired) {
         transaction.update(presenceDoc.ref, {
           status: 'available',
+          matchId: admin.firestore.FieldValue.delete(), // U15 Fix: Clear matchId on match termination
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }

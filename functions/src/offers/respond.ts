@@ -226,12 +226,14 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     transaction.update(fromPresenceDoc.ref, {
       activeOutgoingOfferIds: [],
       status: 'matched',
+      matchId: matchRef.id, // U14 Fix: Set matchId consistently
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // Update receiver's presence
     transaction.update(toPresenceDoc.ref, {
       status: 'matched',
+      matchId: matchRef.id, // U14 Fix: Set matchId consistently
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   });

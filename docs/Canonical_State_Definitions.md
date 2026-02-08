@@ -56,13 +56,13 @@ Used in `matches.locationDecision.resolutionReason`:
 
 | Value | Description | Produced? |
 |-------|-------------|-----------|
-| `both_same` | Both users chose the same place | Yes |
+| `both_same` | Both users independently chose the same place | Yes |
 | `one_chose` | Only one user chose a place | Yes |
 | `none_chose` | Neither user chose (default to rank #1) | Yes |
 | `rank_tiebreak` | Both chose different places (lower rank wins) | Yes |
-| `tick_sync` | **PHANTOM** - Defined in type but never produced | **No** |
+| `tick_sync` | ✅ At least one user used tick action ("✓ Go with their choice") | **Yes** (Task 3) |
 
-**Rationale:** `tick_sync` is defined in `resolvePlace.ts:24` but no code path produces this value. May be removed in Phase 2 or retained as reserved/unused.
+**Rationale:** All five resolution reasons are now fully implemented. `tick_sync` was added in Follow-up Task 3 (2026-02-08) to distinguish between independent agreement (`both_same`) and tick synchronization (`tick_sync`).
 
 ---
 
@@ -127,18 +127,29 @@ Used in `matches.locationDecision.resolutionReason`:
 
 ---
 
-### 3.2 Phantom Resolution Reason: `tick_sync`
+### 3.2 ~~Phantom Resolution Reason: `tick_sync`~~ ✅ RESOLVED (Follow-up Task 3)
 
-**Location:** `functions/src/matches/resolvePlace.ts:24` (type definition)
+**Location:** `functions/src/matches/resolvePlace.ts` and `functions/src/matches/setPlaceChoice.ts`
 
-**Status:** Defined in TypeScript type but never produced by resolution algorithm.
+**Status:** ✅ **FULLY IMPLEMENTED** as of Follow-up Task 3 (2026-02-08)
 
-**Canonical Treatment:** Documented as reserved/unused. May be removed in Phase 2 or retained for future use.
+**Pre-Task 3 Issue:** Defined in TypeScript type but never produced by resolution algorithm.
+
+**Task 3 Resolution:**
+- Added `source` field to `PlaceChoice` interface: `source?: 'tick' | 'choose'`
+- `setPlaceChoice` handler now tracks choice provenance: `source: action === 'tick' ? 'tick' : 'choose'`
+- Resolution algorithm checks: `tickUsed = user1Choice!.source === 'tick' || user2Choice!.source === 'tick'`
+- Returns `'tick_sync'` when at least one user clicked "✓ Go with their choice"
+- Returns `'both_same'` when both users independently chose the same place
+
+**Semantics:**
+- `tick_sync`: At least one user used tick action (agreeing with other's choice)
+- `both_same`: Both users independently selected the same place
 
 **Code Evidence:**
-- Defined at line 24: `type ResolutionReason = 'both_same' | 'tick_sync' | ...`
-- Never assigned in `resolveMatchPlaceAlgorithm` (lines 179-231)
-- No code path currently produces this value
+- Type: `functions/src/matches/resolvePlace.ts:25`
+- Tracking: `functions/src/matches/setPlaceChoice.ts:99-104`
+- Resolution: `functions/src/matches/resolvePlace.ts:204-209`
 
 ---
 
