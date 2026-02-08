@@ -20,6 +20,21 @@ export default function NotificationsDebugPage() {
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  // Capture debug info
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const info = `
+User Agent: ${navigator.userAgent}
+Notification in window: ${'Notification' in window}
+window.Notification: ${!!window.Notification}
+Notification.permission: ${window.Notification ? Notification.permission : 'N/A'}
+ServiceWorker available: ${'serviceWorker' in navigator}
+      `.trim();
+      setDebugInfo(info);
+    }
+  }, []);
 
   const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
@@ -220,6 +235,15 @@ export default function NotificationsDebugPage() {
           )}
         </div>
       </Card>
+
+      {debugInfo && (
+        <Card className="p-6 mb-6 bg-gray-50">
+          <h3 className="font-semibold text-gray-900 mb-2">🔍 Browser Debug Info</h3>
+          <pre className="text-xs bg-white p-3 rounded border overflow-x-auto whitespace-pre-wrap">
+            {debugInfo}
+          </pre>
+        </Card>
+      )}
 
       <Card className="p-6 bg-blue-50 border-blue-200">
         <h3 className="font-semibold text-blue-900 mb-2">📋 Troubleshooting Steps</h3>

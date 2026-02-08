@@ -22,12 +22,21 @@ export function useNotifications() {
 
   // Check if notifications are supported and register service worker
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
+    console.log('[Notifications] Checking support...');
+    console.log('[Notifications] typeof window:', typeof window);
+    console.log('[Notifications] Notification in window:', typeof window !== 'undefined' && 'Notification' in window);
+    console.log('[Notifications] window.Notification:', typeof window !== 'undefined' ? window.Notification : 'N/A');
+    console.log('[Notifications] navigator.userAgent:', typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A');
+
+    if (typeof window !== 'undefined' && 'Notification' in window && window.Notification) {
+      console.log('[Notifications] ✅ Notifications ARE supported!');
+      console.log('[Notifications] Notification.permission:', Notification.permission);
       setIsSupported(true);
       setPermissionStatus(Notification.permission);
 
       // Register service worker for background notifications
       if ('serviceWorker' in navigator) {
+        console.log('[Notifications] Service Worker API available');
         navigator.serviceWorker
           .register('/firebase-messaging-sw.js')
           .then((registration) => {
@@ -36,7 +45,16 @@ export function useNotifications() {
           .catch((error) => {
             console.error('[Notifications] Service Worker registration failed:', error);
           });
+      } else {
+        console.log('[Notifications] Service Worker API NOT available');
       }
+    } else {
+      console.log('[Notifications] ❌ Notifications NOT supported');
+      console.log('[Notifications] Reasons:');
+      console.log('  - window undefined?', typeof window === 'undefined');
+      console.log('  - Notification in window?', typeof window !== 'undefined' && 'Notification' in window);
+      console.log('  - window.Notification exists?', typeof window !== 'undefined' && !!window.Notification);
+      setIsSupported(false);
     }
   }, []);
 
