@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ ServiceWorker available: ${'serviceWorker' in navigator}
   const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
   // Fetch FCM token from Firestore
-  const fetchFcmToken = async () => {
+  const fetchFcmToken = useCallback(async () => {
     if (!user || !db) return;
 
     try {
@@ -51,11 +51,11 @@ ServiceWorker available: ${'serviceWorker' in navigator}
     } catch (error) {
       console.error('Error fetching FCM token:', error);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchFcmToken();
-  }, [user]);
+  }, [fetchFcmToken]);
 
   const handleEnableNotifications = async () => {
     setIsLoading(true);

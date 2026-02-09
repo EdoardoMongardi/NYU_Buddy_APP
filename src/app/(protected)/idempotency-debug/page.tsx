@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { CheckCircle, XCircle, AlertCircle, Clock, RefreshCw } from 'lucide-react';
 import { collection, query, where, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { presenceStart, offerCreate, offerRespond, matchCancel } from '@/lib/firebase/functions';
+import { presenceStart } from '@/lib/firebase/functions';
 
 /**
  * U23 Debug Page: Idempotency & Retry Testing
@@ -35,7 +35,7 @@ interface IdempotencyRecord {
   expiresAt: Timestamp;
   processingStartedAt?: Timestamp;
   completedAt?: Timestamp;
-  minimalResult?: any;
+  minimalResult?: unknown;
   error?: string;
 }
 
@@ -44,7 +44,7 @@ export default function IdempotencyDebugPage() {
   const [logs, setLogs] = useState<TestLog[]>([]);
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [idempotencyRecords, setIdempotencyRecords] = useState<IdempotencyRecord[]>([]);
-  const [presenceData, setPresenceData] = useState<any>(null);
+  const [presenceData, setPresenceData] = useState<Record<string, unknown> | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Add log entry
@@ -133,7 +133,7 @@ export default function IdempotencyDebugPage() {
       const sessionIds = new Set();
       results.forEach((result, i) => {
         if (result.status === 'fulfilled') {
-          const data = result.value as any;
+          const data = result.value as { sessionId?: string; error?: string };
           if (data.error) {
             addLog(`Request ${i + 1}: ❌ ${data.error}`, 'error');
           } else {
@@ -194,11 +194,12 @@ export default function IdempotencyDebugPage() {
           lng: -73.9972,
         });
         addLog('❌ Study session succeeded (UNEXPECTED - should have failed!)', 'error');
-      } catch (error: any) {
-        if (error.message.includes('already have an active')) {
-          addLog(`✅ Correctly rejected: ${error.message}`, 'success');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('already have an active')) {
+          addLog(`✅ Correctly rejected: ${errorMessage}`, 'success');
         } else {
-          addLog(`❌ Unexpected error: ${error.message}`, 'error');
+          addLog(`❌ Unexpected error: ${errorMessage}`, 'error');
         }
       }
 
@@ -209,8 +210,9 @@ export default function IdempotencyDebugPage() {
         fetchIdempotencyRecords();
         fetchPresenceData();
       }, 1000);
-    } catch (error: any) {
-      addLog(`❌ Test failed: ${error.message}`, 'error');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addLog(`❌ Test failed: ${errorMessage}`, 'error');
     } finally {
       setIsTestRunning(false);
     }
@@ -239,20 +241,23 @@ export default function IdempotencyDebugPage() {
 
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
         addLog(`✅ Request succeeded after ${elapsed}s`, 'success');
-      } catch (error: any) {
+      } catch (error) {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        const errorCode = (error as { code?: string }).code;
+        const errorMessage = error instanceof Error ? error.message : String(error);
 
-        if (error.code === 'processing-timeout') {
+        if (errorCode === 'processing-timeout') {
           addLog(`⏱️ Processing timeout after ${elapsed}s (deadline enforcement working!)`, 'warning');
-          addLog(`Message: ${error.message}`, 'info');
+          addLog(`Message: ${errorMessage}`, 'info');
         } else {
-          addLog(`❌ Request failed after ${elapsed}s: ${error.message}`, 'error');
+          addLog(`❌ Request failed after ${elapsed}s: ${errorMessage}`, 'error');
         }
       }
 
       addLog('✅ Test complete - Check console for retry logs', 'success');
-    } catch (error: any) {
-      addLog(`❌ Test failed: ${error.message}`, 'error');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addLog(`❌ Test failed: ${errorMessage}`, 'error');
     } finally {
       setIsTestRunning(false);
     }
@@ -299,8 +304,9 @@ export default function IdempotencyDebugPage() {
         addLog('✅ Test complete - Verify only 1 session created (no duplicates!)', 'success');
       }, 1000);
 
-    } catch (error: any) {
-      addLog(`❌ Test failed: ${error.message}`, 'error');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addLog(`❌ Test failed: ${errorMessage}`, 'error');
     } finally {
       setIsTestRunning(false);
     }
@@ -615,7 +621,7 @@ export default function IdempotencyDebugPage() {
             <strong>Retry behavior:</strong> Transient errors (unavailable, deadline-exceeded) → Auto-retry with backoff
           </li>
           <li>
-            <strong>Processing timeout:</strong> Operation takes &gt;15s → User-friendly "still processing" message
+            <strong>Processing timeout:</strong> Operation takes &gt;15s → User-friendly &quot;still processing&quot; message
           </li>
           <li>
             <strong>Stale locks:</strong> Lock stuck for &gt;60s → Auto-recovered (marked failed, allows retry)

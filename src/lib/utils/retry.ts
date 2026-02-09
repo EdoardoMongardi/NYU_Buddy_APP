@@ -42,7 +42,7 @@ interface RetryOptions {
  *
  * Based on: https://firebase.google.com/docs/reference/js/functions#functionserrorcode
  */
-function isRetryableError(error: any): boolean {
+function isRetryableError(error: unknown): boolean {
   const errorCode = error?.code;
   const errorMessage = error?.message || '';
 
@@ -123,7 +123,6 @@ export async function retryWithBackoff<T>(
 ): Promise<T> {
   const {
     maxTotalMs = 15000, // Default 15s total deadline (includes request execution time)
-    maxAttempts, // Deprecated, kept for backward compatibility
     initialDelayMs = 1000,
     maxDelayMs = 10000,
     backoffMultiplier = 2,
@@ -134,7 +133,7 @@ export async function retryWithBackoff<T>(
 
   // Generate idempotency key ONCE for all retries
   const idempotencyKey = generateIdempotencyKey();
-  let lastError: any;
+  let lastError: unknown;
   let isDuplicateInProgress = false;
   let attempt = 0;
   let currentDelayMs = initialDelayMs;
@@ -145,18 +144,20 @@ export async function retryWithBackoff<T>(
     try {
       // Execute function with same idempotency key
       return await fn(idempotencyKey);
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
+      const errorCode = (error as { code?: string }).code;
+      const errorMessage = (error as { message?: string }).message;
 
       // Track if we're retrying due to duplicate in-progress
-      if (error.code === 'already-exists' && error.message?.includes('DUPLICATE_IN_PROGRESS')) {
+      if (errorCode === 'already-exists' && errorMessage?.includes('DUPLICATE_IN_PROGRESS')) {
         isDuplicateInProgress = true;
       }
 
       // Don't retry on certain error codes
       if (!isRetryableError(error)) {
         console.log(
-          `[Retry] Non-retryable error (${error.code}): ${error.message}`
+          `[Retry] Non-retryable error (${errorCode}): ${errorMessage}`
         );
         throw error;
       }
@@ -192,7 +193,7 @@ export async function retryWithBackoff<T>(
       const delay = Math.min(currentDelayMs, maxDelayMs, timeRemaining);
 
       console.log(
-        `[Retry] Attempt ${attempt} failed (${error.code}), retrying in ${delay}ms... ` +
+        `[Retry] Attempt ${attempt} failed (${errorCode}), retrying in ${delay}ms... ` +
         `(${Math.floor(timeRemaining / 1000)}s remaining, key: ${idempotencyKey.substring(0, 8)}...)`
       );
 
