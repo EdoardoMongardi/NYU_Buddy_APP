@@ -4,8 +4,9 @@
  */
 
 // Import Firebase scripts for service worker
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+// IMPORTANT: Keep this version in sync with package.json firebase dependency (currently v12.8.0)
+importScripts('https://www.gstatic.com/firebasejs/12.8.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.8.0/firebase-messaging-compat.js');
 
 // Firebase configuration (must match your Firebase project)
 // Note: These values are safe to expose in client-side code
