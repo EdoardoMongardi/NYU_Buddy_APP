@@ -144,11 +144,11 @@ export function useOffers() {
         distanceMeters,
       });
 
-      if (result.data.matchCreated) {
+      if (result.matchCreated) {
         return {
           matchCreated: true,
-          matchId: result.data.matchId,
-          offerId: result.data.offerId,
+          matchId: result.matchId,
+          offerId: result.offerId,
         };
       }
 
@@ -157,9 +157,9 @@ export function useOffers() {
 
       return {
         matchCreated: false,
-        offerId: result.data.offerId,
-        expiresAt: result.data.expiresAt,
-        cooldownUntil: result.data.cooldownUntil,
+        offerId: result.offerId,
+        expiresAt: result.expiresAt,
+        cooldownUntil: result.cooldownUntil,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create offer';
@@ -181,7 +181,7 @@ export function useOffers() {
       // Refresh inbox after responding
       await fetchInbox();
 
-      return result.data;
+      return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to respond to offer';
       setInboxError(message);

@@ -13,6 +13,11 @@
  * - Idempotency key generated once and reused
  */
 
+interface EnhancedError extends Error {
+  code: string;
+  originalError: unknown;
+}
+
 interface RetryOptions {
   maxAttempts?: number; // Deprecated: use maxTotalMs instead
   maxTotalMs?: number; // Total deadline in milliseconds (default: 15000ms = 15s)
@@ -43,8 +48,8 @@ interface RetryOptions {
  * Based on: https://firebase.google.com/docs/reference/js/functions#functionserrorcode
  */
 function isRetryableError(error: unknown): boolean {
-  const errorCode = error?.code;
-  const errorMessage = error?.message || '';
+  const errorCode = (error as { code?: string }).code;
+  const errorMessage = (error as { message?: string }).message || '';
 
   // Special case: DUPLICATE_IN_PROGRESS should retry (wait for first request to complete)
   if (errorCode === 'already-exists' && errorMessage.includes('DUPLICATE_IN_PROGRESS')) {
@@ -62,7 +67,7 @@ function isRetryableError(error: unknown): boolean {
     'out-of-range',
   ];
 
-  if (neverRetryCodes.includes(errorCode)) {
+  if (errorCode && neverRetryCodes.includes(errorCode)) {
     return false;
   }
 
@@ -76,7 +81,7 @@ function isRetryableError(error: unknown): boolean {
     'aborted', // Transaction conflicts
   ];
 
-  if (alwaysRetryCodes.includes(errorCode)) {
+  if (errorCode && alwaysRetryCodes.includes(errorCode)) {
     return true;
   }
 
@@ -176,9 +181,9 @@ export async function retryWithBackoff<T>(
           // Create a more user-friendly error for UI to display
           const enhancedError = new Error(
             'Your request is still being processed. Please check your inbox or matches page in a moment. Avoid tapping repeatedly.'
-          );
-          (enhancedError as any).code = 'processing-timeout';
-          (enhancedError as any).originalError = error;
+          ) as EnhancedError;
+          enhancedError.code = 'processing-timeout';
+          enhancedError.originalError = error;
           throw enhancedError;
         }
 
@@ -212,9 +217,9 @@ export async function retryWithBackoff<T>(
   if (isDuplicateInProgress) {
     const enhancedError = new Error(
       'Your request is still being processed. Please check your inbox or matches page in a moment. Avoid tapping repeatedly.'
-    );
-    (enhancedError as any).code = 'processing-timeout';
-    (enhancedError as any).originalError = lastError;
+    ) as EnhancedError;
+    enhancedError.code = 'processing-timeout';
+    enhancedError.originalError = lastError;
     throw enhancedError;
   }
 

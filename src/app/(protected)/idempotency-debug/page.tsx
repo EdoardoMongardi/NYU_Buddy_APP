@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -48,17 +48,17 @@ export default function IdempotencyDebugPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Add log entry
-  const addLog = (message: string, type: TestLog['type'] = 'info') => {
+  const addLog = useCallback((message: string, type: TestLog['type'] = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs((prev) => [...prev, { timestamp, message, type }]);
-  };
+  }, []);
 
   // Clear logs
   const clearLogs = () => setLogs([]);
 
   // Fetch idempotency records for current user
-  const fetchIdempotencyRecords = async () => {
-    if (!user) return;
+  const fetchIdempotencyRecords = useCallback(async () => {
+    if (!user || !db) return;
 
     try {
       const q = query(
@@ -72,11 +72,11 @@ export default function IdempotencyDebugPage() {
     } catch (error) {
       addLog(`Error fetching idempotency records: ${error}`, 'error');
     }
-  };
+  }, [user, addLog]);
 
   // Fetch presence data
-  const fetchPresenceData = async () => {
-    if (!user) return;
+  const fetchPresenceData = useCallback(async () => {
+    if (!user || !db) return;
 
     try {
       const presenceDoc = await getDoc(doc(db, 'presence', user.uid));
@@ -90,7 +90,7 @@ export default function IdempotencyDebugPage() {
     } catch (error) {
       addLog(`Error fetching presence data: ${error}`, 'error');
     }
-  };
+  }, [user, addLog]);
 
   // Auto-refresh
   useEffect(() => {
@@ -102,7 +102,7 @@ export default function IdempotencyDebugPage() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, user]);
+  }, [autoRefresh, fetchIdempotencyRecords, fetchPresenceData]);
 
   // Test 1: Concurrent Duplicate Calls (presenceStart)
   const testConcurrentDuplicates = async () => {
@@ -512,19 +512,19 @@ export default function IdempotencyDebugPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="text-gray-600 font-medium">Activity</p>
-              <p className="font-mono">{presenceData.activity}</p>
+              <p className="font-mono">{String(presenceData.activity)}</p>
             </div>
             <div>
               <p className="text-gray-600 font-medium">Status</p>
-              <p className="font-mono">{presenceData.status}</p>
+              <p className="font-mono">{String(presenceData.status)}</p>
             </div>
             <div>
               <p className="text-gray-600 font-medium">Session ID</p>
-              <p className="font-mono text-xs">{presenceData.sessionId?.substring(0, 12)}...</p>
+              <p className="font-mono text-xs">{typeof presenceData.sessionId === 'string' ? presenceData.sessionId.substring(0, 12) : 'N/A'}...</p>
             </div>
             <div>
               <p className="text-gray-600 font-medium">Duration</p>
-              <p className="font-mono">{presenceData.durationMinutes} min</p>
+              <p className="font-mono">{String(presenceData.durationMinutes)} min</p>
             </div>
           </div>
         </Card>
@@ -586,7 +586,7 @@ export default function IdempotencyDebugPage() {
                   </div>
                 </div>
 
-                {record.minimalResult && (
+                {!!record.minimalResult && (
                   <div className="mt-3 pt-3 border-t">
                     <p className="text-gray-600 font-medium text-sm mb-1">Cached Result:</p>
                     <pre className="text-xs bg-white p-2 rounded overflow-x-auto">

@@ -66,15 +66,15 @@ export function useCycleSuggestions() {
                 distanceMeters: suggestion.distance,
             });
 
-            if (result.data.matchCreated) {
+            if (result.matchCreated) {
                 // Return immediately for handling in UI
-                return { matchCreated: true, matchId: result.data.matchId };
+                return { matchCreated: true, matchId: result.matchId };
             }
 
             // If invite sent, move to next suggestion automatically
             await fetchSuggestion('next');
 
-            return { matchCreated: false, offerId: result.data.offerId };
+            return { matchCreated: false, offerId: result.offerId };
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to send invite';
             setError(message);

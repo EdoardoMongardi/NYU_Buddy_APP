@@ -174,7 +174,7 @@ export default function DebugRulesPage() {
         lat: 40.7295, // NYU Washington Square
         lng: -73.9965,
       });
-      append('✅ presenceStart succeeded: ' + JSON.stringify(result.data));
+      append('✅ presenceStart succeeded: ' + JSON.stringify(result));
     } catch (e: unknown) {
       const error = e as { code?: string; message?: string };
       append(`❌ presenceStart failed: ${error?.code || error?.message || String(e)}`);
@@ -185,7 +185,7 @@ export default function DebugRulesPage() {
     append('🧪 TEST: presenceEnd via Cloud Function (should succeed)');
     try {
       const result = await presenceEnd();
-      append('✅ presenceEnd succeeded: ' + JSON.stringify(result.data));
+      append('✅ presenceEnd succeeded: ' + JSON.stringify(result));
     } catch (e: unknown) {
       // If no presence exists, this might fail with a business logic error (not permission-denied)
       const error = e as { code?: string; message?: string };
@@ -207,7 +207,7 @@ export default function DebugRulesPage() {
         matchId,
         reason: 'Testing Phase 3 rules',
       });
-      append('✅ matchCancel succeeded: ' + JSON.stringify(result.data));
+      append('✅ matchCancel succeeded: ' + JSON.stringify(result));
     } catch (e: unknown) {
       const error = e as { code?: string; message?: string };
       if (error?.code === 'permission-denied') {
@@ -228,7 +228,7 @@ export default function DebugRulesPage() {
         matchId,
         status: 'heading_there',
       });
-      append('✅ updateMatchStatus succeeded: ' + JSON.stringify(result.data));
+      append('✅ updateMatchStatus succeeded: ' + JSON.stringify(result));
     } catch (e: unknown) {
       const error = e as { code?: string; message?: string };
       if (error?.code === 'permission-denied') {
@@ -246,7 +246,7 @@ export default function DebugRulesPage() {
     append(`🧪 TEST: matchFetchAllPlaces via Cloud Function (should succeed)`);
     try {
       const result = await matchFetchAllPlaces({ matchId });
-      append('✅ matchFetchAllPlaces succeeded: ' + JSON.stringify(result.data));
+      append('✅ matchFetchAllPlaces succeeded: ' + JSON.stringify(result));
     } catch (e: unknown) {
       const error = e as { code?: string; message?: string };
       if (error?.code === 'permission-denied') {
@@ -270,7 +270,7 @@ export default function DebugRulesPage() {
         placeRank: 1,
         action: 'choose',
       });
-      append('✅ matchSetPlaceChoice succeeded: ' + JSON.stringify(result.data));
+      append('✅ matchSetPlaceChoice succeeded: ' + JSON.stringify(result));
     } catch (e: unknown) {
       const error = e as { code?: string; message?: string };
       if (error?.code === 'permission-denied') {
@@ -288,7 +288,7 @@ export default function DebugRulesPage() {
     append(`🧪 TEST: matchResolvePlaceIfNeeded via Cloud Function (should succeed)`);
     try {
       const result = await matchResolvePlaceIfNeeded({ matchId });
-      append('✅ matchResolvePlaceIfNeeded succeeded: ' + JSON.stringify(result.data));
+      append('✅ matchResolvePlaceIfNeeded succeeded: ' + JSON.stringify(result));
     } catch (e: unknown) {
       const error = e as { code?: string; message?: string };
       if (error?.code === 'permission-denied') {
