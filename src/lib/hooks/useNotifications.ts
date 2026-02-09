@@ -75,7 +75,7 @@ export function useNotifications() {
 
     const refreshTokenAndListener = async () => {
       try {
-        const messaging = getMessaging(app);
+        const messaging = getMessaging(app!);
         setupForegroundListener(messaging);
         console.log('[Notifications] Foreground listener re-established for returning user');
 
