@@ -4,25 +4,26 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { presenceStartHandler } from './presence/start';
 import { presenceEndHandler } from './presence/end';
+import { presenceCleanupExpiredHandler } from './presence/cleanupExpired';
 import { suggestionGetTop1Handler } from './suggestions/getTop1';
 import { suggestionRespondHandler } from './suggestions/respond';
 import { suggestionGetCycleHandler, suggestionPassHandler } from './suggestions/getCycle';
-import {
-  meetupRecommendHandler,
-  updateMatchStatusHandler,
-} from './meetup/recommend';
 import { offerCreateHandler } from './offers/create';
 import { offerRespondHandler } from './offers/respond';
 import { offerCancelHandler } from './offers/cancel';
 import { offersGetInboxHandler } from './offers/getInbox';
 import { offerGetOutgoingHandler } from './offers/getOutgoing';
-import { matchConfirmPlaceHandler } from './matches/confirmPlace';
 import { matchCancelHandler } from './matches/cancel';
+import { updateMatchStatusHandler } from './matches/updateStatus';
 import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
 import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
 import { matchResolveExpiredHandler } from './matches/resolveExpired';
+import { matchCleanupStalePendingHandler } from './matches/cleanupStalePending';
+import { offerExpireStaleHandler } from './offers/expireStale';
 import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
+import { normalizeOfferUpdatedAtHandler } from './migrations/normalizeOfferUpdatedAt';
+import { auditPresenceMatchIdHandler } from './migrations/auditPresenceMatchId';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -60,12 +61,7 @@ export const suggestionPass = onCall(
   suggestionPassHandler
 );
 
-// Meetup functions
-export const meetupRecommend = onCall(
-  { region: 'us-east1' },
-  meetupRecommendHandler
-);
-
+// Match Status function
 export const updateMatchStatus = onCall(
   { region: 'us-east1' },
   updateMatchStatusHandler
@@ -98,11 +94,6 @@ export const offerGetOutgoing = onCall(
 );
 
 // Match functions
-export const matchConfirmPlace = onCall(
-  { region: 'us-east1' },
-  matchConfirmPlaceHandler
-);
-
 export const matchCancel = onCall(
   { region: 'us-east1' },
   matchCancelHandler
@@ -130,7 +121,36 @@ export const matchResolveExpired = onSchedule(
   matchResolveExpiredHandler
 );
 
+// Phase 2.1-A: Auto-cancel stale pending matches every 5 minutes
+export const matchCleanupStalePending = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  matchCleanupStalePendingHandler
+);
+
+// Phase 2.1-B: Mark expired pending offers as expired every 5 minutes
+export const offerExpireStale = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  offerExpireStaleHandler
+);
+
+// Task 4: Cleanup expired presence documents every 5 minutes
+export const presenceCleanupExpired = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  presenceCleanupExpiredHandler
+);
+
 export const checkAvailabilityForUser = onCall(
   { region: 'us-east1' },
   checkAvailabilityForUserHandler
+);
+
+// Migration functions (admin-only, run once)
+export const normalizeOfferUpdatedAt = onCall(
+  { region: 'us-east1' },
+  normalizeOfferUpdatedAtHandler
+);
+
+export const auditPresenceMatchId = onCall(
+  { region: 'us-east1' },
+  auditPresenceMatchIdHandler
 );

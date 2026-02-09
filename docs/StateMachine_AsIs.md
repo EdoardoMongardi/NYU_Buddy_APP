@@ -40,6 +40,7 @@ The system consists of the following independent but interacting domains:
 | `SEARCH_RADII_KM` | [2, 3, 5] | `functions/src/utils/places.ts` | 13 | Fallback radius expansion |
 | `LOCATION_STALE_THRESHOLD_MS` | 300000 (5 min) | `functions/src/utils/places.ts` | 15 | Location freshness threshold |
 | `DEFAULT_LOCATION` | [40.7295, -73.9965] (NYU WSQ) | `functions/src/utils/places.ts` | 213 | Fallback center point |
+| `PENDING_TIMEOUT_MINUTES` | 15 | `functions/src/matches/cleanupStalePending.ts` | 14 | Phase 2: Timeout for stale pending matches |
 
 ## 4. State Definitions (AS-IS)
 
@@ -129,7 +130,7 @@ else if ((u1 === 'heading_there' || u1 === 'arrived') && (u2 === 'heading_there'
 3. Neither chose → **Rank #1** (closest place) is auto-selected (lines 187-188) — reason: `'none_chose'`
 4. Both chose different → **lower rank wins** (closer place); on rank tie, lexicographically smaller `placeId` (lines 222-230) — reason: `'rank_tiebreak'`
 
-**Dead Code:** `ResolutionReason` type (`resolvePlace.ts:24`) includes `'tick_sync'` but **no code path ever produces this value**. It is defined in the union type but never assigned during resolution.
+**~~Dead Code~~** ✅ **RESOLVED (Follow-up Task 3, 2026-02-08):** `ResolutionReason` type (`resolvePlace.ts:24`) previously included `'tick_sync'` but no code path produced this value. **Resolution implemented:** Choice provenance tracking added via `source` field (`'tick' | 'choose'`) in `setPlaceChoice.ts:138`, and resolution logic in `resolvePlace.ts:204-206` now properly generates `'tick_sync'` when at least one user clicks "✓ Go with their choice".
 
 ## 5. State Transition Tables
 
@@ -200,10 +201,7 @@ else if ((u1 === 'heading_there' || u1 === 'arrived') && (u2 === 'heading_there'
 | **Self-Matching** | Validation: `targetUid !== fromUid` | `functions/src/offers/create.ts:28` |
 | **Blocked Matching** | Symmetric check of `blocks` collection | `functions/src/offers/create.ts:32-54` |
 
-**DISCREPANCY in Double-Match Prevention:**
-- `offerCreate.ts:135` and `offerRespond.ts:136` use: `['pending', 'place_confirmed', 'heading_there', 'arrived']`
-- **Missing `location_deciding`** - A user in `location_deciding` could theoretically accept another offer
-- `getCycle.ts:175` uses different list: `['pending', 'location_deciding', 'place_confirmed', 'in_meetup']`
+**Note:** Pre-Phase 1, there were inconsistencies in the active match status lists used for double-match prevention. Phase 1 resolved this by introducing the canonical `ACTIVE_MATCH_STATUSES` constant (see Section 12 below).
 
 ## 8. Suggestion Systems
 
@@ -222,43 +220,75 @@ Both filter out (`getCycle.ts:229-234`):
 - Users in active matches (lines 172-185)
 - Users with pending outgoing offers (lines 188-196)
 
-**DISCREPANCY:** `getCycle.ts:175` references status `'in_meetup'` which is never written anywhere in the codebase. This status does not exist in the Match state machine.
+**Note:** Pre-Phase 1, `getCycle.ts` referenced a phantom status `'in_meetup'`. Phase 1 resolved this by using the canonical `ACTIVE_MATCH_STATUSES` constant.
 
-## 9. Known Inconsistencies / Ambiguities
+## 9. System Limitations & Resolved Issues
 
-1.  **Pending vs Location Deciding** (`functions/src/matches/fetchPlaces.ts`):
-    A match starts as `pending`. It *should* transition to `location_deciding` via `matchFetchAllPlaces`. If the client fails to call this, the match remains `pending` indefinitely (no server-side auto-trigger).
+### 9.1 Resolved in Phase 2
 
-2.  **Legacy Place Confirmation** (`functions/src/matches/confirmPlace.ts:44`):
+1.  **Stale Pending Matches (✅ RESOLVED IN PHASE 2.1-A)**
+
+    **Pre-Phase 2 Issue:** Matches could remain in `pending` status indefinitely if clients never called `matchFetchAllPlaces`, trapping users in `presence.status='matched'`.
+
+    **Resolution:** Scheduled function `matchCleanupStalePending` (runs every 5 minutes) auto-cancels matches stuck in `pending` for >15 minutes, restoring user presence to `available`. Uses shared `cancelMatchInternal` logic with reason `'timeout_pending'` and zero reliability penalty.
+
+    **Code:** `functions/src/matches/cleanupStalePending.ts`
+
+2.  **Expired Pending Offers (✅ RESOLVED IN PHASE 2.1-B)**
+
+    **Pre-Phase 2 Issue:** Offers remained `pending` in DB after `expiresAt` passed, blocking sender's outgoing offer slots.
+
+    **Resolution:** Scheduled function `offerExpireStale` (runs every 5 minutes) marks expired pending offers as `expired` and frees sender's `activeOutgoingOfferIds` slots.
+
+    **Code:** `functions/src/offers/expireStale.ts`
+
+### 9.2 Current System Limitations
+
+1.  **Legacy Place Confirmation** (`functions/src/matches/confirmPlace.ts:44`):
     `matchConfirmPlace` exists and allows transition from `pending` or `place_confirmed` directly. The UI might still use this path, bypassing the dual-choice voting logic.
 
-3.  **Presence Cleanup on Match Cancel** (`functions/src/matches/cancel.ts:161-170`):
+2.  **Presence Cleanup on Match Cancel** (`functions/src/matches/cancel.ts:161-170`):
     `matchCancel` attempts to restore presence to `available`. However, if `expiresAt < now`, the code silently skips the update (line 161-162). The user effectively becomes **Offline** without explicit deletion (zombie doc).
 
-4.  **Zombie Presences**: No scheduled job deletes expired presence docs. They persist until:
-    - The *owner* calls `suggestionGetCycle` (triggers lazy cleanup at line 343)
-    - The *owner* calls `presenceEnd`
-    - Other users filter them out in-memory, but docs remain in Firestore
+3.  ~~**Zombie Presences**~~ ✅ RESOLVED (Follow-up Task 4 - 2026-02-08):
 
-5.  **Offer Expiry Persistence**: Offers are not auto-marked as `expired` by a background job. They remain `pending` in DB even after `expiresAt`. The `expired` status is written only when someone attempts to respond (`functions/src/offers/respond.ts:51-52`).
+    **Pre-Task 4 Issue:** No scheduled job deleted expired presence docs. They persisted until owner called `suggestionGetCycle` or `presenceEnd`.
 
-6.  **Missing `location_deciding` in Double-Match Check** (`functions/src/offers/create.ts:135`, `functions/src/offers/respond.ts:136`):
-    The `activeStatuses` array does not include `location_deciding`. A match in this state could theoretically be bypassed by the double-match guard.
+    **Resolution:** Scheduled function `presenceCleanupExpired` (runs every 5 minutes) deletes expired presence documents with safety guards:
+    - Query: `collection('presence').where('expiresAt', '<=', now)`
+    - Batch size: 100 documents per run
+    - Safety: Skip if `status === 'matched'` (user in active match)
+    - Safety: Double-check expiry timestamp (race condition protection)
 
-7.  **Phantom Status `in_meetup`** (`functions/src/suggestions/getCycle.ts:175`):
-    This status is checked but never created anywhere in the codebase.
+    **Code:** `functions/src/presence/cleanupExpired.ts`, registered in `functions/src/index.ts:148-152`
 
-8.  **Inconsistent Active Match Status Lists:**
-    Different functions check different active match status sets when filtering:
+### 9.3 Historical Issues (Resolved in Phase 1)
 
-    | File | Status List |
-    |------|-------------|
-    | `offers/create.ts:135` | `['pending', 'place_confirmed', 'heading_there', 'arrived']` |
-    | `offers/respond.ts:136` | `['pending', 'place_confirmed', 'heading_there', 'arrived']` |
-    | `suggestions/getCycle.ts:175` | `['pending', 'location_deciding', 'place_confirmed', 'in_meetup']` |
-    | `suggestions/getTop1.ts:249` | `['pending', 'heading_there', 'arrived']` |
+**Note:** The issues below were fixed in Phase 1 (Semantic Convergence) by introducing the canonical `ACTIVE_MATCH_STATUSES` constant and replacing all hardcoded status arrays with imports from `functions/src/constants/state.ts`.
 
-    **Impact:** `offers/create.ts` and `offers/respond.ts` are missing `location_deciding`, so users actively selecting a location could receive new offers. `suggestions/getTop1.ts` is missing `location_deciding` and `place_confirmed`. The `in_meetup` status in getCycle doesn't exist in the codebase (should be `heading_there`/`arrived`).
+1.  **Missing `location_deciding` in Double-Match Check (✅ RESOLVED)**
+
+    **Pre-Phase 1 Issue:** `offers/create.ts` and `offers/respond.ts` used incomplete status arrays missing `location_deciding`, allowing users in that state to theoretically accept another offer.
+
+    **Resolution:** Phase 1 replaced hardcoded arrays with `ACTIVE_MATCH_STATUSES` constant, which includes all five non-terminal match statuses: `['pending', 'location_deciding', 'place_confirmed', 'heading_there', 'arrived']`.
+
+2.  **Phantom Status `in_meetup` (✅ RESOLVED)**
+
+    **Pre-Phase 1 Issue:** `suggestions/getCycle.ts` checked for status `'in_meetup'` which was never written anywhere in the codebase.
+
+    **Resolution:** Phase 1 replaced the hardcoded array containing `in_meetup` with the canonical `ACTIVE_MATCH_STATUSES` constant, which uses the correct statuses `heading_there` and `arrived`.
+
+3.  **Inconsistent Active Match Status Lists (✅ RESOLVED)**
+
+    **Pre-Phase 1 Issue:** Different functions used different hardcoded status arrays:
+    - `offers/create.ts:135`: `['pending', 'place_confirmed', 'heading_there', 'arrived']` (missing `location_deciding`)
+    - `offers/respond.ts:136`: `['pending', 'place_confirmed', 'heading_there', 'arrived']` (missing `location_deciding`)
+    - `suggestions/getCycle.ts:175`: `['pending', 'location_deciding', 'place_confirmed', 'in_meetup']` (phantom `in_meetup`, missing `heading_there`/`arrived`)
+    - `suggestions/getTop1.ts:249`: `['pending', 'heading_there', 'arrived']` (missing `location_deciding`, `place_confirmed`)
+
+    **Resolution:** Phase 1 replaced all four hardcoded arrays with imports of the canonical `ACTIVE_MATCH_STATUSES` constant, ensuring consistency across the codebase.
+
+    **Code:** `functions/src/constants/state.ts`
 
 ## 10. Eligibility Guards & Non-State Ranking Logic (AS-IS)
 

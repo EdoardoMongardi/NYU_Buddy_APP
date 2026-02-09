@@ -14,17 +14,14 @@ const DEFAULT_PLACE_IMAGE = 'https://images.unsplash.com/photo-1554118811-1e0d58
 interface PlaceCardProps {
     place: PlaceCandidate & {
         photoUrl?: string;
-        priceLevel?: number; // 1-4 ($, $$, $$$, $$$$)
+        priceLevel?: number; // 1-4 ($, $$, $$$, $$$$) - legacy
+        priceRange?: string; // U11: e.g., "$20-$50" - preferred
         tags?: string[];
     };
     isSelected: boolean;
     isOtherChoice: boolean;
     isLoading: boolean;
     onSelect: () => void;
-}
-
-function getPriceIndicator(level: number): string {
-    return '$'.repeat(Math.min(Math.max(level, 1), 4));
 }
 
 function getTagIcon(tag: string) {
@@ -42,7 +39,8 @@ export function PlaceCard({
     isLoading,
     onSelect,
 }: PlaceCardProps) {
-    const priceLevel = place.priceLevel || 2; // Default $$
+    // U11: Prefer priceRange text over priceLevel number. If no priceRange, show just icon (no text)
+    const priceDisplay = place.priceRange || '';
     const tags = place.tags || ['WiFi', 'Outlets'];
     const photoUrl = place.photoUrl || DEFAULT_PLACE_IMAGE;
 
@@ -108,10 +106,13 @@ export function PlaceCard({
                         <p className="text-sm text-gray-500 truncate">{place.address}</p>
                     </div>
                     <div className="flex items-center gap-1 ml-2">
-                        <DollarSign className="w-4 h-4 text-green-600" />
-                        <span className="text-sm font-medium text-green-700">
-                            {getPriceIndicator(priceLevel)}
-                        </span>
+                        {/* Show icon only when no priceRange set; priceRange text includes $ already */}
+                        {!place.priceRange && <DollarSign className="w-4 h-4 text-green-600" />}
+                        {priceDisplay && (
+                            <span className="text-sm font-medium text-green-700">
+                                {priceDisplay}
+                            </span>
+                        )}
                     </div>
                 </div>
 

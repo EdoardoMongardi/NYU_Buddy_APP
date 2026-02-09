@@ -1,5 +1,8 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
+import { ACTIVE_MATCH_STATUSES } from '../constants/state';
+import { requireEmailVerification } from '../utils/verifyEmail';
+import { sendMatchCreatedNotification } from '../utils/notifications';
 
 interface OfferRespondData {
   offerId: string;
@@ -10,6 +13,9 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
+
+  // U21 Fix: Require email verification (zero grace period)
+  await requireEmailVerification(request);
 
   const uid = request.auth.uid;
   const { offerId, action } = request.data;
@@ -133,7 +139,7 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   }
 
   // Check neither is in an active match
-  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+  const activeStatuses = ACTIVE_MATCH_STATUSES;
 
   // Check Sender (fromUid)
   const fromMatchesQuery = await db.collection('matches')
@@ -225,12 +231,14 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     transaction.update(fromPresenceDoc.ref, {
       activeOutgoingOfferIds: [],
       status: 'matched',
+      matchId: matchRef.id, // U14 Fix: Set matchId consistently
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // Update receiver's presence
     transaction.update(toPresenceDoc.ref, {
       status: 'matched',
+      matchId: matchRef.id, // U14 Fix: Set matchId consistently
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   });
@@ -240,6 +248,24 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     m.cleanupPendingOffers(db, offer.fromUid, offerId),
     m.cleanupPendingOffers(db, uid, offerId)
   ]));
+
+  // U16: Send push notifications to both users
+  // Fetch user profiles for display names
+  const [user1Doc, user2Doc] = await Promise.all([
+    db.collection('users').doc(user1Uid).get(),
+    db.collection('users').doc(user2Uid).get(),
+  ]);
+
+  const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
+  const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
+
+  // Send notifications to both users (fire-and-forget)
+  Promise.all([
+    sendMatchCreatedNotification(user1Uid, user2DisplayName, matchRef.id),
+    sendMatchCreatedNotification(user2Uid, user1DisplayName, matchRef.id),
+  ]).catch((err) => {
+    console.error('[offerRespond] Failed to send match notifications:', err);
+  });
 
   return {
     matchCreated: true,

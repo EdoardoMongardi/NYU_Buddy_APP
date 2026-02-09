@@ -631,26 +631,59 @@ See: DataModel_AsIs.md#151-phantom-fields-read-but-never-written for details on 
 
 **Mitigation:** None currently implemented
 
-### 11.4 Place Selection Inconsistency
+### 11.4 ~~Place Selection Inconsistency~~ ✅ RESOLVED (U20 - 2026-02-08)
 
-**Issue:** Two systems exist:
+**Pre-Fix Issue:** Two place selection systems existed:
 1. Legacy: `meetupRecommend` → `matchConfirmPlace` (3 places, first-confirm-wins)
 2. New: `matchFetchAllPlaces` → `matchSetPlaceChoice` → `matchResolvePlace` (dual-choice, countdown)
 
-**Reality:** Match page does not render new system UI. Unclear which is active.
+UI used new system, but legacy functions remained causing confusion.
 
-### 11.5 Activity List Mismatch (Places vs Users)
+**Resolution:**
+- Deleted legacy backend functions: `meetupRecommend`, `matchConfirmPlace`
+- Removed legacy Cloud Functions from production
+- Cleaned up frontend references (functions.ts, useMatch.ts)
+- Preserved `updateMatchStatus` (moved to `matches/updateStatus.ts`)
+- System now uses ONLY dual-choice voting with countdown
 
-See: DataModel_AsIs.md#156-activity-list-mismatch for details. Users selecting "Explore Campus" will find 0 matching places; "Dinner" in places is unreachable from user activities.
+**Code:** Legacy functions deleted, `useLocationDecision` hook uses new system exclusively
 
-### 11.6 Email Verification Blocking
+### 11.5 ~~Activity List Mismatch (Places vs Users)~~ ✅ RESOLVED (2026-02-08)
 
- **Status:** NOT ENFORCED
+**Pre-Fix Issue:** Users could select "Explore Campus" (no places available); "Dinner" places existed but users couldn't select the activity.
 
- **Behavior:**
- - Code logic checks `emailVerified` flag but does NOT actively block unverified users from core actions (setting availability, etc).
- - No UI guidance prompts user to verify.
- - **Risk:** Unverified users can use the platform freely.
+**Resolution:**
+- Removed "Explore Campus" from user activities (Task 2)
+- Added "Dinner" to user-selectable activities (U9 fix)
+- User activities now fully aligned with admin place options: Coffee, Lunch, Dinner, Study, Walk
+
+**Code:** `src/lib/schemas/user.ts:78-84`
+
+### 11.6 ~~Email Verification Blocking~~ ✅ ENFORCED (U21, 2026-02-08)
+
+ **Status:** ✅ **ENFORCED** - Backend verification implemented
+
+ **Pre-U21 Issue:**
+ - Frontend checked `emailVerified` but backend did not enforce
+ - Unverified users could bypass UI checks via direct API calls
+ - Fake `@nyu.edu` emails could fully use the platform
+ - **Risk:** Security and spam vulnerability
+
+ **U21 Resolution (2026-02-08):**
+ - **Backend Middleware:** `functions/src/utils/verifyEmail.ts` - `requireEmailVerification()` helper
+ - **9 Protected Functions:** All critical Cloud Functions now enforce email verification:
+   - `presenceStart` - Set availability
+   - `offerCreate` - Send offers
+   - `offerRespond` - Accept/decline offers
+   - `suggestionGetCycle` - Browse suggestions (new)
+   - `suggestionGetTop1` - Browse suggestions (legacy)
+   - `matchFetchAllPlaces` - Fetch locations
+   - `matchSetPlaceChoice` - Choose location
+   - `matchCancel` - Cancel match
+   - `updateMatchStatus` - Update match status
+ - **Error Handling:** Returns `EMAIL_NOT_VERIFIED` error with clear message
+ - **Frontend:** Verification banner in navbar, enhanced error handling in UI
+ - **Zero Grace Period:** Immediate blocking (no delay)
 
 ---
 

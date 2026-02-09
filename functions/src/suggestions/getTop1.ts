@@ -1,6 +1,8 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import * as geofire from 'geofire-common';
+import { ACTIVE_MATCH_STATUSES } from '../constants/state';
+import { requireEmailVerification } from '../utils/verifyEmail';
 
 // Configuration
 const COOLDOWN_DAYS = 3;
@@ -181,6 +183,9 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
 
+  // U21 Fix: Require email verification (zero grace period)
+  await requireEmailVerification(request);
+
   const uid = request.auth.uid;
   const db = admin.firestore();
 
@@ -201,6 +206,11 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
   if (presence.expiresAt.toMillis() < now.toMillis()) {
     await presenceDoc.ref.delete();
     throw new HttpsError('failed-precondition', 'Your availability has expired');
+  }
+
+  // U17 Fix: Block discovery if user is in active match
+  if (presence.status === 'matched') {
+    throw new HttpsError('failed-precondition', 'You are already in an active match');
   }
 
   const { lat, lng, activity, durationMinutes, createdAt } = presence;
@@ -246,13 +256,13 @@ export async function suggestionGetTop1Handler(request: CallableRequest) {
   const matchesAsUser1 = await db
     .collection('matches')
     .where('user1Uid', '==', uid)
-    .where('status', 'in', ['pending', 'heading_there', 'arrived'])
+    .where('status', 'in', ACTIVE_MATCH_STATUSES)
     .get();
 
   const matchesAsUser2 = await db
     .collection('matches')
     .where('user2Uid', '==', uid)
-    .where('status', 'in', ['pending', 'heading_there', 'arrived'])
+    .where('status', 'in', ACTIVE_MATCH_STATUSES)
     .get();
 
   const matchedUids = new Set([

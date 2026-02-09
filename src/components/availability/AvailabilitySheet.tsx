@@ -124,9 +124,13 @@ export default function AvailabilitySheet() {
             break;
         }
       } else {
-        setLocationError(
-          err instanceof Error ? err.message : 'Failed to set availability'
-        );
+        // U21 Fix: Handle email verification error
+        const errorMessage = err instanceof Error ? err.message : 'Failed to set availability';
+        if (errorMessage === 'EMAIL_NOT_VERIFIED') {
+          setLocationError('Please verify your email address to use this feature. Check your inbox for the verification link.');
+        } else {
+          setLocationError(errorMessage);
+        }
       }
     } finally {
       setIsSubmitting(false);

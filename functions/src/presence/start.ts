@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import * as geofire from 'geofire-common';
 import { v4 as uuidv4 } from 'uuid';
+import { requireEmailVerification } from '../utils/verifyEmail';
 
 const GRACE_PERIOD_MINUTES = 5;
 const MAX_SESSIONS_PER_HOUR = 100;
@@ -19,6 +20,9 @@ export async function presenceStartHandler(
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
+
+  // U21 Fix: Require email verification (zero grace period)
+  await requireEmailVerification(request);
 
   const uid = request.auth.uid;
   const { activity, durationMin, lat, lng } = request.data;

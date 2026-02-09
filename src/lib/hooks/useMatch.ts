@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase/client';
-import { updateMatchStatus, meetupRecommend } from '@/lib/firebase/functions';
+import { updateMatchStatus } from '@/lib/firebase/functions';
 import { useAuth } from './useAuth';
 
 interface Match {
@@ -19,17 +19,21 @@ interface Match {
   placeConfirmedBy?: string;
   cancelledBy?: string;
   cancelledAt?: { toDate: () => Date };
+  // Phase 2.2-C: Backend writes 'cancellationReason', frontend previously expected 'cancelReason'
+  // Support both for backward compatibility
   cancelReason?: string;
+  cancellationReason?: string;
 }
 
-interface Place {
-  id: string;
-  name: string;
-  category: string;
-  address: string;
-  distance: number;
-  lat?: number;
-  lng?: number;
+/**
+ * Phase 2.2-C: Normalize cancellation reason field.
+ * Backend writes 'cancellationReason', but frontend previously expected 'cancelReason'.
+ * This helper provides backward-compatible read.
+ */
+function getCancellationReason(match: Match | null): string | undefined {
+  if (!match) return undefined;
+  // Prefer cancelReason (legacy), fallback to cancellationReason (current backend field)
+  return match.cancelReason ?? match.cancellationReason;
 }
 
 export function useMatch(matchId: string | null) {
@@ -40,7 +44,6 @@ export function useMatch(matchId: string | null) {
     photoURL?: string | null;
     interests: string[];
   } | null>(null);
-  const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,27 +141,16 @@ export function useMatch(matchId: string | null) {
     [matchId]
   );
 
-  const fetchRecommendations = useCallback(async () => {
-    if (!matchId) return;
-
-    try {
-      const result = await meetupRecommend({ matchId });
-      setPlaces(result.data.places);
-    } catch (err) {
-      console.error('Failed to fetch recommendations:', err);
-    }
-  }, [matchId]);
-
   const myStatus = match && user ? match.statusByUser[user.uid] : null;
+  const cancellationReason = getCancellationReason(match);
 
   return {
     match,
     otherUserProfile,
-    places,
     loading,
     error,
     updateStatus,
-    fetchRecommendations,
     myStatus,
+    cancellationReason, // Phase 2.2-C: Normalized cancellation reason
   };
 }

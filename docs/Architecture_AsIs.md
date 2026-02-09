@@ -502,30 +502,151 @@ const nextConfig = {
 
 ## 9. Known Architectural Gaps
 
-### 9.1 No Push Notification System
+### 9.1 ~~No Push Notification System~~ ✅ RESOLVED (U16)
 
-Match notifications rely on:
+**Status:** ✅ **RESOLVED** (2026-02-08)
+
+**Pre-U16 Issue:**
+Match notifications relied on:
 1. Firestore `onSnapshot` listeners (requires app open)
 2. Polling (30-second intervals in `src/app/(protected)/page.tsx:77-86`)
+3. **Impact:** High - users missed time-sensitive offers/matches, battery drain
 
-**Impact:** High - users may miss time-sensitive offers/matches.
+**U16 Resolution:**
+
+**Part 1: Firebase Cloud Messaging (FCM) Push Notifications**
+
+**Backend Implementation:**
+- **Notification Utilities** (`functions/src/utils/notifications.ts` - NEW):
+  - `sendNotificationToUser()` - Core FCM sending logic with Firebase Admin SDK
+  - `sendOfferReceivedNotification()` - Sends "You received an offer from XXX"
+  - `sendMatchCreatedNotification()` - Sends "You have successfully matched with XXX"
+  - Handles invalid token cleanup (removes stale FCM tokens)
+  - Platform-specific payloads (Android high priority, iOS APNs configuration)
+
+- **Integration Points:**
+  - `functions/src/offers/create.ts` - Notification on offer creation + mutual match
+  - `functions/src/offers/respond.ts` - Notification on match acceptance
+  - Fire-and-forget pattern (non-blocking, errors logged but don't fail main operation)
+
+**Frontend Implementation:**
+- **Hook** (`src/lib/hooks/useNotifications.ts` - NEW):
+  - Permission management: `requestPermission()` prompts user
+  - FCM token registration via `getToken()` with VAPID key
+  - Token storage in Firestore (`users/{uid}.fcmToken`)
+  - Environment variable: `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
+
+- **User Prompt** (`src/components/notifications/NotificationPrompt.tsx` - NEW):
+  - Banner with gradient violet background (matching app theme)
+  - "Enable notifications for updates" messaging
+  - Error handling for permission denied, VAPID key missing, etc.
+  - Dismissible with localStorage persistence
+
+- **Service Worker** (`public/firebase-messaging-sw.js` - NEW):
+  - Handles background notifications when app not in focus
+  - Shows system notification with title, body, icon
+  - Firebase Messaging compat library (v10.7.1)
+
+- **Debug Tool** (`src/app/(protected)/notifications-debug/page.tsx` - NEW):
+  - Configuration status checker (VAPID key, permissions, FCM token)
+  - Browser support detection
+  - Test notification sender
+  - Platform-specific troubleshooting guide
+
+**Part 2: PWA Installation Banner for iOS Notifications**
+
+**Problem:** iOS Safari requires PWA installation for Notification API access.
+
+**Platform Detection** (`src/lib/utils/platform.ts` - NEW):
+- Robust iOS Safari detection: `/Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)`
+- Detects iOS, Android, Desktop platforms
+- Dual standalone detection: `matchMedia('(display-mode: standalone)')` + `navigator.standalone`
+- Identifies iOS Chrome, Edge, Firefox (requires redirect to Safari)
+
+**Installation State Management** (`src/lib/hooks/useInstallation.ts` - NEW):
+- localStorage keys: `installBannerDismissUntil` (timestamp), `installBannerInstalled` (boolean)
+- 24-hour "Later" dismissal mechanism
+- Android `appinstalled` event listener (auto-marks as installed)
+- `beforeinstallprompt` event capture for native Android install prompt
+
+**Installation Components:**
+- **Main Banner** (`src/components/installation/InstallBanner.tsx` - NEW):
+  - Platform-specific messaging (iOS Safari: "Add to Home Screen", iOS Chrome: "Install from Safari", Android: "Install NYU Buddy")
+  - Styled to match `NotificationPrompt` (gradient violet background, responsive)
+  - Shows below navbar, above main content
+
+- **iOS Safari Guide** (`src/components/installation/IOSInstallGuide.tsx` - NEW):
+  - Visual step-by-step modal: Share → Add to Home Screen → Add → Open
+  - Icons for each step with color-coded badges
+  - Explains benefits: notifications, offline access, app-like experience
+
+- **Android Guide** (`src/components/installation/AndroidInstallGuide.tsx` - NEW):
+  - Manual installation steps: Menu → Install app → Confirm
+  - Fallback for browsers without native install prompt
+
+- **iOS Safari Prompt** (`src/components/installation/IOSSafariPrompt.tsx` - NEW):
+  - For iOS Chrome/Edge/Firefox users: prompts to switch to Safari
+  - Primary action: "Copy Link" (guaranteed to work)
+  - Secondary action: "Try Opening in Safari" (best-effort, shows fallback instructions)
+
+**PWA Configuration:**
+- **Manifest** (`public/manifest.json` - UPDATED):
+  - `"display": "standalone"` - Critical for iOS notifications (enables Notification API)
+  - App icons: `/icon-192.svg`, `/icon-512.svg` (purple NYU logos)
+  - Theme color: `#7c3aed` (violet), start URL: `/`
+
+- **Metadata** (`src/app/layout.tsx` - UPDATED):
+  - Added `manifest: "/manifest.json"`
+  - Added `appleWebApp` configuration for iOS home screen
+  - Viewport settings optimized for mobile
+
+**Integration:**
+- Added `<InstallBanner />` to `src/app/(protected)/layout.tsx` (below `<NotificationPrompt />`)
+- Both banners parallel, same styling, shown sequentially
+
+**Behavior:**
+- **Desktop:** No installation banner (hidden by design)
+- **iOS Safari:** "Add to Home Screen" banner → Visual guide on tap
+- **iOS Chrome/Edge/Firefox:** "Install from Safari" banner → Copy link + redirect flow
+- **Android:** "Install NYU Buddy" banner → Native prompt or manual guide
+- **All platforms:** Banner disappears permanently when app opens in standalone mode
+
+**Environment Configuration:**
+- **Local:** `.env.local` - `NEXT_PUBLIC_FIREBASE_VAPID_KEY=<key>`
+- **Production:** Vercel environment variables
+- **VAPID Key Generation:** Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
+
+**Verification:**
+- ✅ FCM notifications working on Android (browser + PWA)
+- ✅ FCM notifications working on iOS (PWA standalone mode only)
+- ✅ Installation banner detects platform correctly
+- ✅ PWA installs successfully on iOS Safari (opens without address bar)
+- ✅ PWA installs successfully on Android Chrome (native prompt)
+- ✅ Notification API exposed after PWA installation on iOS
+
+**Impact:**
+- **High** - Eliminates polling (battery savings)
+- Real-time push notifications for offers and matches
+- Guided installation flow improves PWA adoption
+- Platform-specific UX optimization (handles iOS limitations gracefully)
 
 ### 9.2 No Retry/Idempotency Mechanism
 
 Failed Cloud Function calls have no automatic retry or idempotency keys, which could cause duplicate offers or missed state updates.
 
-### 9.3 Hardcoded Admin Whitelist
+### 9.3 ~~Hardcoded Admin Whitelist Discrepancy~~ ✅ RESOLVED (U13)
 
-Admin access is determined by hardcoded email lists, not a scalable admin management system.
+**Status:** ✅ **RESOLVED** (2026-02-08)
 
-**Discrepancy:** The two admin whitelists do not match:
+**Pre-U13 Issue:** The two admin whitelists did not match - server-side rules had 1 email, client-side had 2 emails, causing the second admin to be blocked from Firestore writes.
 
-| Location | Emails | Code Reference |
-|----------|--------|----------------|
-| `firestore.rules:18` | `edoardo.mongardi18@gmail.com` (1 email) | Server-side security rules |
-| `src/lib/schemas/user.ts:4-7` | `edoardo.mongardi18@gmail.com`, `468327494@qq.com` (2 emails) | Client-side login/route guard |
+**U13 Resolution:**
+- ✅ `firestore.rules:17-23` now includes BOTH emails: `edoardo.mongardi18@gmail.com`, `468327494@qq.com`
+- ✅ Matches client-side `ADMIN_EMAILS` in `src/lib/schemas/user.ts:4-7`
+- ✅ Both admins can now write to `places` and read `reports`
+- ✅ Cloud Functions middleware also enforces same whitelist (`utils/auth.ts`)
 
-**Impact:** The second admin (`468327494@qq.com`) can log in and see admin routes client-side, but Firestore security rules will deny their writes to `places` and reads of `reports`.
+**Remaining Gap:** Admin access still uses hardcoded email lists (not a scalable admin management system), but the discrepancy between client/server whitelists is resolved.
 
 ### 9.4 Client-Side Location Staleness Only
 
@@ -538,18 +659,26 @@ const isStale = updatedAt
   : true;
 ```
 
-### 9.5 Security Rules Enforcement Gap
+### 9.5 ~~Security Rules Enforcement Gap~~ ✅ RESOLVED (Phase 3)
 
-**Status:** PARTIALLY INSECURE / VULNERABLE
+**Status:** ✅ **RESOLVED** in Phase 3 (2026-02-08)
 
-**Code Reality** (`firestore.rules`):
-- **Matches:** Rules allow `isMatchParticipant` to update documents directly, bypassing backend logic. (`firestore.rules:75`)
-- **Presence:** Rules allow `isOwner` to write directly. (`firestore.rules:41`)
-- **Offers:** SECURE. Client writes explicitly denied (`if false`). (`firestore.rules:61-63`)
+**Pre-Phase 3 Issue:**
+- **Matches:** Rules allowed `isMatchParticipant` to update documents directly, bypassing backend logic
+- **Presence:** Rules allowed `isOwner` to write directly
+- **Risk:** Clients could write arbitrary data, bypassing Cloud Function validation logic
 
-**Risk:** Clients can write arbitrary data to `matches` and `presence` collections, bypassing Cloud Function validation logic that enforces state transition guards and data integrity.
+**Phase 3 Resolution** (`firestore.rules` deployed 2026-02-08):
+- **Matches:** `allow update: if false;` (lines 69-74) - ALL updates blocked, Cloud Functions only
+- **Presence:** `allow write: if false;` (lines 39-42) - ALL writes blocked, Cloud Functions only
+- **sessionHistory:** `allow read, write: if false;` (lines 113-115) - Explicit deny for client SDK
 
-Code Evidence: `firestore.rules:39-42, 72-77`
+**Verification:**
+- ✅ Local emulator testing: Direct writes blocked (4/4 permission-denied)
+- ✅ Cloud Functions operational: All callable functions working (7/7 tested)
+- ✅ Production testing: End-to-end flow validated, zero Firestore errors
+
+**Code Evidence:** `firestore.rules:39-42, 69-74, 113-115`
 
 > **Additional known gaps:** See StateMachine_AsIs.md#9-known-inconsistencies--ambiguities (inconsistent status lists, phantom statuses), API_Contract_AsIs.md#6-known-contract-gaps (presence.matchId writes, match creation schemas), and DataModel_AsIs.md#15-known-issues--data-integrity-concerns (missing security rules, phantom fields).
 

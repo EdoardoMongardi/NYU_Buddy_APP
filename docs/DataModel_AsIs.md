@@ -786,13 +786,16 @@ The following data is denormalized for performance:
 | Task | Schedule | Action | Code Reference |
 |------|----------|--------|----------------|
 | `matchResolveExpired` | Every 1 minute | Resolve `location_deciding` matches past deadline | `functions/src/matches/resolveExpired.ts` |
+| `matchCleanupStalePending` ✅ Phase 2 | Every 5 minutes | Cancel `pending` matches older than 15 minutes | `functions/src/matches/cleanupStalePending.ts` |
+| `offerExpireStale` ✅ Phase 2 | Every 5 minutes | Mark expired `pending` offers as `expired`, free sender slots | `functions/src/offers/expireStale.ts` |
 
 ### No Cleanup (Potential Data Growth)
 
 | Collection | Issue | Notes |
 |------------|-------|-------|
-| `offers` | Expired offers remain | Status marked `'expired'` but document persists |
-| `matches` | Completed/cancelled matches remain | No TTL or archival |
+| `offers` | ~~Expired offers remain~~ ✅ Phase 2: RESOLVED | ~~Status marked `'expired'` but document persists~~ Now auto-marked by `offerExpireStale` |
+| `matches` | ~~Stale pending matches~~ ✅ Phase 2: RESOLVED | ~~No timeout for pending state~~ Now auto-cancelled by `matchCleanupStalePending` after 15 min |
+| `matches` | Completed/cancelled matches remain | No TTL or archival (terminal state cleanup not in scope) |
 | `feedback` | All feedback retained | No deletion policy |
 | `reports` | All reports retained | No deletion policy |
 | `suggestions` | All rejection records retained | Filtered by timestamp, but documents persist |
@@ -809,34 +812,69 @@ The following data is denormalized for performance:
 |------------|-------|---------------|---------|-------|
 | `presence` | `meetRate` | `getCycle.ts:270,295` | `0.5` | Used in reliability scoring but never written to presence docs |
 | `presence` | `cancelRate` | `getCycle.ts:270,296` | `0` | Used in reliability scoring but never written to presence docs |
-| `places` | `priceLevel` | `places.ts:147` | `2` | No admin UI to set this value |
-| `places` | `photoUrl` | `places.ts:148` | `null` | No admin UI to set this value |
+| `places` | `priceLevel` | `places.ts:147` | `2` | ✅ RESOLVED (U11): Admin UI added for priceRange text input |
+| `places` | `photoUrl` | `places.ts:148` | `null` | ✅ RESOLVED (U11): Admin UI added for photoUrl text input |
 
-### 15.2 Missing Field at Creation
+**U11 Resolution (2026-02-08):**
+- Added `priceRange?: string` and `photoUrl?: string` to Place interface
+- Admin UI includes text input fields for both values (`admin/spots/page.tsx:204-215`)
+- Frontend PlaceCard displays with fallback logic (`PlaceCard.tsx:47,49`)
+- Design note: photoUrl uses external URL text input (not Firebase Storage file upload)
 
+### 15.2 ~~Missing Field at Creation~~ ✅ RESOLVED (U12)
+
+**Pre-Fix Issue:**
 | Collection | Field | Written At Creation | Issue |
 |------------|-------|---------------------|-------|
 | `offers` | `updatedAt` | No | Only written during cleanup/cancel, not at creation |
 
+**U12 Resolution (2026-02-08):**
+- ✅ `offers/create.ts:300` now writes `updatedAt: admin.firestore.FieldValue.serverTimestamp()` at creation
+- ✅ Migration script `normalizeOfferUpdatedAt.ts` backfills historical data (idempotent, checks `!data.updatedAt && data.createdAt`)
+- All new offers have updatedAt from creation; existing offers migrated to use createdAt as updatedAt
+
 ### 15.3 Frontend/Backend Field Name Mismatch
 
-| Collection | Backend Field | Frontend Field | Issue |
-|------------|---------------|----------------|-------|
-| `matches` | `cancellationReason` | `cancelReason` (in `useMatch.ts:21`) | Frontend interface won't read the field correctly |
+| Collection | Backend Field | Frontend Field | Status |
+|------------|---------------|----------------|--------|
+| `matches` | `cancellationReason` | `cancelReason` (in `useMatch.ts:21`) | ✅ Phase 2.2-C: RESOLVED |
 
-The backend writes `cancellationReason` (`matches/cancel.ts:108`) but the frontend TypeScript interface expects `cancelReason`.
+**Pre-Phase 2 Issue:** The backend writes `cancellationReason` (`matches/cancel.ts:108`) but the frontend TypeScript interface expects `cancelReason`.
 
-### 15.4 Missing Security Rules
+**Phase 2.2-C Resolution:**
+- Frontend Match interface now includes both `cancelReason` and `cancellationReason` fields for backward compatibility
+- Added `getCancellationReason()` helper function that prefers `cancelReason` (legacy) and falls back to `cancellationReason` (current)
+- `useMatch` hook returns normalized `cancellationReason` field
+- Match page updated to use normalized field from hook
+- No backend changes required (maintains compatibility with existing data)
 
-The following collection has no security rules defined in `firestore.rules`:
+**Code References:**
+- Backend: `functions/src/matches/cancel.ts:108`
+- Frontend: `src/lib/hooks/useMatch.ts:24-30` (helper), `src/lib/hooks/useMatch.ts:165-169` (return)
+- Usage: `src/app/(protected)/match/[matchId]/page.tsx:67,187-189`
 
-| Collection | Issue | Risk |
-|------------|-------|------|
-| `sessionHistory/{uid}/sessions` | No rules defined | Potentially readable/writable by anyone |
+### 15.4 ~~Missing~~ Security Rules ✅ RESOLVED (Phase 3)
+
+~~The following collection has no security rules defined in `firestore.rules`:~~
+
+**Status:** ✅ **RESOLVED** in Phase 3 (2026-02-08)
+
+| Collection | Previous Issue | Resolution |
+|------------|----------------|------------|
+| `sessionHistory/{uid}/sessions` | No rules defined | ✅ Explicit deny rules added in Phase 3 |
+
+**Current rules** (`firestore.rules:113-115`):
+```javascript
+match /sessionHistory/{uid}/sessions/{sessionId} {
+  allow read, write: if false; // Explicit deny for client SDK
+}
+```
+
+**Rationale:** Backend-only collection for rate limiting (MAX_SESSIONS_PER_HOUR = 100). Cloud Functions Admin SDK bypasses these rules. Explicit deny prevents accidental client SDK usage.
 
 ### 15.5 Index Requirements
 
-**Declared Indexes** (`firestore.indexes.json` — 12 composite indexes):
+**Declared Indexes** (`firestore.indexes.json` — 15 composite indexes):
 
 | # | Collection | Fields | Purpose |
 |---|------------|--------|---------|
@@ -852,22 +890,32 @@ The following collection has no security rules defined in `firestore.rules`:
 | 10 | `offers` | `fromUid`, `status`, `expiresAt` | Active offer count |
 | 11 | `offers` | `toUid`, `status`, `expiresAt` | Cleanup query |
 | 12 | `places` | `active`, `geohash` | Place geohash query |
+| 13 ✅ Phase 2 | `matches` | `status`, `matchedAt` | Stale pending match cleanup (`matchCleanupStalePending`) |
+| 14 ✅ Phase 2 | `offers` | `status`, `expiresAt` | Expired offer cleanup (`offerExpireStale`) |
+| 15 ✅ Phase 2 | `matches` | `status`, `locationDecision.expiresAt` | Expired location decision resolution (`matchResolveExpired`) |
 
 **Missing Indexes** (required by code but NOT in `firestore.indexes.json`):
 
 | Collection | Fields | Query Location | Impact |
 |------------|--------|----------------|--------|
-| `matches` | `status`, `locationDecision.expiresAt` | `resolveExpired.ts:15-18` | Scheduled job may fail or require full scan |
 | `sessionHistory/{uid}/sessions` | `createdAt` | `presence/start.ts:53-58` | Subcollection index; rate limit query may be slow |
 
-### 15.6 Activity List Mismatch
+### 15.6 ~~Activity List Mismatch~~ ✅ RESOLVED (U9)
 
-| Location | Activities | Code Reference |
-|----------|-----------|----------------|
-| Admin Spots page (places) | Coffee, Lunch, **Dinner**, Study, Walk | `src/app/admin/spots/page.tsx:72-78` |
-| User schema (user-facing) | Coffee, Lunch, Study, Walk, **Explore Campus** | `src/lib/schemas/user.ts:77-83` |
+**Status:** ✅ **RESOLVED** (2026-02-08) - Same resolution as PRD_AsIs.md#11.5
 
-**Impact:** Users selecting "Explore Campus" will find 0 matching places. Places tagged only with "Dinner" will never match any user. This affects `matchFetchAllPlaces` which filters places by `allowedActivities` containing the match's activity type.
+**Pre-U9 Issue:**
+| Location | Activities | Issue |
+|----------|-----------|-------|
+| Admin Spots page (places) | Coffee, Lunch, **Dinner**, Study, Walk | Had Dinner |
+| User schema (user-facing) | Coffee, Lunch, Study, Walk, **Explore Campus** | Had Explore Campus instead of Dinner |
+
+**U9 Resolution:**
+- ✅ Removed "Explore Campus" from user activities (Task 2)
+- ✅ Added "Dinner" to user-selectable activities (U9 fix)
+- ✅ Full alignment: Coffee, Lunch, Dinner, Study, Walk (both admin and user)
+
+**Code:** `src/lib/schemas/user.ts:78-84`
 
 > **Additional known issues (state/API-level):** See StateMachine_AsIs.md#9-known-inconsistencies--ambiguities for inconsistent active match status lists, phantom status values, and zombie presences. See API_Contract_AsIs.md#6-known-contract-gaps for two different match creation schemas and inconsistent presence.matchId writes.
 

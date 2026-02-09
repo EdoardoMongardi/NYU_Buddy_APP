@@ -10,6 +10,8 @@ import {
   MapPin,
   ToggleLeft,
   ToggleRight,
+  Upload,
+  X,
 } from 'lucide-react';
 import {
   collection,
@@ -22,6 +24,11 @@ import {
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
+import {
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+} from 'firebase/storage';
 import * as geofire from 'geofire-common';
 
 import { Button } from '@/components/ui/button';
@@ -44,7 +51,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { getFirebaseDb } from '@/lib/firebase/client';
+import { getFirebaseDb, getFirebaseStorage } from '@/lib/firebase/client';
 
 interface Place {
   id: string;
@@ -57,6 +64,8 @@ interface Place {
   tags: string[];
   allowedActivities: string[];
   active: boolean;
+  priceRange?: string; // U11: e.g., "$20-$50"
+  photoUrl?: string; // U11: Custom image URL for the place
 }
 
 const CATEGORIES = [
@@ -102,6 +111,13 @@ export default function AdminSpotsPage() {
   const [lng, setLng] = useState('');
   const [tags, setTags] = useState('');
   const [allowedActivities, setAllowedActivities] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState(''); // U11: Price range input
+  const [photoUrl, setPhotoUrl] = useState(''); // U11: Photo URL from upload or existing
+
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Listen for places
   useEffect(() => {
@@ -134,7 +150,53 @@ export default function AdminSpotsPage() {
     setLng('');
     setTags('');
     setAllowedActivities([]);
+    setPriceRange(''); // U11
+    setPhotoUrl(''); // U11
+    setSelectedFile(null); // File upload
+    setUploadProgress(0);
+    setIsUploading(false);
     setEditingPlace(null);
+  };
+
+  // Handle file upload to Firebase Storage
+  const handleFileUpload = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const storage = getFirebaseStorage();
+        const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+        const storageRef = ref(storage, `place-images/${fileName}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        setIsUploading(true);
+
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(Math.round(progress));
+          },
+          (error) => {
+            console.error('Upload error:', error);
+            setIsUploading(false);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              setIsUploading(false);
+              setUploadProgress(100);
+              resolve(downloadURL);
+            } catch (error) {
+              setIsUploading(false);
+              reject(error);
+            }
+          }
+        );
+      } catch (error) {
+        setIsUploading(false);
+        reject(error);
+      }
+    });
   };
 
   const openCreateDialog = () => {
@@ -151,6 +213,8 @@ export default function AdminSpotsPage() {
     setLng(place.lng.toString());
     setTags(place.tags.join(', '));
     setAllowedActivities(place.allowedActivities || []);
+    setPriceRange(place.priceRange || ''); // U11
+    setPhotoUrl(place.photoUrl || ''); // U11
     setIsDialogOpen(true);
   };
 
@@ -187,6 +251,19 @@ export default function AdminSpotsPage() {
     setIsSubmitting(true);
 
     try {
+      // Upload file if selected
+      let finalPhotoUrl = photoUrl.trim() || null;
+      if (selectedFile) {
+        try {
+          finalPhotoUrl = await handleFileUpload(selectedFile);
+        } catch (error) {
+          console.error('Failed to upload image:', error);
+          alert('Failed to upload image. Please try again.');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const geohash = geofire.geohashForLocation([latNum, lngNum]);
       const tagsArray = tags
         .split(',')
@@ -203,6 +280,8 @@ export default function AdminSpotsPage() {
         tags: tagsArray,
         allowedActivities,
         active: editingPlace?.active ?? true,
+        priceRange: priceRange.trim() || null, // U11: Save price range (null if empty)
+        photoUrl: finalPhotoUrl, // U11: Save uploaded photo URL or existing URL
         updatedAt: serverTimestamp(),
       };
 
@@ -360,6 +439,146 @@ export default function AdminSpotsPage() {
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="wifi, quiet, outdoor"
                 />
+              </div>
+
+              {/* U11: Price Range Field */}
+              <div className="space-y-2">
+                <Label>Price Range</Label>
+                <Input
+                  value={priceRange}
+                  onChange={(e) => setPriceRange(e.target.value)}
+                  placeholder="e.g., $20-$50"
+                />
+                <p className="text-xs text-gray-500">
+                  Displayed on place cards to help users budget
+                </p>
+              </div>
+
+              {/* U11: Photo Upload Field */}
+              <div className="space-y-2">
+                <Label>Place Photo</Label>
+
+                {/* Show existing photo if editing and no new file selected */}
+                {photoUrl && !selectedFile && (
+                  <div className="relative">
+                    <img
+                      src={photoUrl}
+                      alt="Current place photo"
+                      className="w-full h-32 object-cover rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => setPhotoUrl('')}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Show preview of selected file */}
+                {selectedFile && (
+                  <div className="relative">
+                    <img
+                      src={URL.createObjectURL(selectedFile)}
+                      alt="Preview"
+                      className="w-full h-32 object-cover rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setUploadProgress(0);
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Upload progress bar */}
+                {isUploading && (
+                  <div className="space-y-1">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-violet-600 h-2 rounded-full transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 text-center">
+                      Uploading... {uploadProgress}%
+                    </p>
+                  </div>
+                )}
+
+                {/* File input button */}
+                {!selectedFile && !photoUrl && (
+                  <div className="flex items-center justify-center w-full">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="w-8 h-8 mb-2 text-gray-500" />
+                        <p className="mb-2 text-sm text-gray-500">
+                          <span className="font-semibold">Click to upload</span> or drag and drop
+                        </p>
+                        <p className="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 5 * 1024 * 1024) {
+                              alert('File size must be less than 5MB');
+                              return;
+                            }
+                            setSelectedFile(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* Change photo button when photo exists */}
+                {(selectedFile || photoUrl) && !isUploading && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*';
+                      input.onchange = (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            alert('File size must be less than 5MB');
+                            return;
+                          }
+                          setSelectedFile(file);
+                          setPhotoUrl(''); // Clear existing URL when selecting new file
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Change Photo
+                  </Button>
+                )}
+
+                <p className="text-xs text-gray-500">
+                  Upload a photo for this place (uses default if not provided)
+                </p>
               </div>
 
               <div className="flex space-x-2 pt-4">

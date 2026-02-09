@@ -1,6 +1,9 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { getPlaceCandidates } from '../utils/places';
+import { ACTIVE_MATCH_STATUSES } from '../constants/state';
+import { requireEmailVerification } from '../utils/verifyEmail';
+import { sendOfferReceivedNotification, sendMatchCreatedNotification } from '../utils/notifications';
 
 const OFFER_TTL_MINUTES = 10;
 const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
@@ -18,6 +21,9 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
+
+  // U21 Fix: Require email verification (zero grace period)
+  await requireEmailVerification(request);
 
   const fromUid = request.auth.uid;
   const { targetUid, explanation, matchScore, distanceMeters } = request.data;
@@ -132,7 +138,7 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
 
   // Check neither is in an active match
   // Optimized Query: Check specifically for fromUid and targetUid
-  const activeStatuses = ['pending', 'place_confirmed', 'heading_there', 'arrived'];
+  const activeStatuses = ACTIVE_MATCH_STATUSES;
 
   const fromMatchesQuery = await db.collection('matches')
     .where('user1Uid', '==', fromUid)
@@ -174,27 +180,38 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     .get();
 
   if (!reverseOfferQuery.empty) {
-    // Mutual interest! Accept the reverse offer and create match
+    // Mutual interest detected! Validate activities still match before auto-matching
     const reverseOffer = reverseOfferQuery.docs[0];
+    const reverseOfferData = reverseOffer.data();
 
-    // Create match
-    const matchRef = db.collection('matches').doc();
-    const [user1Uid, user2Uid] = fromUid < targetUid
-      ? [fromUid, targetUid]
-      : [targetUid, fromUid];
+    // U14 Fix: Validate activities match before creating mutual match
+    // If activities no longer align, fall through to normal offer creation
+    if (fromPresence.activity !== reverseOfferData.activity) {
+      console.log(
+        `[offerCreate] Activities mismatched in mutual interest: ` +
+        `${fromPresence.activity} (current) vs ${reverseOfferData.activity} (offer). ` +
+        `Creating normal offer instead.`
+      );
+      // Fall through to normal offer creation below (no match created)
+    } else {
+      // Activities match - proceed with mutual match creation
+      const matchRef = db.collection('matches').doc();
+      const [user1Uid, user2Uid] = fromUid < targetUid
+        ? [fromUid, targetUid]
+        : [targetUid, fromUid];
 
-    await db.runTransaction(async (transaction) => {
-      // Create match
-      transaction.set(matchRef, {
-        user1Uid,
-        user2Uid,
-        status: 'pending',
-        statusByUser: {
-          [user1Uid]: 'pending',
-          [user2Uid]: 'pending',
-        },
-        offerId: reverseOffer.id,
-        activity: fromPresence.activity,
+      await db.runTransaction(async (transaction) => {
+        // Create match
+        transaction.set(matchRef, {
+          user1Uid,
+          user2Uid,
+          status: 'pending',
+          statusByUser: {
+            [user1Uid]: 'pending',
+            [user2Uid]: 'pending',
+          },
+          offerId: reverseOffer.id,
+          activity: reverseOfferData.activity, // U14 Fix: Use activity from the offer (not current presence)
         confirmedPlaceId: null,
         confirmedPlaceName: null,
         confirmedPlaceAddress: null,
@@ -222,29 +239,54 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Update sender's presence (User B) - clear offers
-      transaction.update(fromPresenceDoc.ref, {
-        activeOutgoingOfferIds: [],
-        status: 'matched',
-        matchId: matchRef.id,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        // Update sender's presence (User B) - clear offers
+        transaction.update(fromPresenceDoc.ref, {
+          activeOutgoingOfferIds: [],
+          status: 'matched',
+          matchId: matchRef.id,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
       });
-    });
 
-    // Cleanup other pending offers (Post-transaction)
-    // We don't await this to return faster, or we await to ensure consistency?
-    // Safer to await to ensure user state is clean.
-    await import('./cleanup').then(m => Promise.all([
-      m.cleanupPendingOffers(db, fromUid, reverseOffer.id),
-      m.cleanupPendingOffers(db, targetUid, reverseOffer.id)
-    ]));
+      // Cleanup other pending offers (Post-transaction)
+      // We don't await this to return faster, or we await to ensure consistency?
+      // Safer to await to ensure user state is clean.
+      await import('./cleanup').then(m => Promise.all([
+        m.cleanupPendingOffers(db, fromUid, reverseOffer.id),
+        m.cleanupPendingOffers(db, targetUid, reverseOffer.id)
+      ]));
 
-    return {
-      offerId: reverseOffer.id,
-      matchCreated: true,
-      matchId: matchRef.id,
-    };
+      // U16: Send push notifications to both users (mutual match)
+      // Fetch user profiles for display names
+      const [user1Doc, user2Doc] = await Promise.all([
+        db.collection('users').doc(user1Uid).get(),
+        db.collection('users').doc(user2Uid).get(),
+      ]);
+
+      const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
+      const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
+
+      // Send notifications to both users (fire-and-forget)
+      Promise.all([
+        sendMatchCreatedNotification(user1Uid, user2DisplayName, matchRef.id),
+        sendMatchCreatedNotification(user2Uid, user1DisplayName, matchRef.id),
+      ]).catch((err) => {
+        console.error('[offerCreate-mutualMatch] Failed to send match notifications:', err);
+      });
+
+      return {
+        offerId: reverseOffer.id,
+        matchCreated: true,
+        matchId: matchRef.id,
+      };
+    }
+    // If activities don't match, fall through to normal offer creation below
   }
+
+  // Get sender profile (for notification)
+  const fromUserDoc = await db.collection('users').doc(fromUid).get();
+  const fromUserData = fromUserDoc.data() || {};
+  const fromDisplayName = fromUserData.displayName || 'Someone';
 
   // Get target profile
   const toUserDoc = await db.collection('users').doc(targetUid).get();
@@ -283,6 +325,7 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       matchScore: matchScore || 0,
       expiresAt,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       respondedAt: null,
     });
 
@@ -299,6 +342,12 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       lastExposedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+  });
+
+  // U16: Send push notification to target user
+  // Fire-and-forget: Don't block the response on notification delivery
+  sendOfferReceivedNotification(targetUid, fromDisplayName, offerRef.id).catch((err) => {
+    console.error('[offerCreate] Failed to send offer notification:', err);
   });
 
   return {

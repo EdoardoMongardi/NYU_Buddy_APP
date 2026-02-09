@@ -73,20 +73,7 @@ export const suggestionPass = createCallable<
   { success: boolean; newIndex: number }
 >('suggestionPass');
 
-// Meetup functions
-export const meetupRecommend = createCallable<
-  { matchId: string },
-  {
-    places: Array<{
-      id: string;
-      name: string;
-      category: string;
-      address: string;
-      distance: number;
-    }>;
-  }
->('meetupRecommend');
-
+// Match Status function
 export const updateMatchStatus = createCallable<
   { matchId: string; status: 'heading_there' | 'arrived' | 'completed' },
   { success: boolean }
@@ -160,12 +147,7 @@ export const offerGetOutgoing = createCallable<
   }
 >('offerGetOutgoing');
 
-// Match enhancement functions
-export const matchConfirmPlace = createCallable<
-  { matchId: string; placeId: string },
-  { success: boolean; placeName: string; placeAddress: string }
->('matchConfirmPlace');
-
+// Match functions
 export const matchCancel = createCallable<
   { matchId: string; reason?: string },
   { success: boolean; wasSevereCancel: boolean }
@@ -182,6 +164,7 @@ export interface PlaceCandidate {
   rank: number;
   tags?: string[];
   priceLevel?: number;
+  priceRange?: string; // U11: e.g., "$20-$50" (preferred over priceLevel)
   photoUrl?: string;
 }
 

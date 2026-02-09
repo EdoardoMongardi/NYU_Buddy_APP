@@ -63,6 +63,7 @@ export default function MatchPage() {
     error,
     updateStatus,
     myStatus,
+    cancellationReason, // Phase 2.2-C: Normalized cancellation reason
   } = useMatch(matchId);
 
   // PRD v2.4: Location Decision Hook
@@ -184,10 +185,10 @@ export default function MatchPage() {
   useEffect(() => {
     if (match?.status === 'cancelled') {
       console.log('Match status changed to cancelled in background, redirecting...');
-      const reason = match?.cancelReason || 'cancelled';
+      const reason = cancellationReason || 'cancelled';
       window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
     }
-  }, [match?.status, match?.cancelReason]);
+  }, [match?.status, cancellationReason]);
 
   const handleCancelClick = () => {
     setCancelModalOpen(true);
