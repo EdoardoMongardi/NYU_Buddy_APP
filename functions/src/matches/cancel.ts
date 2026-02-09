@@ -1,10 +1,12 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { requireEmailVerification } from '../utils/verifyEmail';
+import { withIdempotencyLock, MinimalResult } from '../utils/idempotency';
 
 interface MatchCancelData {
   matchId: string;
   reason?: string;
+  idempotencyKey?: string; // U23: Optional idempotency key for duplicate prevention
 }
 
 interface CancelMatchOptions {
@@ -200,7 +202,7 @@ export async function matchCancelHandler(request: CallableRequest<MatchCancelDat
     await requireEmailVerification(request);
 
     const uid = request.auth.uid;
-    const { matchId, reason } = request.data;
+    const { matchId, reason, idempotencyKey } = request.data;
     const db = admin.firestore();
 
     console.log(`[matchCancel] Starting cancel for match ${matchId} by user ${uid}`);
@@ -210,14 +212,39 @@ export async function matchCancelHandler(request: CallableRequest<MatchCancelDat
       throw new HttpsError('invalid-argument', 'Match ID is required');
     }
 
-    // Use the shared internal function
-    const result = await cancelMatchInternal(db, matchId, {
-      cancelledBy: uid,
-      reason,
-      skipPermissionCheck: false,
-    });
+    // U23: Wrap with idempotency lock
+    const { result, cached } = await withIdempotencyLock<MinimalResult & { success: boolean; wasSevereCancel: boolean }>(
+      uid,
+      'matchCancel',
+      idempotencyKey,
+      async () => {
+        // Use the shared internal function
+        const cancelResult = await cancelMatchInternal(db, matchId, {
+          cancelledBy: uid,
+          reason,
+          skipPermissionCheck: false,
+        });
 
-    return result;
+        // Return minimal result for caching
+        return {
+          primaryId: matchId,
+          flags: {
+            success: cancelResult.success,
+            wasSevereCancel: cancelResult.wasSevereCancel,
+          },
+          ...cancelResult, // Include full result for return
+        } as MinimalResult & { success: boolean; wasSevereCancel: boolean };
+      }
+    );
+
+    if (cached) {
+      console.log(`[matchCancel] Returning cached result (match already cancelled)`);
+    }
+
+    return {
+      success: result.success,
+      wasSevereCancel: result.wasSevereCancel,
+    };
   } catch (error) {
     console.error('[matchCancel] CRITICAL ERROR:', error);
     if (error instanceof HttpsError) {

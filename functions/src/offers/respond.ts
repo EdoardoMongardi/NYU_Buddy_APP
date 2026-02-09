@@ -3,10 +3,15 @@ import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 import { requireEmailVerification } from '../utils/verifyEmail';
 import { sendMatchCreatedNotification } from '../utils/notifications';
+import {
+  checkIdempotencyInTransaction,
+  markIdempotencyCompleteInTransaction,
+} from '../utils/idempotency';
 
 interface OfferRespondData {
   offerId: string;
   action: 'accept' | 'decline';
+  idempotencyKey?: string; // U23: Optional idempotency key for duplicate prevention
 }
 
 export async function offerRespondHandler(request: CallableRequest<OfferRespondData>) {
@@ -63,7 +68,21 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
 
   // Handle decline
   if (action === 'decline') {
-    await db.runTransaction(async (transaction) => {
+    const declineResult = await db.runTransaction(async (transaction) => {
+      // U23: Check idempotency for decline action
+      const { idempotencyKey } = request.data;
+      const idempotencyCheck = await checkIdempotencyInTransaction(
+        transaction,
+        uid,
+        'offerRespond_decline',
+        idempotencyKey
+      );
+
+      if (idempotencyCheck.isDuplicate) {
+        console.log(`[offerRespond-decline] Returning cached result for duplicate request`);
+        return { cached: true, matchCreated: false };
+      }
+
       // Update offer status
       transaction.update(offerRef, {
         status: 'declined',
@@ -97,10 +116,24 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
         action: 'reject',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // U23: Mark idempotency as completed
+      await markIdempotencyCompleteInTransaction(
+        transaction,
+        uid,
+        'offerRespond_decline',
+        idempotencyKey,
+        {
+          primaryId: offerId,
+          flags: { matchCreated: false },
+        }
+      );
+
+      return { cached: false, matchCreated: false };
     });
 
     return {
-      matchCreated: false,
+      matchCreated: declineResult.matchCreated,
     };
   }
 
@@ -197,7 +230,28 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     ? [offer.fromUid, uid]
     : [uid, offer.fromUid];
 
-  await db.runTransaction(async (transaction) => {
+  // U23: Transaction-scoped idempotency - all reads/writes in ONE transaction
+  const transactionResult = await db.runTransaction(async (transaction) => {
+    // U23: Check idempotency inside transaction
+    const { idempotencyKey } = request.data;
+    const idempotencyCheck = await checkIdempotencyInTransaction(
+      transaction,
+      uid,
+      'offerRespond',
+      idempotencyKey
+    );
+
+    if (idempotencyCheck.isDuplicate) {
+      console.log(`[offerRespond] Returning cached result for duplicate request`);
+      // Return cached minimal result - transaction will abort gracefully
+      return {
+        cached: true,
+        matchId: idempotencyCheck.cachedResult!.primaryId,
+        offerId: idempotencyCheck.cachedResult!.secondaryIds?.[0],
+        matchCreated: idempotencyCheck.cachedResult!.flags?.matchCreated || false,
+      };
+    }
+
     // Create match
     transaction.set(matchRef, {
       user1Uid,
@@ -241,9 +295,40 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
       matchId: matchRef.id, // U14 Fix: Set matchId consistently
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // U23: Mark idempotency as completed (inside transaction for atomicity)
+    await markIdempotencyCompleteInTransaction(
+      transaction,
+      uid,
+      'offerRespond',
+      idempotencyKey,
+      {
+        primaryId: matchRef.id,
+        secondaryIds: [offerId],
+        flags: { matchCreated: true },
+      }
+    );
+
+    // Return result to outer scope
+    return {
+      cached: false,
+      matchId: matchRef.id,
+      offerId,
+      matchCreated: true,
+    };
   });
 
+  // U23: If cached, return immediately (no cleanup or notifications)
+  if (transactionResult.cached) {
+    return {
+      matchCreated: transactionResult.matchCreated,
+      matchId: transactionResult.matchId,
+      activeMatchId: transactionResult.matchId,
+    };
+  }
+
   // Post-match Cleanup using utility (Cancels all other offers involved)
+  // Only run for fresh operations (not cached)
   await import('./cleanup').then(m => Promise.all([
     m.cleanupPendingOffers(db, offer.fromUid, offerId),
     m.cleanupPendingOffers(db, uid, offerId)

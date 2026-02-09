@@ -24,6 +24,7 @@ import { offerExpireStaleHandler } from './offers/expireStale';
 import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
 import { normalizeOfferUpdatedAtHandler } from './migrations/normalizeOfferUpdatedAt';
 import { auditPresenceMatchIdHandler } from './migrations/auditPresenceMatchId';
+import { idempotencyCleanup } from './idempotency/cleanup';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -138,6 +139,9 @@ export const presenceCleanupExpired = onSchedule(
   { schedule: 'every 5 minutes', region: 'us-east1' },
   presenceCleanupExpiredHandler
 );
+
+// U23: Cleanup expired idempotency records every 2 hours
+export { idempotencyCleanup };
 
 export const checkAvailabilityForUser = onCall(
   { region: 'us-east1' },

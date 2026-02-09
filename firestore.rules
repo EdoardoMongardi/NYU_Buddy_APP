@@ -121,5 +121,13 @@ service cloud.firestore {
     match /sessionHistory/{uid}/sessions/{sessionId} {
       allow read, write: if false; // Explicit deny for client SDK
     }
+
+    // U23: Idempotency collection
+    // Users can read their own idempotency records (for debugging)
+    // All writes handled by Cloud Functions
+    match /idempotency/{idempotencyId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow write: if false; // Cloud Functions only
+    }
   }
 }

@@ -1,6 +1,6 @@
 # NYU Buddy - Issues Status Report
 
-**Last Updated:** 2026-02-08 (U16, U20, U21 resolved - FCM push notifications + PWA installation, removed legacy place selection, enforced email verification)
+**Last Updated:** 2026-02-08 (U16, U20, U21, U23 resolved - FCM push notifications + PWA installation, removed legacy place selection, enforced email verification, idempotency + retry implementation)
 **Audit Scope:** Complete codebase vs. documentation cross-reference (6 doc files audited)
 **Methodology:** Code is the only source of truth
 
@@ -11,11 +11,11 @@
 **Overall Status:** ✅ **PRODUCTION-READY** (with known limitations)
 
 - **Total Issues Identified:** 29
-- **Resolved:** 20 (69%) ✅
-- **Unresolved:** 9 (31%) ⚠️
+- **Resolved:** 21 (72%) ✅
+- **Unresolved:** 8 (28%) ⚠️
   - Critical: 0
   - High: 0
-  - Medium: 4 (edge cases, partial implementations)
+  - Medium: 3 (edge cases, partial implementations)
   - Low: 5 (minor gaps, scalability concerns)
 
 **Key Finding:** All critical and high-priority issues resolved. Remaining unresolved issues are edge cases, partial implementations, or architectural limitations that don't block production deployment but should be addressed in future phases.
@@ -586,13 +586,199 @@ No push notification system for time-sensitive events:
 
 ---
 
+### 17. Idempotency and Client Retry (U23)
+**Resolved:** 2026-02-08
+**Priority:** MEDIUM
+**Doc References:**
+- `Architecture_AsIs.md:9.2`
+- `U23_TESTING_GUIDE.md` (comprehensive testing documentation)
+
+**Problem:**
+No retry or idempotency mechanism for Cloud Function calls:
+- Network failures during critical operations (presenceStart, offerCreate, matchCancel) could lose user actions
+- Duplicate calls from client retries could create duplicate sessions, offers, or matches
+- No request deduplication mechanism
+- Poor user experience during transient network issues
+
+**Solution Implemented:**
+
+**Part 1: Client-Side Retry with Exponential Backoff**
+
+**Core Retry Logic** (`src/lib/utils/retry.ts` - NEW):
+- Exponential backoff: 1s → 2s → 4s → 8s
+- Total deadline: 15 seconds
+- Retry on transient errors only (unavailable, deadline-exceeded, resource-exhausted)
+- Non-retryable errors fail immediately (invalid-argument, unauthenticated, permission-denied)
+- Idempotency key generation: Single UUID generated once, reused across all retries
+- Detailed logging for debugging
+
+**Integration Pattern:**
+```typescript
+export async function presenceStart(data: {
+  activity: string;
+  durationMin: number;
+  lat: number;
+  lng: number;
+  idempotencyKey?: string; // Optional client-provided key
+}): Promise<{ success: boolean; sessionId: string; expiresAt: string }> {
+  return retryWithBackoff(async (generatedKey) => {
+    const keyToUse = data.idempotencyKey || generatedKey;
+    const fn = httpsCallable(...);
+    const result = await fn({ ...data, idempotencyKey: keyToUse });
+    return result.data;
+  });
+}
+```
+
+**Protected Functions** (`src/lib/firebase/functions.ts`):
+- ✅ `presenceStart` - Retry-wrapped with idempotency
+- ✅ `offerCreate` - Retry-wrapped with idempotency
+- ✅ `offerRespond` - Retry-wrapped with idempotency
+- ✅ `matchCancel` - Retry-wrapped with idempotency
+- Other functions use standard callables (non-critical or read-only)
+
+**Part 2: Backend Idempotency**
+
+**Core Utility** (`functions/src/utils/idempotency.ts` - NEW, 340 lines):
+
+**Key Design Decisions:**
+- Atomic lock via `create()` - No check-then-set race condition
+- Minimal result caching - Only IDs and flags, not full payloads
+- Status tracking: `processing` → `completed` / `failed`
+- 2-hour TTL (sufficient for realistic retry windows)
+- Transaction-scoped variant for complex operations
+
+**Non-Transactional Pattern** (`withIdempotencyLock`):
+1. Attempt atomic lock: `idempotencyRef.create({ status: 'processing', ... })`
+2. If succeeds → Execute operation → Store minimal result → Mark completed
+3. If already exists → Check status:
+   - `completed`: Return cached result
+   - `processing`: Throw `DUPLICATE_IN_PROGRESS` error
+   - `failed`: Allow retry (delete and retry create)
+
+**Transaction-Scoped Pattern** (`checkIdempotencyInTransaction`, `markIdempotencyCompleteInTransaction`):
+- Used for operations requiring Firestore transactions (offerCreate, offerRespond)
+- Lock acquisition happens inside transaction
+- Result stored atomically with business operation
+
+**Idempotency Collection Schema:**
+```typescript
+interface IdempotencyRecord {
+  requestId: string;           // UUID from client
+  uid: string;                 // User who made request
+  operation: string;           // e.g., 'presenceStart'
+  status: 'processing' | 'completed' | 'failed';
+  createdAt: Timestamp;
+  expiresAt: Timestamp;        // 2-hour TTL
+  processingStartedAt?: Timestamp;
+  completedAt?: Timestamp;
+  minimalResult?: MinimalResult;  // Only IDs and flags
+  error?: string;
+}
+```
+
+**Business-Level Idempotency** (presenceStart specific):
+- Beyond atomic locking, checks if active session already exists with matching parameters
+- Returns existing sessionId if session still valid (not expired, activity matches)
+- Prevents duplicate sessions even if idempotency record expires
+
+**Protected Functions** (`functions/src/`):
+- ✅ `presence/start.ts` - Full idempotency (atomic + business-level)
+- ✅ `offers/create.ts` - Transaction-scoped idempotency
+- ✅ `offers/respond.ts` - Transaction-scoped idempotency
+- ✅ `matches/cancel.ts` - Full idempotency
+
+**Part 3: Firestore Security Rules**
+
+**Added** (`firestore.rules:128-131`):
+```javascript
+// U23: Idempotency collection
+match /idempotency/{idempotencyId} {
+  allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+  allow write: if false; // Cloud Functions only
+}
+```
+
+**Part 4: Scheduled Cleanup**
+
+**Cleanup Job** (`functions/src/idempotency/cleanup.ts` - NEW):
+- Schedule: Every 2 hours
+- Batch size: 500 records per run
+- Query: `expiresAt <= now`
+- Prevents unbounded storage growth
+- Registered in `functions/src/index.ts`
+
+**Part 5: Testing Infrastructure**
+
+**Debug Page** (`src/app/(protected)/idempotency-debug/page.tsx` - NEW, 600+ lines):
+- **Test 1:** Concurrent duplicate calls (same key → same sessionId)
+- **Test 2:** Parameter mismatch detection (activity change blocked)
+- **Test 3:** Retry behavior verification (exponential backoff logging)
+- **Test 4:** Rapid-fire stress test (10 concurrent → 1 session)
+- Real-time idempotency record inspection
+- Presence data verification
+- Complete test automation
+
+**Testing Guide** (`docs/U23_TESTING_GUIDE.md` - NEW, 658 lines):
+- Quick start with debug page
+- Manual testing instructions
+- 4 comprehensive test scenarios
+- Expected behaviors and verification steps
+- Troubleshooting guide
+
+**Technical Challenges Resolved:**
+
+**Challenge 1: Node 25 Incompatibility**
+- **Problem:** `admin.firestore.Timestamp` undefined in Node 25 with firebase-admin@13.6.0
+  - Firebase officially supports Node 20 (not Node 25)
+  - Emulator warning: "Your requested 'node' version '20' doesn't match your global version '25'"
+- **Workaround:** Import from `firebase-admin/firestore` submodule instead of `admin.firestore`
+  ```typescript
+  import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+  ```
+- **Files Fixed:**
+  - `functions/src/presence/start.ts`
+  - `functions/src/utils/idempotency.ts`
+- **⚠️ Production Requirement:** Must use Node 20 (workaround is for local development only)
+
+**Challenge 2: Client Wrapper Key Overwriting**
+- **Problem:** Retry wrapper overwrote user-provided idempotencyKey with generated key
+- **Root Cause:** `{ ...data, idempotencyKey }` spreads data first, then overwrites
+- **Solution:** Explicit key selection
+  ```typescript
+  const keyToUse = data.idempotencyKey || generatedKey;
+  ```
+
+**Verification:**
+- ✅ All 4 automated tests passing
+- ✅ Test 1: Concurrent duplicates → Same sessionId (idempotency working)
+- ✅ Test 2: Parameter mismatch → Correct rejection
+- ✅ Test 3: Retry behavior → Exponential backoff confirmed
+- ✅ Test 4: Rapid-fire 10 requests → 1 session created (no duplicates)
+- ✅ Emulator logs show proper lock acquisition and completion
+- ✅ Business-level idempotency returning existing sessions
+- ✅ TypeScript compiles successfully
+- ✅ **Requires Node 20** (Node 25 workaround via submodule imports, not officially supported)
+
+**Impact:**
+- **High** - Major reliability improvement
+- Prevents duplicate operations from client retries
+- Graceful handling of network failures
+- Better user experience during poor connectivity
+- Production-ready idempotency infrastructure
+- Comprehensive testing coverage
+
+**Timeline:** COMPLETED 2026-02-08
+
+---
+
 ## ⚠️ UNRESOLVED ISSUES
 
-**Status:** 9 issues remaining (0 high + 4 medium + 5 low)
+**Status:** 8 issues remaining (0 high + 3 medium + 5 low)
 
 All critical and high-priority issues have been resolved. Remaining issues are:
 - **High Priority (0):** None
-- **Medium Priority (4):** Edge cases and partial implementations
+- **Medium Priority (3):** Edge cases and partial implementations
 - **Low Priority (5):** Minor gaps, scalability concerns, reserved fields
 
 ---
@@ -767,27 +953,24 @@ Potential race condition edge cases:
 
 ---
 
-### U23. No Retry/Idempotency Mechanism
-**Priority:** MEDIUM
-**Doc Reference:** `Architecture_AsIs.md:9.2`
+### U23. ~~No Retry/Idempotency Mechanism~~ ✅ RESOLVED (2026-02-08)
 
-**Description:**
-Failed Cloud Function calls have no automatic retry or idempotency keys:
-- Network failures during offer creation could lose user action
-- Duplicate calls could create duplicate offers/matches
-- No request deduplication mechanism
+**Status:** ✅ **RESOLVED** (2026-02-08)
 
-**Impact:**
-- Medium - Could cause duplicate offers or missed state updates
-- Users may retry failed actions, creating duplicates
-- No way to detect and prevent duplicate processing
+**Pre-Fix Issue:**
+Failed Cloud Function calls had no automatic retry or idempotency keys, leading to duplicate operations or lost user actions.
 
-**Recommended Action:**
-- Implement request idempotency keys (client-generated UUIDs)
-- Add automatic retry logic for transient failures
-- Store processed request IDs to prevent duplicate processing
+**Resolution:**
+Complete idempotency and retry implementation with:
+- Client-side exponential backoff retry (1s → 2s → 4s → 8s)
+- Backend atomic idempotency locks
+- Transaction-scoped idempotency for complex operations
+- 2-hour TTL with scheduled cleanup
+- Comprehensive testing infrastructure
 
-**Timeline:** Future reliability enhancement
+**Details:** See "17. Idempotency and Client Retry (U23)" in RESOLVED ISSUES section above for complete implementation details.
+
+**Timeline:** COMPLETED 2026-02-08
 
 ---
 
@@ -931,11 +1114,11 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~U16: No Push Notification System~~ → ✅ Resolved (2026-02-08)
 - ~~U13: Hardcoded Admin Whitelist Discrepancy~~ → ✅ Resolved (2026-02-08)
 
-### Medium (4)
+### Medium (3)
 - ⚠️ **U18:** Block During Active Match (auto-cancel not implemented)
 - ⚠️ **U19:** Presence Expiry Mid-Match (no safeguards)
 - ⚠️ **U22:** Race Conditions (offer/match edge cases)
-- ⚠️ **U23:** No Retry/Idempotency Mechanism
+- ~~U23: No Retry/Idempotency Mechanism~~ → ✅ Resolved (2026-02-08)
 - ~~U21: Email Verification Not Enforced~~ → ✅ Resolved (2026-02-08)
 - ~~U20: Place Selection System Inconsistency~~ → ✅ Resolved (2026-02-08)
 - ~~U9: Activity List Partial Mismatch~~ → ✅ Resolved (2026-02-08)
@@ -981,7 +1164,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ✅ Backward compatibility maintained
 
 ### Known Limitations
-⚠️ **9 UNRESOLVED ISSUES** - None are critical or block production:
+⚠️ **8 UNRESOLVED ISSUES** - None are critical or block production:
 
 **Resolved:**
 - ~~"Explore Campus" activity~~ → ✅ Removed (Task 2)
@@ -994,9 +1177,10 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~Edge case: active match blocking~~ → ✅ Comprehensive blocking (2026-02-08)
 - ~~Place selection inconsistency~~ → ✅ Legacy system removed (2026-02-08)
 - ~~Email verification not enforced~~ → ✅ Backend enforcement added (2026-02-08)
+- ~~Retry/idempotency mechanism~~ → ✅ Full implementation with testing (2026-02-08)
 
 **Unresolved (Not Blocking Production):**
-- ⚠️ **U18-U19, U22-U23 (MEDIUM):** Edge cases, partial implementations (block auto-cancel, presence expiry, race conditions, retry/idempotency)
+- ⚠️ **U18-U19, U22 (MEDIUM):** Edge cases (block auto-cancel, presence expiry, race conditions)
 - ⚠️ **U10, U25-U28 (LOW):** Minor gaps (reserved fields, cleanup edge case, location staleness, missing index, admin scalability)
 
 ---
@@ -1009,14 +1193,13 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 3. ✅ Zero breaking changes introduced
 4. ✅ Security hardened (admin whitelist, isAdmin protection, Phase 3 rules)
 5. ✅ **READY FOR PRODUCTION DEPLOYMENT**
-6. ⚠️ **9 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
+6. ⚠️ **8 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
 
 ### Next Phase (Phase 5 - Enhancements & Issue Resolution)
 
 **Priority Order for Unresolved Issues:**
 
 1. **Medium Priority (Phase 5.1):**
-   - **U23:** Add retry/idempotency mechanism (reliability)
    - **U18:** Block auto-cancel for active matches (UX improvement)
    - **U19:** Add safeguards for presence expiry mid-match
    - **U22:** Race condition hardening (transactions/locks)
@@ -1038,7 +1221,10 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 2. ✅ Verify Firestore storage size trends (should stabilize with presence cleanup)
 3. ✅ Track `tick_sync` vs `both_same` resolution reasons for user behavior insights
 4. ⚠️ Monitor admin access logs (verify whitelist enforcement after U13 fix)
-5. Watch for any deployment issues (none expected based on verification)
+5. ✅ Monitor `idempotencyCleanup` scheduled job (runs every 2 hours, cleans expired records)
+6. ✅ Track idempotency collection size (should remain stable with cleanup)
+7. ✅ Monitor for DUPLICATE_IN_PROGRESS errors (indicates concurrent requests with same key)
+8. Watch for any deployment issues (none expected based on verification)
 
 ---
 

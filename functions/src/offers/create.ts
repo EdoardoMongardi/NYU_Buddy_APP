@@ -4,6 +4,10 @@ import { getPlaceCandidates } from '../utils/places';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 import { requireEmailVerification } from '../utils/verifyEmail';
 import { sendOfferReceivedNotification, sendMatchCreatedNotification } from '../utils/notifications';
+import {
+  checkIdempotencyInTransaction,
+  markIdempotencyCompleteInTransaction,
+} from '../utils/idempotency';
 
 const OFFER_TTL_MINUTES = 10;
 const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
@@ -15,6 +19,7 @@ interface OfferCreateData {
   matchScore?: number;
   distanceMeters?: number;
   activityType?: string; // For place availability check
+  idempotencyKey?: string; // U23: Optional idempotency key for duplicate prevention
 }
 
 export async function offerCreateHandler(request: CallableRequest<OfferCreateData>) {
@@ -200,7 +205,27 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
         ? [fromUid, targetUid]
         : [targetUid, fromUid];
 
-      await db.runTransaction(async (transaction) => {
+      // U23: Transaction-scoped idempotency for mutual match
+      const mutualMatchResult = await db.runTransaction(async (transaction) => {
+        // U23: Check idempotency inside transaction
+        const { idempotencyKey } = request.data;
+        const idempotencyCheck = await checkIdempotencyInTransaction(
+          transaction,
+          fromUid,
+          'offerCreate_mutualMatch',
+          idempotencyKey
+        );
+
+        if (idempotencyCheck.isDuplicate) {
+          console.log(`[offerCreate-mutualMatch] Returning cached result for duplicate request`);
+          return {
+            cached: true,
+            offerId: idempotencyCheck.cachedResult!.primaryId,
+            matchId: idempotencyCheck.cachedResult!.secondaryIds?.[0],
+            matchCreated: idempotencyCheck.cachedResult!.flags?.matchCreated || false,
+          };
+        }
+
         // Create match
         transaction.set(matchRef, {
           user1Uid,
@@ -246,7 +271,36 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
           matchId: matchRef.id,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+
+        // U23: Mark idempotency as completed
+        await markIdempotencyCompleteInTransaction(
+          transaction,
+          fromUid,
+          'offerCreate_mutualMatch',
+          idempotencyKey,
+          {
+            primaryId: reverseOffer.id,
+            secondaryIds: [matchRef.id],
+            flags: { matchCreated: true },
+          }
+        );
+
+        return {
+          cached: false,
+          offerId: reverseOffer.id,
+          matchId: matchRef.id,
+          matchCreated: true,
+        };
       });
+
+      // U23: If cached, return immediately
+      if (mutualMatchResult.cached) {
+        return {
+          offerId: mutualMatchResult.offerId,
+          matchCreated: mutualMatchResult.matchCreated,
+          matchId: mutualMatchResult.matchId,
+        };
+      }
 
       // Cleanup other pending offers (Post-transaction)
       // We don't await this to return faster, or we await to ensure consistency?
@@ -309,7 +363,26 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     now.toMillis() + COOLDOWN_SECONDS * 1000
   );
 
-  await db.runTransaction(async (transaction) => {
+  // U23: Transaction-scoped idempotency for normal offer creation
+  const normalOfferResult = await db.runTransaction(async (transaction) => {
+    // U23: Check idempotency inside transaction
+    const { idempotencyKey } = request.data;
+    const idempotencyCheck = await checkIdempotencyInTransaction(
+      transaction,
+      fromUid,
+      'offerCreate',
+      idempotencyKey
+    );
+
+    if (idempotencyCheck.isDuplicate) {
+      console.log(`[offerCreate] Returning cached result for duplicate request`);
+      return {
+        cached: true,
+        offerId: idempotencyCheck.cachedResult!.primaryId,
+        matchCreated: false,
+      };
+    }
+
     // Create offer document
     transaction.set(offerRef, {
       fromUid,
@@ -342,7 +415,35 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       lastExposedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // U23: Mark idempotency as completed
+    await markIdempotencyCompleteInTransaction(
+      transaction,
+      fromUid,
+      'offerCreate',
+      idempotencyKey,
+      {
+        primaryId: offerRef.id,
+        flags: { matchCreated: false },
+      }
+    );
+
+    return {
+      cached: false,
+      offerId: offerRef.id,
+      matchCreated: false,
+    };
   });
+
+  // U23: If cached, return immediately (no notification)
+  if (normalOfferResult.cached) {
+    return {
+      offerId: normalOfferResult.offerId,
+      matchCreated: false,
+      expiresAt: expiresAt.toDate().toISOString(),
+      cooldownUntil: cooldownUntil.toDate().toISOString(),
+    };
+  }
 
   // U16: Send push notification to target user
   // Fire-and-forget: Don't block the response on notification delivery
