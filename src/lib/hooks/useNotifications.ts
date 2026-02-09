@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { app, db } from '@/lib/firebase/client';
 import { useAuth } from './useAuth';
 
@@ -66,20 +66,47 @@ export function useNotifications() {
     }
   }, []);
 
-  // Re-establish foreground onMessage listener for returning users who already granted permission
+  // Re-establish foreground listener AND refresh FCM token for returning users
   useEffect(() => {
-    if (!isSupported || !user || !app) return;
+    if (!isSupported || !user || !app || !db) return;
     if (Notification.permission !== 'granted') return;
 
-    try {
-      const messaging = getMessaging(app);
-      setupForegroundListener(messaging);
-      console.log('[Notifications] Foreground listener re-established for returning user');
-    } catch (err) {
-      console.error('[Notifications] Failed to re-establish foreground listener:', err);
-    }
+    let cancelled = false;
+
+    const refreshTokenAndListener = async () => {
+      try {
+        const messaging = getMessaging(app);
+        setupForegroundListener(messaging);
+        console.log('[Notifications] Foreground listener re-established for returning user');
+
+        // Re-obtain FCM token — if the old token expired or was rotated,
+        // Firebase SDK returns a fresh one. We always update Firestore to
+        // keep it in sync.
+        if (VAPID_KEY) {
+          const swRegistration = await navigator.serviceWorker.ready;
+          const token = await getToken(messaging, {
+            vapidKey: VAPID_KEY,
+            serviceWorkerRegistration: swRegistration,
+          });
+
+          if (token && !cancelled) {
+            const userRef = doc(db, 'users', user.uid);
+            await setDoc(userRef, {
+              fcmToken: token,
+              updatedAt: serverTimestamp(),
+            }, { merge: true });
+            console.log('[Notifications] FCM token refreshed for returning user');
+          }
+        }
+      } catch (err) {
+        console.error('[Notifications] Failed to refresh token for returning user:', err);
+      }
+    };
+
+    refreshTokenAndListener();
 
     return () => {
+      cancelled = true;
       if (onMessageUnsubRef.current) {
         onMessageUnsubRef.current();
         onMessageUnsubRef.current = null;
@@ -127,10 +154,10 @@ export function useNotifications() {
 
         // Save token to user document
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
+        await setDoc(userRef, {
           fcmToken: token,
           updatedAt: serverTimestamp(),
-        });
+        }, { merge: true });
 
         console.log('[Notifications] FCM token saved to Firestore');
 
