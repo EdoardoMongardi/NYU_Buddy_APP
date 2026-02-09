@@ -26,16 +26,17 @@ firebase.initializeApp(firebaseConfig);
 // Get Firebase Messaging instance
 const messaging = firebase.messaging();
 
-// Handle background messages
+// Handle background messages (data-only messages — title/body are in payload.data)
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw] Background message received:', payload);
 
-  const notificationTitle = payload.notification?.title || 'NYU Buddy';
+  const data = payload.data || {};
+  const notificationTitle = data.title || 'NYU Buddy';
   const notificationOptions = {
-    body: payload.notification?.body || 'You have a new notification',
+    body: data.body || 'You have a new notification',
     icon: '/icon.png',
     badge: '/badge.png',
-    data: payload.data,
+    data: data,
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

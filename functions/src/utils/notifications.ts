@@ -40,30 +40,25 @@ export async function sendNotificationToUser(
       return { success: false, error: 'No FCM token' };
     }
 
-    // Send notification via FCM
+    // Send data-only FCM message for full control over notification display on web
+    // (No top-level 'notification' field — prevents FCM auto-display conflicts with service worker)
     const message: admin.messaging.Message = {
       token: fcmToken,
-      notification: {
+      data: {
         title: notification.title,
         body: notification.body,
+        ...(notification.data || {}),
       },
-      data: notification.data || {},
-      // Android-specific configuration
+      // Web push configuration (critical for desktop & mobile PWA delivery)
+      webpush: {
+        headers: {
+          Urgency: 'high',
+          TTL: '600', // 10 minutes
+        },
+      },
+      // Android-specific configuration (for native apps if any)
       android: {
         priority: 'high',
-        notification: {
-          sound: 'default',
-          priority: 'high',
-        },
-      },
-      // iOS-specific configuration
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default',
-            badge: 1,
-          },
-        },
       },
     };
 

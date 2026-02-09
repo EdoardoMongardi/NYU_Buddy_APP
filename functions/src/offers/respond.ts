@@ -286,12 +286,15 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
   const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
 
-  // Send notifications to both users (fire-and-forget)
-  Promise.all([
+  // Send notifications to both users (awaited to prevent Cloud Function early termination)
+  const notifResults = await Promise.allSettled([
     sendMatchCreatedNotification(offer.fromUid, user2DisplayName, transactionResult.matchId!),
     sendMatchCreatedNotification(uid, user1DisplayName, transactionResult.matchId!),
-  ]).catch((err) => {
-    console.error('[offerRespond] Failed to send match notifications:', err);
+  ]);
+  notifResults.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.error(`[offerRespond] Notification ${i} failed:`, r.reason);
+    }
   });
 
   return {

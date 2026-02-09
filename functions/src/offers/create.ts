@@ -327,12 +327,15 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
       const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
 
-      // Send notifications to both users (fire-and-forget)
-      Promise.all([
+      // Send notifications to both users (awaited to prevent Cloud Function early termination)
+      const notifResults = await Promise.allSettled([
         sendMatchCreatedNotification(fromUid, user2DisplayName, mutualMatchResult.matchId!),
         sendMatchCreatedNotification(targetUid, user1DisplayName, mutualMatchResult.matchId!),
-      ]).catch((err) => {
-        console.error('[offerCreate-mutualMatch] Failed to send match notifications:', err);
+      ]);
+      notifResults.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`[offerCreate-mutualMatch] Notification ${i} failed:`, r.reason);
+        }
       });
 
       return {
@@ -451,8 +454,8 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
   }
 
   // U16: Send push notification to target user
-  // Fire-and-forget: Don't block the response on notification delivery
-  sendOfferReceivedNotification(targetUid, fromDisplayName, offerRef.id).catch((err) => {
+  // Awaited to prevent Cloud Function early termination before FCM sends
+  await sendOfferReceivedNotification(targetUid, fromDisplayName, offerRef.id).catch((err) => {
     console.error('[offerCreate] Failed to send offer notification:', err);
   });
 
