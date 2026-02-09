@@ -659,14 +659,31 @@ UI used new system, but legacy functions remained causing confusion.
 
 **Code:** `src/lib/schemas/user.ts:78-84`
 
-### 11.6 Email Verification Blocking
+### 11.6 ~~Email Verification Blocking~~ ✅ ENFORCED (U21, 2026-02-08)
 
- **Status:** NOT ENFORCED
+ **Status:** ✅ **ENFORCED** - Backend verification implemented
 
- **Behavior:**
- - Code logic checks `emailVerified` flag but does NOT actively block unverified users from core actions (setting availability, etc).
- - No UI guidance prompts user to verify.
- - **Risk:** Unverified users can use the platform freely.
+ **Pre-U21 Issue:**
+ - Frontend checked `emailVerified` but backend did not enforce
+ - Unverified users could bypass UI checks via direct API calls
+ - Fake `@nyu.edu` emails could fully use the platform
+ - **Risk:** Security and spam vulnerability
+
+ **U21 Resolution (2026-02-08):**
+ - **Backend Middleware:** `functions/src/utils/verifyEmail.ts` - `requireEmailVerification()` helper
+ - **9 Protected Functions:** All critical Cloud Functions now enforce email verification:
+   - `presenceStart` - Set availability
+   - `offerCreate` - Send offers
+   - `offerRespond` - Accept/decline offers
+   - `suggestionGetCycle` - Browse suggestions (new)
+   - `suggestionGetTop1` - Browse suggestions (legacy)
+   - `matchFetchAllPlaces` - Fetch locations
+   - `matchSetPlaceChoice` - Choose location
+   - `matchCancel` - Cancel match
+   - `updateMatchStatus` - Update match status
+ - **Error Handling:** Returns `EMAIL_NOT_VERIFIED` error with clear message
+ - **Frontend:** Verification banner in navbar, enhanced error handling in UI
+ - **Zero Grace Period:** Immediate blocking (no delay)
 
 ---
 

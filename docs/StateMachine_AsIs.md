@@ -130,7 +130,7 @@ else if ((u1 === 'heading_there' || u1 === 'arrived') && (u2 === 'heading_there'
 3. Neither chose → **Rank #1** (closest place) is auto-selected (lines 187-188) — reason: `'none_chose'`
 4. Both chose different → **lower rank wins** (closer place); on rank tie, lexicographically smaller `placeId` (lines 222-230) — reason: `'rank_tiebreak'`
 
-**Dead Code:** `ResolutionReason` type (`resolvePlace.ts:24`) includes `'tick_sync'` but **no code path ever produces this value**. It is defined in the union type but never assigned during resolution.
+**~~Dead Code~~** ✅ **RESOLVED (Follow-up Task 3, 2026-02-08):** `ResolutionReason` type (`resolvePlace.ts:24`) previously included `'tick_sync'` but no code path produced this value. **Resolution implemented:** Choice provenance tracking added via `source` field (`'tick' | 'choose'`) in `setPlaceChoice.ts:138`, and resolution logic in `resolvePlace.ts:204-206` now properly generates `'tick_sync'` when at least one user clicks "✓ Go with their choice".
 
 ## 5. State Transition Tables
 

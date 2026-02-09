@@ -1,6 +1,6 @@
 # NYU Buddy - Issues Status Report
 
-**Last Updated:** 2026-02-08 (U20, U21 resolved - removed legacy place selection, enforced email verification on all core functions)
+**Last Updated:** 2026-02-08 (U16, U20, U21 resolved - FCM push notifications + PWA installation, removed legacy place selection, enforced email verification)
 **Audit Scope:** Complete codebase vs. documentation cross-reference (6 doc files audited)
 **Methodology:** Code is the only source of truth
 
@@ -11,14 +11,14 @@
 **Overall Status:** ✅ **PRODUCTION-READY** (with known limitations)
 
 - **Total Issues Identified:** 29
-- **Resolved:** 18 (62%) ✅
-- **Unresolved:** 11 (38%) ⚠️
+- **Resolved:** 20 (69%) ✅
+- **Unresolved:** 9 (31%) ⚠️
   - Critical: 0
-  - High: 1 (U16: Push notifications)
+  - High: 0
   - Medium: 4 (edge cases, partial implementations)
-  - Low: 6 (minor gaps, scalability concerns)
+  - Low: 5 (minor gaps, scalability concerns)
 
-**Key Finding:** All critical issues resolved. One high-priority issue (U16: FCM push notifications) is a feature enhancement. Most unresolved issues are edge cases, partial implementations, or architectural limitations that don't block production deployment but should be addressed in future phases.
+**Key Finding:** All critical and high-priority issues resolved. Remaining unresolved issues are edge cases, partial implementations, or architectural limitations that don't block production deployment but should be addressed in future phases.
 
 ---
 
@@ -447,14 +447,153 @@ Users with presence.status='matched' could theoretically access discovery functi
 
 ---
 
+### 16. Push Notifications and PWA Installation
+**Resolved:** 2026-02-08
+**Priority:** HIGH
+**Doc References:**
+- `Architecture_AsIs.md:9.1`
+- `FCM_SETUP.md` (complete setup guide)
+
+**Problem:**
+No push notification system for time-sensitive events:
+- Users manually check app for offer notifications
+- Battery drain from 30-second polling intervals
+- iOS notifications only work in PWA standalone mode
+- No guided installation flow for mobile users
+
+**Solution Implemented:**
+
+**Part 1: FCM Push Notifications**
+
+**Backend (Cloud Functions):**
+- **File:** `functions/src/utils/notifications.ts` (NEW)
+  - `sendNotificationToUser()` - Core FCM sending logic
+  - `sendOfferReceivedNotification()` - "You received an offer from XXX"
+  - `sendMatchCreatedNotification()` - "You have successfully matched with XXX"
+  - Handles invalid token cleanup
+  - Platform-specific payload (Android/iOS)
+
+- **Integration:**
+  - `functions/src/offers/create.ts` - Send notification on offer creation + mutual match
+  - `functions/src/offers/respond.ts` - Send notification on match acceptance
+  - Fire-and-forget pattern (non-blocking)
+
+**Frontend:**
+- **Hook:** `src/lib/hooks/useNotifications.ts` (NEW)
+  - Permission management
+  - FCM token registration
+  - Token storage in Firestore (`users.fcmToken`)
+  - VAPID key configuration
+
+- **Component:** `src/components/notifications/NotificationPrompt.tsx` (NEW)
+  - Banner prompting users to enable notifications
+  - Styled with gradient violet background
+  - Error handling and dismissal
+
+- **Service Worker:** `public/firebase-messaging-sw.js` (NEW)
+  - Background notification handling
+  - Shows notifications when app not in focus
+
+- **Debug Tool:** `src/app/(protected)/notifications-debug/page.tsx` (NEW)
+  - Configuration status checker
+  - Platform detection
+  - Token verification
+  - Test notification sender
+
+**Part 2: PWA Installation Banner**
+
+**Core Utilities:**
+- **File:** `src/lib/utils/platform.ts` (NEW)
+  - Robust iOS Safari detection: `/Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)`
+  - Detects iOS, Android, Desktop
+  - Dual standalone detection: `matchMedia('(display-mode: standalone)')` + `navigator.standalone`
+  - Excludes iOS Chrome, Edge, Firefox from Safari detection
+
+- **Hook:** `src/lib/hooks/useInstallation.ts` (NEW)
+  - Installation state management
+  - localStorage keys: `installBannerDismissUntil` (timestamp), `installBannerInstalled` (boolean)
+  - 24-hour "Later" dismissal
+  - Android `appinstalled` event listener
+  - `beforeinstallprompt` event capture
+
+**Components:**
+- **Main Banner:** `src/components/installation/InstallBanner.tsx` (NEW)
+  - Platform-specific messaging
+  - Styled to match NotificationPrompt
+  - Gradient violet background
+  - Mobile-responsive
+
+- **iOS Safari Guide:** `src/components/installation/IOSInstallGuide.tsx` (NEW)
+  - Visual step-by-step guide
+  - Icons for Share → Add to Home Screen → Add
+  - Modal with gradient header
+
+- **Android Guide:** `src/components/installation/AndroidInstallGuide.tsx` (NEW)
+  - Manual installation steps
+  - Browser menu → Install app → Confirm
+  - Fallback for browsers without native prompt
+
+- **iOS Safari Prompt:** `src/components/installation/IOSSafariPrompt.tsx` (NEW)
+  - For iOS Chrome/Edge/Firefox users
+  - "Copy Link" (primary action)
+  - "Open in Safari" (best-effort secondary)
+  - Manual instructions if auto-open fails
+
+**Integration:**
+- **File:** `src/app/(protected)/layout.tsx`
+  - Added `<InstallBanner />` below `<NotificationPrompt />`
+  - Both banners parallel, same styling
+
+**PWA Configuration:**
+- **Manifest:** `public/manifest.json` (UPDATED)
+  - `"display": "standalone"` - Critical for iOS notifications
+  - App icons: `/icon-192.svg`, `/icon-512.svg`
+  - Theme color: `#7c3aed` (violet)
+
+- **Metadata:** `src/app/layout.tsx` (UPDATED)
+  - Added `manifest: "/manifest.json"`
+  - Added `appleWebApp` configuration
+  - Viewport settings for mobile
+
+**Behavior:**
+- **Desktop:** No installation banner (hidden)
+- **iOS Safari:** Shows "Add to Home Screen" banner → Visual guide modal
+- **iOS Chrome/Edge/Firefox:** Shows "Install from Safari" banner → Copy link prompt
+- **Android:** Shows "Install NYU Buddy" banner → Native prompt or manual guide
+- **All platforms:** Banner disappears permanently when app opens in standalone mode
+
+**Environment Configuration:**
+- **Local:** `.env.local` - `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
+- **Production:** Vercel environment variables
+- **Service Worker:** Firebase config in `public/firebase-messaging-sw.js`
+
+**Verification:**
+- ✅ FCM notifications working on Android in browser
+- ✅ FCM notifications working on iOS in PWA standalone mode
+- ✅ Installation banner detects platform correctly
+- ✅ PWA installs successfully on iOS Safari
+- ✅ PWA installs successfully on Android Chrome
+- ✅ TypeScript compiles without errors
+- ✅ ESLint passes all files
+- ✅ No breaking changes
+
+**Impact:**
+- **High** - Major user experience improvement
+- Real-time notifications for offers and matches
+- Reduced battery drain (no more polling)
+- Guided installation improves PWA adoption
+- Platform-specific UX optimization
+
+---
+
 ## ⚠️ UNRESOLVED ISSUES
 
-**Status:** 11 issues remaining (1 high + 4 medium + 6 low)
+**Status:** 9 issues remaining (0 high + 4 medium + 5 low)
 
-All critical issues have been resolved. Remaining issues are:
-- **High Priority (1):** U16 - Push notifications (feature enhancement)
+All critical and high-priority issues have been resolved. Remaining issues are:
+- **High Priority (0):** None
 - **Medium Priority (4):** Edge cases and partial implementations
-- **Low Priority (6):** Minor gaps, scalability concerns, reserved fields
+- **Low Priority (5):** Minor gaps, scalability concerns, reserved fields
 
 ---
 
@@ -471,31 +610,6 @@ User schema defines `meetRate` and `cancelRate` fields but they are not currentl
 User requested these fields be kept for future features. NOT TO BE DELETED.
 
 **Timeline:** Future phase when aggregate metrics are implemented
-
----
-
-### U16. Push Notifications (Feature Enhancement)
-**Priority:** HIGH (Feature Enhancement)
-**Doc Reference:** `Architecture_AsIs.md:9.1`
-
-**Description:**
-Firebase Cloud Messaging (FCM) push notifications not yet implemented:
-- Users must manually check app for offer notifications
-- Reduced engagement for time-sensitive events
-- App relies on polling (30-second intervals) and Firestore listeners (requires app open)
-
-**Impact:**
-- **HIGH** - Most impactful user-facing limitation
-- Users miss time-sensitive offers/matches
-- Battery drain from polling
-- Delayed notifications reduce engagement
-
-**Recommended Action:**
-- Implement Firebase Cloud Messaging (FCM) in future phase
-- Add notification tokens to user documents
-- Send notifications on: offer received, match created, location decided, etc.
-
-**Timeline:** Feature backlog - Phase 5 or later
 
 ---
 
@@ -677,26 +791,26 @@ Failed Cloud Function calls have no automatic retry or idempotency keys:
 
 ---
 
-### U24. Legacy Place Confirmation Bypass
-**Priority:** LOW
-**Doc Reference:** `StateMachine_AsIs.md:9.2.1`
+### U24. ~~Legacy Place Confirmation Bypass~~ ✅ RESOLVED (as part of U20)
 
-**Description:**
-`matchConfirmPlace` exists and allows transition from `pending` or `place_confirmed` directly:
-- May bypass dual-choice voting logic
-- UI might still use this legacy path
-- Creates alternative state transition path
+**Status:** ✅ **RESOLVED** (2026-02-08 - same as U20)
 
-**Impact:**
-- Low-Medium - UI/backend path inconsistency
-- If used, bypasses intended place selection flow
+**Pre-Fix Issue:**
+`matchConfirmPlace` existed and allowed direct transition bypassing dual-choice voting logic.
 
-**Recommended Action:**
-- Verify if UI uses this function
-- Deprecate or remove if unused
-- If needed, ensure it's documented as intentional legacy path
+**Resolution:**
+This issue was **automatically resolved as part of U20** (Place Selection System Inconsistency):
+- ✅ `functions/src/matches/confirmPlace.ts` was deleted
+- ✅ `matchConfirmPlace` Cloud Function removed from production
+- ✅ No code references remain (verified by grep)
+- ✅ Only dual-choice voting system exists now
 
-**Timeline:** Code cleanup / future phase
+**Verification:**
+- Function not exported in `functions/src/index.ts`
+- Function file does not exist in codebase
+- No imports or calls to `matchConfirmPlace` anywhere
+
+**Timeline:** COMPLETED 2026-02-08 (same deployment as U20)
 
 ---
 
@@ -813,8 +927,8 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 ### Critical (0)
 ✅ All critical issues resolved
 
-### High (1)
-- ⚠️ **U16:** No Push Notification System (feature enhancement)
+### High (0)
+- ~~U16: No Push Notification System~~ → ✅ Resolved (2026-02-08)
 - ~~U13: Hardcoded Admin Whitelist Discrepancy~~ → ✅ Resolved (2026-02-08)
 
 ### Medium (4)
@@ -830,9 +944,9 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~U1: Phantom `tick_sync` type~~ → ✅ Resolved (Task 3)
 - ~~U2: Activity list mismatch~~ → ✅ Resolved (Task 2)
 
-### Low (6)
+### Low (5)
 - ⚠️ **U10:** Reserved Fields (meetRate/cancelRate) - kept for future features
-- ⚠️ **U24:** Legacy Place Confirmation Bypass
+- ~~U24: Legacy Place Confirmation Bypass~~ → ✅ Resolved (2026-02-08, part of U20)
 - ⚠️ **U25:** Presence Cleanup on Match Cancel Edge Case
 - ⚠️ **U26:** Client-Side Location Staleness
 - ⚠️ **U27:** Missing sessionHistory Firestore Index
@@ -867,7 +981,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ✅ Backward compatibility maintained
 
 ### Known Limitations
-⚠️ **11 UNRESOLVED ISSUES** - None are critical or block production:
+⚠️ **9 UNRESOLVED ISSUES** - None are critical or block production:
 
 **Resolved:**
 - ~~"Explore Campus" activity~~ → ✅ Removed (Task 2)
@@ -882,9 +996,8 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~Email verification not enforced~~ → ✅ Backend enforcement added (2026-02-08)
 
 **Unresolved (Not Blocking Production):**
-- ⚠️ **U16 (HIGH):** No push notifications (feature enhancement)
 - ⚠️ **U18-U19, U22-U23 (MEDIUM):** Edge cases, partial implementations (block auto-cancel, presence expiry, race conditions, retry/idempotency)
-- ⚠️ **U10, U24-U28 (LOW):** Minor gaps (reserved fields, legacy confirmation, cleanup edge case, location staleness, missing index, admin scalability)
+- ⚠️ **U10, U25-U28 (LOW):** Minor gaps (reserved fields, cleanup edge case, location staleness, missing index, admin scalability)
 
 ---
 
@@ -896,33 +1009,26 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 3. ✅ Zero breaking changes introduced
 4. ✅ Security hardened (admin whitelist, isAdmin protection, Phase 3 rules)
 5. ✅ **READY FOR PRODUCTION DEPLOYMENT**
-6. ⚠️ **11 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
+6. ⚠️ **9 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
 
 ### Next Phase (Phase 5 - Enhancements & Issue Resolution)
 
 **Priority Order for Unresolved Issues:**
 
-1. **High Priority (Phase 5.1):**
-   - **U16:** Implement Firebase Cloud Messaging (FCM) for push notifications
-     - Biggest user-facing improvement
-     - Improve engagement with real-time notification alerts
-     - Reduce battery drain from polling
-
-2. **Medium Priority (Phase 5.2):**
+1. **Medium Priority (Phase 5.1):**
    - **U23:** Add retry/idempotency mechanism (reliability)
    - **U18:** Block auto-cancel for active matches (UX improvement)
    - **U19:** Add safeguards for presence expiry mid-match
    - **U22:** Race condition hardening (transactions/locks)
 
-3. **Low Priority (Phase 5.3+):**
+2. **Low Priority (Phase 5.2+):**
    - **U27:** Add missing sessionHistory Firestore index
-   - **U24:** Remove/deprecate legacy place confirmation if unused
    - **U25:** Fix presence cleanup edge case on match cancel
    - **U26:** Implement periodic location refresh
    - **U28:** Build scalable admin management system
    - **U10:** Implement aggregate reliability metrics (meetRate/cancelRate)
 
-4. **Advanced Features:**
+3. **Advanced Features:**
    - Advanced analytics dashboard for admin
    - User feedback analytics leveraging `tick_sync` resolution data
    - Performance optimization and caching strategies

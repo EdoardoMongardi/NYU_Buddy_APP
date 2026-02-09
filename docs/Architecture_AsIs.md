@@ -502,13 +502,133 @@ const nextConfig = {
 
 ## 9. Known Architectural Gaps
 
-### 9.1 No Push Notification System
+### 9.1 ~~No Push Notification System~~ ✅ RESOLVED (U16)
 
-Match notifications rely on:
+**Status:** ✅ **RESOLVED** (2026-02-08)
+
+**Pre-U16 Issue:**
+Match notifications relied on:
 1. Firestore `onSnapshot` listeners (requires app open)
 2. Polling (30-second intervals in `src/app/(protected)/page.tsx:77-86`)
+3. **Impact:** High - users missed time-sensitive offers/matches, battery drain
 
-**Impact:** High - users may miss time-sensitive offers/matches.
+**U16 Resolution:**
+
+**Part 1: Firebase Cloud Messaging (FCM) Push Notifications**
+
+**Backend Implementation:**
+- **Notification Utilities** (`functions/src/utils/notifications.ts` - NEW):
+  - `sendNotificationToUser()` - Core FCM sending logic with Firebase Admin SDK
+  - `sendOfferReceivedNotification()` - Sends "You received an offer from XXX"
+  - `sendMatchCreatedNotification()` - Sends "You have successfully matched with XXX"
+  - Handles invalid token cleanup (removes stale FCM tokens)
+  - Platform-specific payloads (Android high priority, iOS APNs configuration)
+
+- **Integration Points:**
+  - `functions/src/offers/create.ts` - Notification on offer creation + mutual match
+  - `functions/src/offers/respond.ts` - Notification on match acceptance
+  - Fire-and-forget pattern (non-blocking, errors logged but don't fail main operation)
+
+**Frontend Implementation:**
+- **Hook** (`src/lib/hooks/useNotifications.ts` - NEW):
+  - Permission management: `requestPermission()` prompts user
+  - FCM token registration via `getToken()` with VAPID key
+  - Token storage in Firestore (`users/{uid}.fcmToken`)
+  - Environment variable: `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
+
+- **User Prompt** (`src/components/notifications/NotificationPrompt.tsx` - NEW):
+  - Banner with gradient violet background (matching app theme)
+  - "Enable notifications for updates" messaging
+  - Error handling for permission denied, VAPID key missing, etc.
+  - Dismissible with localStorage persistence
+
+- **Service Worker** (`public/firebase-messaging-sw.js` - NEW):
+  - Handles background notifications when app not in focus
+  - Shows system notification with title, body, icon
+  - Firebase Messaging compat library (v10.7.1)
+
+- **Debug Tool** (`src/app/(protected)/notifications-debug/page.tsx` - NEW):
+  - Configuration status checker (VAPID key, permissions, FCM token)
+  - Browser support detection
+  - Test notification sender
+  - Platform-specific troubleshooting guide
+
+**Part 2: PWA Installation Banner for iOS Notifications**
+
+**Problem:** iOS Safari requires PWA installation for Notification API access.
+
+**Platform Detection** (`src/lib/utils/platform.ts` - NEW):
+- Robust iOS Safari detection: `/Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)`
+- Detects iOS, Android, Desktop platforms
+- Dual standalone detection: `matchMedia('(display-mode: standalone)')` + `navigator.standalone`
+- Identifies iOS Chrome, Edge, Firefox (requires redirect to Safari)
+
+**Installation State Management** (`src/lib/hooks/useInstallation.ts` - NEW):
+- localStorage keys: `installBannerDismissUntil` (timestamp), `installBannerInstalled` (boolean)
+- 24-hour "Later" dismissal mechanism
+- Android `appinstalled` event listener (auto-marks as installed)
+- `beforeinstallprompt` event capture for native Android install prompt
+
+**Installation Components:**
+- **Main Banner** (`src/components/installation/InstallBanner.tsx` - NEW):
+  - Platform-specific messaging (iOS Safari: "Add to Home Screen", iOS Chrome: "Install from Safari", Android: "Install NYU Buddy")
+  - Styled to match `NotificationPrompt` (gradient violet background, responsive)
+  - Shows below navbar, above main content
+
+- **iOS Safari Guide** (`src/components/installation/IOSInstallGuide.tsx` - NEW):
+  - Visual step-by-step modal: Share → Add to Home Screen → Add → Open
+  - Icons for each step with color-coded badges
+  - Explains benefits: notifications, offline access, app-like experience
+
+- **Android Guide** (`src/components/installation/AndroidInstallGuide.tsx` - NEW):
+  - Manual installation steps: Menu → Install app → Confirm
+  - Fallback for browsers without native install prompt
+
+- **iOS Safari Prompt** (`src/components/installation/IOSSafariPrompt.tsx` - NEW):
+  - For iOS Chrome/Edge/Firefox users: prompts to switch to Safari
+  - Primary action: "Copy Link" (guaranteed to work)
+  - Secondary action: "Try Opening in Safari" (best-effort, shows fallback instructions)
+
+**PWA Configuration:**
+- **Manifest** (`public/manifest.json` - UPDATED):
+  - `"display": "standalone"` - Critical for iOS notifications (enables Notification API)
+  - App icons: `/icon-192.svg`, `/icon-512.svg` (purple NYU logos)
+  - Theme color: `#7c3aed` (violet), start URL: `/`
+
+- **Metadata** (`src/app/layout.tsx` - UPDATED):
+  - Added `manifest: "/manifest.json"`
+  - Added `appleWebApp` configuration for iOS home screen
+  - Viewport settings optimized for mobile
+
+**Integration:**
+- Added `<InstallBanner />` to `src/app/(protected)/layout.tsx` (below `<NotificationPrompt />`)
+- Both banners parallel, same styling, shown sequentially
+
+**Behavior:**
+- **Desktop:** No installation banner (hidden by design)
+- **iOS Safari:** "Add to Home Screen" banner → Visual guide on tap
+- **iOS Chrome/Edge/Firefox:** "Install from Safari" banner → Copy link + redirect flow
+- **Android:** "Install NYU Buddy" banner → Native prompt or manual guide
+- **All platforms:** Banner disappears permanently when app opens in standalone mode
+
+**Environment Configuration:**
+- **Local:** `.env.local` - `NEXT_PUBLIC_FIREBASE_VAPID_KEY=<key>`
+- **Production:** Vercel environment variables
+- **VAPID Key Generation:** Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
+
+**Verification:**
+- ✅ FCM notifications working on Android (browser + PWA)
+- ✅ FCM notifications working on iOS (PWA standalone mode only)
+- ✅ Installation banner detects platform correctly
+- ✅ PWA installs successfully on iOS Safari (opens without address bar)
+- ✅ PWA installs successfully on Android Chrome (native prompt)
+- ✅ Notification API exposed after PWA installation on iOS
+
+**Impact:**
+- **High** - Eliminates polling (battery savings)
+- Real-time push notifications for offers and matches
+- Guided installation flow improves PWA adoption
+- Platform-specific UX optimization (handles iOS limitations gracefully)
 
 ### 9.2 No Retry/Idempotency Mechanism
 
