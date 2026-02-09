@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, X, Info } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useInstallation } from '@/lib/hooks/useInstallation';
 import { getIOSBrowserName } from '@/lib/utils/platform';

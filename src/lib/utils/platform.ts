@@ -3,6 +3,11 @@
  * Detects device type, OS, and browser to show appropriate installation guide
  */
 
+// Extend Navigator interface to include iOS-specific standalone property
+interface NavigatorStandalone extends Navigator {
+  standalone?: boolean;
+}
+
 export interface PlatformInfo {
   isIOS: boolean;
   isAndroid: boolean;
@@ -49,7 +54,7 @@ function detectStandalone(): boolean {
   const isDisplayModeStandalone = window.matchMedia('(display-mode: standalone)').matches;
 
   // Check navigator.standalone (iOS-specific)
-  const isNavigatorStandalone = 'standalone' in navigator && (navigator as any).standalone === true;
+  const isNavigatorStandalone = 'standalone' in navigator && (navigator as NavigatorStandalone).standalone === true;
 
   return isDisplayModeStandalone || isNavigatorStandalone;
 }

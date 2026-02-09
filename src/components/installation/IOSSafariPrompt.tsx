@@ -102,7 +102,7 @@ export default function IOSSafariPrompt({
                 <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm text-gray-700">
-                    <strong className="text-gray-900">{browserName}</strong> doesn't support app installation on iOS.
+                    <strong className="text-gray-900">{browserName}</strong> doesn&apos;t support app installation on iOS.
                   </p>
                   <p className="text-xs text-gray-600 mt-1">
                     Please open this page in Safari to install NYU Buddy.
@@ -167,7 +167,7 @@ export default function IOSSafariPrompt({
                     className="p-3 bg-blue-50 border border-blue-200 rounded-lg"
                   >
                     <p className="text-xs text-gray-700 leading-relaxed">
-                      <strong className="text-gray-900">If auto-open doesn't work:</strong><br />
+                      <strong className="text-gray-900">If auto-open doesn&apos;t work:</strong><br />
                       1. Open Safari browser<br />
                       2. Tap address bar at the top<br />
                       3. Paste the copied link<br />
@@ -185,7 +185,7 @@ export default function IOSSafariPrompt({
                 variant="ghost"
                 className="w-full"
               >
-                I'll do it later
+                I&apos;ll do it later
               </Button>
             </div>
           </motion.div>
