@@ -90,7 +90,7 @@ export function useNotifications() {
           });
 
           if (token && !cancelled) {
-            const userRef = doc(db, 'users', user.uid);
+            const userRef = doc(db!, 'users', user.uid);
             await setDoc(userRef, {
               fcmToken: token,
               updatedAt: serverTimestamp(),
