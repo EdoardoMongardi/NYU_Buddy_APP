@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import Navbar from '@/components/layout/Navbar';
 import NotificationPrompt from '@/components/notifications/NotificationPrompt';
+import InstallBanner from '@/components/installation/InstallBanner';
 
 export default function ProtectedLayout({
   children,
@@ -60,6 +61,7 @@ export default function ProtectedLayout({
     <div className="min-h-screen bg-gradient-to-br from-violet-50 to-purple-100">
       <Navbar />
       <NotificationPrompt />
+      <InstallBanner />
       <main className="container mx-auto px-4 py-6">{children}</main>
     </div>
   );
