@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { requireEmailVerification } from '../utils/verifyEmail';
+import { releaseMatchGuard } from './createMatchAtomic';
 
 interface UpdateMatchStatusData {
   matchId: string;
@@ -104,6 +105,16 @@ export async function updateMatchStatusHandler(
 
     await batch.commit();
     console.log(`[updateMatchStatus] Cleared presence.matchId for completed match ${matchId}`);
+
+    // U22 CRITICAL FIX: Release the pair guard when match completes
+    // Without this, the pair can NEVER match again (guard blocks future matches forever)
+    try {
+      await releaseMatchGuard(matchId, match.user1Uid, match.user2Uid);
+      console.log(`[updateMatchStatus] Released guard for completed match ${matchId}`);
+    } catch (guardError) {
+      // Log but don't fail the completion if guard release fails
+      console.error(`[updateMatchStatus] Failed to release guard for match ${matchId}:`, guardError);
+    }
   }
 
   return { success: true };

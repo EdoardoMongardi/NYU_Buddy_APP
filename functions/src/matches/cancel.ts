@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { requireEmailVerification } from '../utils/verifyEmail';
 import { withIdempotencyLock, MinimalResult } from '../utils/idempotency';
+import { releaseMatchGuard } from './createMatchAtomic';
 
 interface MatchCancelData {
   matchId: string;
@@ -183,6 +184,15 @@ export async function cancelMatchInternal(
       }
     }
   });
+
+  // U22: Release the pair guard after cancellation
+  try {
+    await releaseMatchGuard(matchId, match.user1Uid, match.user2Uid);
+    console.log(`[cancelMatchInternal] Released guard for cancelled match ${matchId}`);
+  } catch (guardError) {
+    // Log but don't fail the cancellation if guard release fails
+    console.error(`[cancelMatchInternal] Failed to release guard for match ${matchId}:`, guardError);
+  }
 
   console.log(`[cancelMatchInternal] Successfully cancelled match ${matchId}`);
   return {

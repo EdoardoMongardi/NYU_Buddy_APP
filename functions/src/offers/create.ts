@@ -8,6 +8,7 @@ import {
   checkIdempotencyInTransaction,
   markIdempotencyCompleteInTransaction,
 } from '../utils/idempotency';
+import { createMatchAtomic } from '../matches/createMatchAtomic';
 
 const OFFER_TTL_MINUTES = 10;
 const COOLDOWN_SECONDS = 5; // Reduced for multi-offer
@@ -177,7 +178,8 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     throw new HttpsError('failed-precondition', 'This person is already in an active match');
   }
 
-  // Check if target has pending offer to sender (mutual interest)
+  // U22 FIX: Check for reverse offer (kept as optimization, but re-validated in TX)
+  // This outside-TX query is ONLY for fast-path detection - correctness enforced in TX
   const reverseOfferQuery = await db.collection('offers')
     .where('fromUid', '==', targetUid)
     .where('toUid', '==', fromUid)
@@ -185,113 +187,118 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
     .get();
 
   if (!reverseOfferQuery.empty) {
-    // Mutual interest detected! Validate activities still match before auto-matching
-    const reverseOffer = reverseOfferQuery.docs[0];
-    const reverseOfferData = reverseOffer.data();
+    // Mutual interest POSSIBLY detected - validate in transaction
+    const reverseOfferDoc = reverseOfferQuery.docs[0];
 
-    // U14 Fix: Validate activities match before creating mutual match
-    // If activities no longer align, fall through to normal offer creation
-    if (fromPresence.activity !== reverseOfferData.activity) {
-      console.log(
-        `[offerCreate] Activities mismatched in mutual interest: ` +
-        `${fromPresence.activity} (current) vs ${reverseOfferData.activity} (offer). ` +
-        `Creating normal offer instead.`
+    console.log(
+      `[offerCreate] Potential mutual interest detected (outside-TX). ` +
+      `Will re-validate in transaction. Reverse offer: ${reverseOfferDoc.id}`
+    );
+
+    // U22 + U23: Transaction with atomic match creation
+    const { idempotencyKey } = request.data;
+    const mutualMatchResult = await db.runTransaction(async (transaction) => {
+      // U23: Check idempotency inside transaction
+      const idempotencyCheck = await checkIdempotencyInTransaction(
+        transaction,
+        fromUid,
+        'offerCreate_mutualMatch',
+        idempotencyKey
       );
-      // Fall through to normal offer creation below (no match created)
-    } else {
-      // Activities match - proceed with mutual match creation
-      const matchRef = db.collection('matches').doc();
-      const [user1Uid, user2Uid] = fromUid < targetUid
-        ? [fromUid, targetUid]
-        : [targetUid, fromUid];
 
-      // U23: Transaction-scoped idempotency for mutual match
-      const mutualMatchResult = await db.runTransaction(async (transaction) => {
-        // U23: Check idempotency inside transaction
-        const { idempotencyKey } = request.data;
-        const idempotencyCheck = await checkIdempotencyInTransaction(
-          transaction,
-          fromUid,
-          'offerCreate_mutualMatch',
-          idempotencyKey
+      if (idempotencyCheck.isDuplicate) {
+        console.log(`[offerCreate-mutualMatch] Returning cached result for duplicate request`);
+        return {
+          cached: true,
+          offerId: idempotencyCheck.cachedResult!.primaryId,
+          matchId: idempotencyCheck.cachedResult!.secondaryIds?.[0],
+          matchCreated: idempotencyCheck.cachedResult!.flags?.matchCreated || false,
+        };
+      }
+
+      // U22: Re-read reverse offer INSIDE transaction to avoid TOCTOU
+      const reverseOfferSnap = await transaction.get(reverseOfferDoc.ref);
+
+      if (!reverseOfferSnap.exists) {
+        console.log(`[offerCreate-mutualMatch] Reverse offer no longer exists. Aborting mutual match.`);
+        throw new HttpsError('aborted', 'Reverse offer no longer available');
+      }
+
+      const reverseOfferData = reverseOfferSnap.data()!;
+
+      // Verify offer is still pending (not accepted/cancelled by concurrent request)
+      if (reverseOfferData.status !== 'pending') {
+        console.log(
+          `[offerCreate-mutualMatch] Reverse offer status changed to ${reverseOfferData.status}. ` +
+          `Aborting mutual match.`
         );
+        throw new HttpsError('aborted', 'Reverse offer was just accepted by someone else');
+      }
 
-        if (idempotencyCheck.isDuplicate) {
-          console.log(`[offerCreate-mutualMatch] Returning cached result for duplicate request`);
-          return {
-            cached: true,
-            offerId: idempotencyCheck.cachedResult!.primaryId,
-            matchId: idempotencyCheck.cachedResult!.secondaryIds?.[0],
-            matchCreated: idempotencyCheck.cachedResult!.flags?.matchCreated || false,
-          };
-        }
+      // Verify activities still match
+      if (fromPresence.activity !== reverseOfferData.activity) {
+        console.log(
+          `[offerCreate-mutualMatch] Activities mismatched: ` +
+          `${fromPresence.activity} vs ${reverseOfferData.activity}. Aborting mutual match.`
+        );
+        throw new HttpsError('aborted', 'Activities no longer match');
+      }
 
-        // Create match
-        transaction.set(matchRef, {
-          user1Uid,
-          user2Uid,
-          status: 'pending',
-          statusByUser: {
-            [user1Uid]: 'pending',
-            [user2Uid]: 'pending',
-          },
-          offerId: reverseOffer.id,
-          activity: reverseOfferData.activity, // U14 Fix: Use activity from the offer (not current presence)
-        confirmedPlaceId: null,
-        confirmedPlaceName: null,
-        confirmedPlaceAddress: null,
-        placeConfirmedBy: null,
-        placeConfirmedAt: null,
-        cancelledBy: null,
-        cancelledAt: null,
-        matchedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      // U22: Use atomic match creation helper with pair-level guard
+      const matchResult = await createMatchAtomic(
+        {
+          user1Uid: fromUid,
+          user2Uid: targetUid,
+          activity: reverseOfferData.activity,
+          durationMinutes: reverseOfferData.durationMin,
+          user1Coords: { lat: fromPresence.lat, lng: fromPresence.lng },
+          user2Coords: { lat: toPresence.lat, lng: toPresence.lng },
+          triggeringOfferId: reverseOfferDoc.id,
+        },
+        transaction
+      );
 
-      // Update reverse offer to accepted
-      transaction.update(reverseOffer.ref, {
+      const matchId = matchResult.matchId;
+
+      // Update reverse offer to accepted (createMatchAtomic handles presence updates)
+      transaction.update(reverseOfferDoc.ref, {
         status: 'accepted',
-        matchId: matchRef.id,
+        matchId,
         respondedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Update target's presence (User A) - clear offers
+      // Clear both users' outgoing offers arrays
       transaction.update(db.collection('presence').doc(targetUid), {
         activeOutgoingOfferIds: [],
         activeOutgoingOfferId: null, // Legacy cleanup
-        status: 'matched',
-        matchId: matchRef.id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-        // Update sender's presence (User B) - clear offers
-        transaction.update(fromPresenceDoc.ref, {
-          activeOutgoingOfferIds: [],
-          status: 'matched',
-          matchId: matchRef.id,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        // U23: Mark idempotency as completed
-        await markIdempotencyCompleteInTransaction(
-          transaction,
-          fromUid,
-          'offerCreate_mutualMatch',
-          idempotencyKey,
-          {
-            primaryId: reverseOffer.id,
-            secondaryIds: [matchRef.id],
-            flags: { matchCreated: true },
-          }
-        );
-
-        return {
-          cached: false,
-          offerId: reverseOffer.id,
-          matchId: matchRef.id,
-          matchCreated: true,
-        };
+      transaction.update(fromPresenceDoc.ref, {
+        activeOutgoingOfferIds: [],
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // U23: Mark idempotency as completed
+      await markIdempotencyCompleteInTransaction(
+        transaction,
+        fromUid,
+        'offerCreate_mutualMatch',
+        idempotencyKey,
+        {
+          primaryId: reverseOfferDoc.id,
+          secondaryIds: [matchId],
+          flags: { matchCreated: matchResult.isNewMatch },
+        }
+      );
+
+      return {
+        cached: false,
+        offerId: reverseOfferDoc.id,
+        matchId,
+        matchCreated: matchResult.isNewMatch,
+      };
+    });
 
       // U23: If cached, return immediately
       if (mutualMatchResult.cached) {
@@ -306,15 +313,15 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       // We don't await this to return faster, or we await to ensure consistency?
       // Safer to await to ensure user state is clean.
       await import('./cleanup').then(m => Promise.all([
-        m.cleanupPendingOffers(db, fromUid, reverseOffer.id),
-        m.cleanupPendingOffers(db, targetUid, reverseOffer.id)
+        m.cleanupPendingOffers(db, fromUid, reverseOfferDoc.id),
+        m.cleanupPendingOffers(db, targetUid, reverseOfferDoc.id)
       ]));
 
       // U16: Send push notifications to both users (mutual match)
       // Fetch user profiles for display names
       const [user1Doc, user2Doc] = await Promise.all([
-        db.collection('users').doc(user1Uid).get(),
-        db.collection('users').doc(user2Uid).get(),
+        db.collection('users').doc(fromUid).get(),
+        db.collection('users').doc(targetUid).get(),
       ]);
 
       const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
@@ -322,19 +329,17 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
 
       // Send notifications to both users (fire-and-forget)
       Promise.all([
-        sendMatchCreatedNotification(user1Uid, user2DisplayName, matchRef.id),
-        sendMatchCreatedNotification(user2Uid, user1DisplayName, matchRef.id),
+        sendMatchCreatedNotification(fromUid, user2DisplayName, mutualMatchResult.matchId!),
+        sendMatchCreatedNotification(targetUid, user1DisplayName, mutualMatchResult.matchId!),
       ]).catch((err) => {
         console.error('[offerCreate-mutualMatch] Failed to send match notifications:', err);
       });
 
       return {
-        offerId: reverseOffer.id,
+        offerId: mutualMatchResult.offerId,
         matchCreated: true,
-        matchId: matchRef.id,
+        matchId: mutualMatchResult.matchId,
       };
-    }
-    // If activities don't match, fall through to normal offer creation below
   }
 
   // Get sender profile (for notification)

@@ -1,6 +1,6 @@
 # NYU Buddy - Issues Status Report
 
-**Last Updated:** 2026-02-08 (U16, U20, U21, U23 resolved - FCM push notifications + PWA installation, removed legacy place selection, enforced email verification, idempotency + retry implementation)
+**Last Updated:** 2026-02-09 (U22 resolved - Atomic match creation with race condition protection)
 **Audit Scope:** Complete codebase vs. documentation cross-reference (6 doc files audited)
 **Methodology:** Code is the only source of truth
 
@@ -11,11 +11,11 @@
 **Overall Status:** ✅ **PRODUCTION-READY** (with known limitations)
 
 - **Total Issues Identified:** 29
-- **Resolved:** 21 (72%) ✅
-- **Unresolved:** 8 (28%) ⚠️
+- **Resolved:** 22 (76%) ✅
+- **Unresolved:** 7 (24%) ⚠️
   - Critical: 0
   - High: 0
-  - Medium: 3 (edge cases, partial implementations)
+  - Medium: 2 (edge cases, partial implementations)
   - Low: 5 (minor gaps, scalability concerns)
 
 **Key Finding:** All critical and high-priority issues resolved. Remaining unresolved issues are edge cases, partial implementations, or architectural limitations that don't block production deployment but should be addressed in future phases.
@@ -772,6 +772,149 @@ match /idempotency/{idempotencyId} {
 
 ---
 
+### 18. Race Condition Protection (U22)
+**Resolved:** 2026-02-09
+**Priority:** HIGH (CRITICAL)
+**Doc References:**
+- `U22_RACE_CONDITION_FIX.md`
+- `functions/test/U22_VERIFICATION_SUMMARY.md`
+- `PRD_AsIs.md:11.1`
+
+**Problem:**
+Critical race conditions in match creation leading to duplicate matches and inconsistent state:
+1. **Concurrent Opposite Accepts:** Users A and B accepting each other's offers simultaneously created 2 separate matches
+2. **User-Level Duplication:** User A could match with both B and C at the same time
+3. **No Guard Release:** Completed/cancelled matches blocked future rematches (guard persisted forever)
+4. **State Inconsistency:** Hardcoded status arrays missing critical statuses in checks
+
+**Root Causes:**
+- Outside-transaction active match checks (TOCTOU vulnerability)
+- No atomic guard mechanism for pair-level mutual exclusion
+- Presence checks happened before transaction, allowing race conditions
+- Guard documents never released on terminal states
+- Hardcoded `ACTIVE_MATCH_STATUSES` missing `location_deciding` and `place_confirmed`
+
+**Solution Implemented:**
+
+**1. Atomic Match Creation with Pair-Level Guard**
+- **File:** `functions/src/matches/createMatchAtomic.ts` (NEW, 313 lines)
+- **Core Mechanism:** Guard document in `activeMatchesByPair` collection
+- **Guard Key:** `pairKey = ${minUid}_${maxUid}` (sorted UIDs for consistency)
+- **Guard Schema:**
+  ```typescript
+  {
+    pairKey: string,
+    matchId: string,
+    status: 'active',
+    activity: string,
+    createdAt: Timestamp,
+    expiresAt: Timestamp  // 2-hour safety TTL
+  }
+  ```
+
+**2. User-Level Mutual Exclusion (Step 2.5)**
+- **Lines 122-189:** Inside-transaction checks for EACH user
+- **Logic:** Verify neither user is already in an active match with ANYONE else
+- **Behavior:** Returns existing matchId instead of throwing error (idempotent)
+- **Prevents:** User A matching with both B and C simultaneously
+
+**3. Transaction-Scoped Atomic Operations**
+```
+Transaction flow:
+  1. Read pair guard
+  2. If exists and active → return existing match (idempotent)
+  3. Check user1 presence.status === 'matched' → return their existing match
+  4. Check user2 presence.status === 'matched' → return their existing match
+  5. Create new match doc
+  6. Create new guard doc
+  7. Update both presences to 'matched'
+```
+
+**4. Guard Lifecycle Management**
+- **Creation:** `createMatchAtomic()` creates guard atomically with match
+- **Release on Completion:** `functions/src/matches/updateStatus.ts:109-117`
+- **Release on Cancellation:** `functions/src/matches/cancel.ts:188-195`
+- **Function:** `releaseMatchGuard(matchId, user1Uid, user2Uid)` - Idempotent
+
+**5. Canonical State Constants**
+- **Fixed:** Imported `ACTIVE_MATCH_STATUSES` from `../constants/state`
+- **Was:** Hardcoded `['pending','accepted','heading_there','arrived']`
+- **Now:** `['pending','location_deciding','place_confirmed','heading_there','arrived']`
+- **Impact:** Matches in `location_deciding` now properly treated as active (critical bug fix)
+
+**6. All Match Creation Migrated**
+- ✅ `functions/src/offers/respond.ts` - Offer acceptance → createMatchAtomic
+- ✅ `functions/src/offers/create.ts` - Mutual offer → createMatchAtomic
+- ✅ `functions/src/suggestions/respond.ts` - Mutual suggestion → createMatchAtomic
+- **Verification:** Grep confirmed ZERO bypasses
+
+**7. Static Imports Only**
+- Replaced all dynamic `await import()` with static imports at file top
+- **Reason:** Reduces transaction execution time, prevents timeout risk
+
+**8. Firestore Security Rules**
+```javascript
+match /activeMatchesByPair/{pairKey} {
+  allow read: if false;   // Cloud Functions only
+  allow write: if false;  // Cloud Functions only
+}
+```
+
+**Testing & Verification:**
+
+**Test 0: Compilation** ✅ PASSED
+- All TypeScript compiles successfully
+
+**Test 1: User-Level Mutual Exclusion** ✅ PASSED (Production)
+- Created match A-B, attempted A-C → returned existing A-B (idempotent)
+- User C remained available, no A-C guard created
+- **Verified:** User cannot match with multiple people simultaneously
+
+**Test 2: Pair-Level Guard (Concurrent Race)** ✅ PASSED (Production)
+- Simulated concurrent opposite accepts
+- Observed Firestore transaction retries (3 attempts in logs)
+- Final result: Both returned same matchId
+- **Verified:** Race-free match creation via atomic guard
+
+**Test 3: Guard Release on Completion** ✅ PASSED (Production)
+- Completed match, released guard, created rematch successfully
+- **Verified:** Completed matches don't block rematches
+
+**Test 4: Guard Release on Cancel** ✅ PASSED (Production)
+- Cancelled match, released guard, created rematch successfully
+- **Verified:** Cancelled matches don't block rematches
+
+**Test 5: Bypass Check** ✅ PASSED
+- Only 1 `collection('matches').doc()` found - inside createMatchAtomic.ts
+
+**Files Modified/Created:**
+- **NEW:** `functions/src/matches/createMatchAtomic.ts` (313 lines)
+- **NEW:** `functions/test/u22-verification-tests.ts` (645 lines)
+- **NEW:** `functions/test/U22_VERIFICATION_SUMMARY.md`
+- **UPDATED:** `functions/src/offers/respond.ts`
+- **UPDATED:** `functions/src/offers/create.ts`
+- **UPDATED:** `functions/src/suggestions/respond.ts`
+- **UPDATED:** `functions/src/matches/cancel.ts`
+- **UPDATED:** `functions/src/matches/updateStatus.ts`
+- **UPDATED:** `firestore.rules`
+
+**Impact:**
+- **CRITICAL** - Eliminated all known race conditions
+- **High** - Prevents duplicate matches
+- **High** - Prevents user matching with multiple people
+- **High** - Allows rematches after completion/cancellation
+- **High** - Production-verified with real Firestore transactions
+
+**Verification:**
+- ✅ All 5 tests passed against production database
+- ✅ Observed transaction retries working correctly (expected behavior)
+- ✅ Zero race condition bypasses
+- ✅ Guards properly released on ALL terminal states
+
+**Timeline:** COMPLETED 2026-02-09
+
+---
+
 ## ⚠️ UNRESOLVED ISSUES
 
 **Status:** 8 issues remaining (0 high + 3 medium + 5 low)
@@ -927,29 +1070,48 @@ Email verification was not enforced on backend:
 
 ---
 
-### U22. Race Conditions (Offer/Match Edge Cases)
-**Priority:** MEDIUM
-**Doc Reference:** `PRD_AsIs.md:11.1`
+### U22. ~~Race Conditions (Offer/Match Edge Cases)~~ ✅ RESOLVED (2026-02-09)
 
-**Description:**
-Potential race condition edge cases:
-1. **Stale Offer Accept:** Both users accept each other's offers simultaneously
-2. **Simultaneous Mutual Invites:** First-create-wins logic may have edge cases
+**Status:** ✅ **RESOLVED** (2026-02-09)
 
-**Current Mitigation:**
-- Availability checks in `offerRespond`
-- Cleanup logic cancels other offers post-match
-- First-create-wins in `offerCreate` (detects existing reverse offer)
+**Pre-Fix Issue:**
+Critical race conditions in match creation:
+1. **Concurrent Opposite Accepts:** Users accepting each other's offers simultaneously created duplicate matches
+2. **User-Level Duplication:** User A could match with both B and C at the same time
+3. **No Guard Release:** Completed/cancelled matches blocked future rematches permanently
 
-**Impact:**
-- Low - Unlikely to occur in practice, partially mitigated
-- Could theoretically create duplicate matches or failed offers
+**U22 Resolution:**
 
-**Recommended Action:**
-- Add transaction locks for critical match creation paths
-- Add idempotency keys to prevent duplicate processing
+See "18. Race Condition Protection (U22)" in RESOLVED ISSUES section above for complete implementation details.
 
-**Timeline:** Low priority - monitor for actual occurrences
+**Quick Summary:**
+- ✅ Atomic match creation with pair-level guard (`activeMatchesByPair` collection)
+- ✅ User-level mutual exclusion (Step 2.5 inside transaction)
+- ✅ Guard lifecycle management (release on completion AND cancellation)
+- ✅ All match creation migrated to `createMatchAtomic()`
+- ✅ Canonical state constants imported (fixed hardcoded arrays)
+- ✅ Static imports only (no dynamic imports in transactions)
+- ✅ Production-verified with all 5 tests passing
+
+**Files Created:**
+- `functions/src/matches/createMatchAtomic.ts` (313 lines)
+- `functions/test/u22-verification-tests.ts` (645 lines)
+- `functions/test/U22_VERIFICATION_SUMMARY.md`
+
+**Files Updated:**
+- `functions/src/offers/respond.ts`, `offers/create.ts`, `suggestions/respond.ts`
+- `functions/src/matches/cancel.ts`, `matches/updateStatus.ts`
+- `firestore.rules` (guard collection rules)
+
+**Verification:**
+- ✅ Test 0: Compilation passes
+- ✅ Test 1: User-level mutual exclusion works
+- ✅ Test 2: Pair-level guard prevents race conditions
+- ✅ Test 3: Guard released on completion
+- ✅ Test 4: Guard released on cancellation
+- ✅ Test 5: No bypasses found (grep verified)
+
+**Timeline:** COMPLETED 2026-02-09
 
 ---
 
@@ -1114,10 +1276,10 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~U16: No Push Notification System~~ → ✅ Resolved (2026-02-08)
 - ~~U13: Hardcoded Admin Whitelist Discrepancy~~ → ✅ Resolved (2026-02-08)
 
-### Medium (3)
+### Medium (2)
 - ⚠️ **U18:** Block During Active Match (auto-cancel not implemented)
 - ⚠️ **U19:** Presence Expiry Mid-Match (no safeguards)
-- ⚠️ **U22:** Race Conditions (offer/match edge cases)
+- ~~U22: Race Conditions (offer/match edge cases)~~ → ✅ Resolved (2026-02-09)
 - ~~U23: No Retry/Idempotency Mechanism~~ → ✅ Resolved (2026-02-08)
 - ~~U21: Email Verification Not Enforced~~ → ✅ Resolved (2026-02-08)
 - ~~U20: Place Selection System Inconsistency~~ → ✅ Resolved (2026-02-08)
@@ -1178,9 +1340,10 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~Place selection inconsistency~~ → ✅ Legacy system removed (2026-02-08)
 - ~~Email verification not enforced~~ → ✅ Backend enforcement added (2026-02-08)
 - ~~Retry/idempotency mechanism~~ → ✅ Full implementation with testing (2026-02-08)
+- ~~Race conditions (U22)~~ → ✅ Atomic match creation with guards (2026-02-09)
 
 **Unresolved (Not Blocking Production):**
-- ⚠️ **U18-U19, U22 (MEDIUM):** Edge cases (block auto-cancel, presence expiry, race conditions)
+- ⚠️ **U18-U19 (MEDIUM):** Edge cases (block auto-cancel, presence expiry mid-match)
 - ⚠️ **U10, U25-U28 (LOW):** Minor gaps (reserved fields, cleanup edge case, location staleness, missing index, admin scalability)
 
 ---
@@ -1193,7 +1356,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 3. ✅ Zero breaking changes introduced
 4. ✅ Security hardened (admin whitelist, isAdmin protection, Phase 3 rules)
 5. ✅ **READY FOR PRODUCTION DEPLOYMENT**
-6. ⚠️ **8 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
+6. ⚠️ **7 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
 
 ### Next Phase (Phase 5 - Enhancements & Issue Resolution)
 
@@ -1202,7 +1365,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 1. **Medium Priority (Phase 5.1):**
    - **U18:** Block auto-cancel for active matches (UX improvement)
    - **U19:** Add safeguards for presence expiry mid-match
-   - **U22:** Race condition hardening (transactions/locks)
+   - ~~**U22:** Race condition hardening~~ → ✅ Resolved (2026-02-09)
 
 2. **Low Priority (Phase 5.2+):**
    - **U27:** Add missing sessionHistory Firestore index

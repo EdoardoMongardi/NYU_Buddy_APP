@@ -129,5 +129,13 @@ service cloud.firestore {
       allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow write: if false; // Cloud Functions only
     }
+
+    // U22: Active Matches By Pair Guard Collection
+    // Enforces "at most one active match per user pair" atomically
+    // This is an internal coordination mechanism - no client access needed
+    match /activeMatchesByPair/{pairKey} {
+      allow read: if false; // Cloud Functions only (no client reads needed)
+      allow write: if false; // Cloud Functions only
+    }
   }
 }
