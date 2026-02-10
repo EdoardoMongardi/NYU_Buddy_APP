@@ -106,6 +106,7 @@ export async function matchConfirmMeetingHandler(
   const matchRef = db.collection('matches').doc(matchId);
 
   const result = await db.runTransaction(async (transaction) => {
+    // ===== PHASE 1: ALL READS (must come before any writes) =====
     const matchSnap = await transaction.get(matchRef);
 
     if (!matchSnap.exists) {
@@ -145,6 +146,16 @@ export async function matchConfirmMeetingHandler(
       };
     }
 
+    // Pre-read user documents for potential reliability stats updates
+    // (must read before any writes, even though we may not use them)
+    const allUids = [match.user1Uid, match.user2Uid].filter(Boolean);
+    const userSnapshots: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
+    for (const userUid of allUids) {
+      const userRef = db.collection('users').doc(userUid);
+      userSnapshots[userUid] = await transaction.get(userRef);
+    }
+
+    // ===== PHASE 2: COMPUTE AND WRITE =====
     // Write the user's response
     const updatedConfirmation = { ...meetingConfirmation, [uid]: response };
     const pendingUids: string[] = match.pendingConfirmationUids || [];
@@ -159,7 +170,6 @@ export async function matchConfirmMeetingHandler(
     // Check if all users have responded → resolve
     if (remaining.length === 0) {
       const statusByUser: Record<string, string> = match.statusByUser || {};
-      const allUids = [match.user1Uid, match.user2Uid].filter(Boolean);
 
       const responseA = getEffectiveResponse(allUids[0], updatedConfirmation, statusByUser);
       const responseB = getEffectiveResponse(allUids[1], updatedConfirmation, statusByUser);
@@ -180,7 +190,7 @@ export async function matchConfirmMeetingHandler(
       if (resolution.status === 'completed') {
         for (const userUid of allUids) {
           const userRef = db.collection('users').doc(userUid);
-          const userSnap = await transaction.get(userRef);
+          const userSnap = userSnapshots[userUid]; // Use pre-read snapshot
 
           if (userSnap.exists) {
             const userData = userSnap.data()!;
