@@ -85,26 +85,57 @@ export async function updateMatchStatusHandler(
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // U15 Fix: Clear presence.matchId when match is completed (terminal state)
-  if (overallStatus === 'completed') {
-    const batch = db.batch();
+  // Helper: restore or delete a single user's presence based on originalExpiresAt
+  const restorePresence = async (presenceRef: admin.firestore.DocumentReference) => {
+    const presenceSnap = await presenceRef.get();
+    if (!presenceSnap.exists) return;
 
-    // Clear matchId for both users' presence documents
+    const presence = presenceSnap.data()!;
+
+    // Safety: skip if presence is no longer for this match (user started a new session)
+    if (presence.matchId && presence.matchId !== matchId) return;
+    if (presence.status !== 'matched') return;
+
+    const now = admin.firestore.Timestamp.now();
+    const originalExpiresAt = presence.originalExpiresAt || presence.expiresAt;
+
+    const isOriginalExpired = !originalExpiresAt ||
+      (typeof originalExpiresAt.toMillis === 'function' && originalExpiresAt.toMillis() <= now.toMillis());
+
+    if (isOriginalExpired) {
+      // Original session expired during the match — delete presence
+      await presenceRef.delete();
+    } else {
+      // Original session still valid — restore to available with original expiresAt
+      await presenceRef.update({
+        status: 'available',
+        matchId: admin.firestore.FieldValue.delete(),
+        expiresAt: originalExpiresAt,
+        originalExpiresAt: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  };
+
+  // Individual completion: restore the completing user's presence immediately
+  // so the homepage stops redirecting them back to the match page.
+  // The other user's presence stays matched until they also complete (or the match is cancelled).
+  if (status === 'completed' && overallStatus !== 'completed') {
+    const myPresenceRef = db.collection('presence').doc(uid);
+    await restorePresence(myPresenceRef);
+    console.log(`[updateMatchStatus] Restored presence for individually completed user ${uid} in match ${matchId}`);
+  }
+
+  // Overall completion: restore both users' presences + release guard
+  if (overallStatus === 'completed') {
     const user1PresenceRef = db.collection('presence').doc(match.user1Uid);
     const user2PresenceRef = db.collection('presence').doc(match.user2Uid);
 
-    batch.update(user1PresenceRef, {
-      matchId: admin.firestore.FieldValue.delete(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    batch.update(user2PresenceRef, {
-      matchId: admin.firestore.FieldValue.delete(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    await batch.commit();
-    console.log(`[updateMatchStatus] Cleared presence.matchId for completed match ${matchId}`);
+    await Promise.all([
+      restorePresence(user1PresenceRef),
+      restorePresence(user2PresenceRef),
+    ]);
+    console.log(`[updateMatchStatus] Restored presence for completed match ${matchId}`);
 
     // U22 CRITICAL FIX: Release the pair guard when match completes
     // Without this, the pair can NEVER match again (guard blocks future matches forever)

@@ -75,7 +75,7 @@ export async function cancelMatchInternal(
 
   // 1. No penalty for system reasons, safety, or blocks
   if (reason === 'no_places_available' || reason === 'safety_concern' || reason === 'blocked' ||
-      reason === 'timeout_pending' || reason === 'system_cleanup') {
+      reason === 'timeout_pending' || reason === 'system_cleanup' || reason === 'system_presence_expired') {
     penaltyMultiplier = 0;
   }
   // 2. No penalty for 15s grace period
@@ -161,24 +161,37 @@ export async function cancelMatchInternal(
     });
 
     // Update presence docs
+    // U19: Restore originalExpiresAt if it exists, or delete presence if original session expired
     for (const presenceDoc of presenceDocs) {
       if (!presenceDoc.exists) continue;
 
       const presence = presenceDoc.data();
       if (!presence) continue;
 
+      // Safety: skip if presence is no longer for this match (user already restored or started new session)
+      if (presence.matchId && presence.matchId !== matchId) continue;
+      if (presence.status !== 'matched') continue;
+
       const now = admin.firestore.Timestamp.now();
-      const expiresAt = presence.expiresAt;
 
-      // Safely check expiration
-      const isExpired = !expiresAt ||
-        (typeof expiresAt.toMillis === 'function' && expiresAt.toMillis() <= now.toMillis());
+      // U19: Use originalExpiresAt (saved when match was created) to check if
+      // the user's original session is still valid. Fall back to expiresAt for
+      // matches created before U19 fix.
+      const originalExpiresAt = presence.originalExpiresAt || presence.expiresAt;
 
-      // Only reset if presence hasn't expired
-      if (!isExpired) {
+      const isOriginalExpired = !originalExpiresAt ||
+        (typeof originalExpiresAt.toMillis === 'function' && originalExpiresAt.toMillis() <= now.toMillis());
+
+      if (isOriginalExpired) {
+        // Original session expired during the match — delete presence (user goes offline)
+        transaction.delete(presenceDoc.ref);
+      } else {
+        // Original session still valid — restore to available with original expiresAt
         transaction.update(presenceDoc.ref, {
           status: 'available',
-          matchId: admin.firestore.FieldValue.delete(), // U15 Fix: Clear matchId on match termination
+          matchId: admin.firestore.FieldValue.delete(),
+          expiresAt: originalExpiresAt,
+          originalExpiresAt: admin.firestore.FieldValue.delete(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }

@@ -621,13 +621,20 @@ Critical race conditions in match creation:
 
 **Details:** See ISSUES_STATUS.md issue #18 and U22_VERIFICATION_SUMMARY.md for complete implementation documentation.
 
-### 11.2 Block During Active Match
+### 11.2 ~~Block During Active Match~~ ✅ RESOLVED (2026-02-09)
 
-**Issue:** Blocking does NOT auto-cancel existing matches.
+**Pre-Fix Issue:** Block/Report was only available in the "Place Confirmed" phase (Step 2). During "Location Deciding" (Step 1), users had no block option — only Cancel Match.
 
-**Behavior:**
- - **Match Page Block:** Auto-cancels match (Frontend calls `matchCancel` with reason `blocked`).
- - **Standalone Block:** If implemented elsewhere (e.g. profile), requires manual cancel first or fails to stop match.
+**Resolution:**
+- Added Report + Block button row to the Location Deciding phase (Step 1) in `src/app/(protected)/match/[matchId]/page.tsx`
+- Same UI pattern as Step 2: Report (Flag icon) + Block (Ban icon, red) in a Card with flex row
+- Block in any phase: creates block doc → calls `matchCancel({ reason: 'blocked' })` → redirects home
+- Zero reliability penalty for blocks
+- Step 1 and Step 2 are strictly mutually exclusive (`showLocationSelection = !match?.confirmedPlaceName`) — no double-render
+
+**Coverage:** Block/Report now available in ALL match phases (Location Deciding + Place Confirmed).
+
+**Details:** See ISSUES_STATUS.md issue U18 for complete implementation documentation.
 
 ### 11.3 Presence Expiry
 

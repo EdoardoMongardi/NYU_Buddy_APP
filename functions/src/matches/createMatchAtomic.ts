@@ -16,6 +16,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 
 const MATCH_GUARD_TTL_HOURS = 2; // Safety TTL for guard cleanup
+const MATCH_PRESENCE_TTL_HOURS = 2; // U19: Extend presence expiresAt on match creation
 
 interface CreateMatchAtomicParams {
   user1Uid: string;
@@ -256,16 +257,26 @@ export async function createMatchAtomic(
 
     // Update both users' presence to 'matched'
     // (presence1Ref and presence2Ref already defined in Step 2.5 above)
+    // U19: Save originalExpiresAt and extend expiresAt so presence outlives the match
+    const matchPresenceExpiresAt = Timestamp.fromMillis(
+      now.toMillis() + MATCH_PRESENCE_TTL_HOURS * 60 * 60 * 1000
+    );
 
+    const presence1ExpiresAt = presence1Snap.exists ? presence1Snap.data()!.expiresAt : null;
     transaction.update(presence1Ref, {
       status: 'matched',
       matchId,
+      originalExpiresAt: presence1ExpiresAt || null,
+      expiresAt: matchPresenceExpiresAt,
       updatedAt: now,
     });
 
+    const presence2ExpiresAt = presence2Snap.exists ? presence2Snap.data()!.expiresAt : null;
     transaction.update(presence2Ref, {
       status: 'matched',
       matchId,
+      originalExpiresAt: presence2ExpiresAt || null,
+      expiresAt: matchPresenceExpiresAt,
       updatedAt: now,
     });
 
