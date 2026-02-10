@@ -75,7 +75,11 @@ service cloud.firestore {
     // Phase 3: Locked down to participant-only access
     // All writes via Cloud Functions only
     match /matches/{matchId} {
-      allow read: if isMatchParticipant(resource.data);
+      allow read: if isMatchParticipant(resource.data) ||
+        // Allow "Did you meet?" confirmation queries (array-contains on pendingConfirmationUids).
+        // Users in pendingConfirmationUids are always also user1Uid/user2Uid (subset),
+        // so this doesn't leak data to non-participants.
+        (isAuthenticated() && request.auth.uid in resource.data.pendingConfirmationUids);
       allow create: if false; // Created by functions
       allow update: if false; // Phase 3: All updates via Cloud Functions
       allow delete: if false;
