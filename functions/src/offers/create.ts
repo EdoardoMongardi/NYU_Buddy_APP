@@ -250,7 +250,7 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
           user1Uid: fromUid,
           user2Uid: targetUid,
           activity: reverseOfferData.activity,
-          durationMinutes: reverseOfferData.durationMin,
+          durationMinutes: Math.min(reverseOfferData.fromDurationMinutes || 30, reverseOfferData.toDurationMinutes || 30),
           user1Coords: { lat: fromPresence.lat, lng: fromPresence.lng },
           user2Coords: { lat: toPresence.lat, lng: toPresence.lng },
           triggeringOfferId: reverseOfferDoc.id,

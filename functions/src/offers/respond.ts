@@ -215,7 +215,7 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
         user1Uid: offer.fromUid,
         user2Uid: uid,
         activity: offer.activity,
-        durationMinutes: offer.durationMin,
+        durationMinutes: Math.min(offer.fromDurationMinutes || 30, offer.toDurationMinutes || 30),
         user1Coords: { lat: fromPresence.lat, lng: fromPresence.lng },
         user2Coords: { lat: toPresence.lat, lng: toPresence.lng },
         triggeringOfferId: offerId,
