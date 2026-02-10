@@ -223,80 +223,34 @@ export async function checkIdempotencyInTransaction(
   const docId = getIdempotencyDocId(uid, operation, requestId);
   const idempotencyRef = db.collection('idempotency').doc(docId);
 
+  // READ ONLY — no writes here. Firestore transactions require all reads
+  // before all writes. The lock is effectively held by the transaction itself
+  // (optimistic concurrency + automatic retry on contention).
   const doc = await transaction.get(idempotencyRef);
 
   if (doc.exists) {
     const data = doc.data() as IdempotencyRecord;
 
-    // Check expiration
+    // Check expiration — treat expired records as non-duplicate
     if (data.expiresAt.toMillis() < Date.now()) {
-      console.log(`[Idempotency-Tx] Expired record - deleting (key: ${requestId.substring(0, 8)}...)`);
-      transaction.delete(idempotencyRef);
+      console.log(`[Idempotency-Tx] Expired record found (key: ${requestId.substring(0, 8)}...)`);
       return { isDuplicate: false };
     }
 
-    // Check status
+    // Only completed records are true duplicates
     if (data.status === 'completed') {
       console.log(`[Idempotency-Tx] Cache hit in transaction (key: ${requestId.substring(0, 8)}...)`);
       return { isDuplicate: true, cachedResult: data.minimalResult };
     }
 
-    if (data.status === 'processing') {
-      // U23: Check for stale lock (process crashed/timeout)
-      const STALE_LOCK_THRESHOLD_MS = 60 * 1000; // 60 seconds
-      const processingStartTime = data.processingStartedAt?.toMillis() || data.createdAt.toMillis();
-      const processingDuration = Date.now() - processingStartTime;
-
-      if (processingDuration > STALE_LOCK_THRESHOLD_MS) {
-        console.warn(
-          `[Idempotency-Tx] Stale lock detected in transaction (processing for ${Math.floor(processingDuration / 1000)}s). ` +
-          `Assuming process crashed - marking as failed and allowing retry (key: ${requestId.substring(0, 8)}...)`
-        );
-
-        // Mark as failed inside transaction to allow retry
-        transaction.update(idempotencyRef, {
-          status: 'failed',
-          error: `Stale lock - processing exceeded ${STALE_LOCK_THRESHOLD_MS / 1000}s threshold`,
-          completedAt: Timestamp.now(),
-        });
-
-        // Allow this transaction to proceed (not a duplicate)
-        return { isDuplicate: false };
-      }
-
-      console.log(
-        `[Idempotency-Tx] Duplicate in-progress in transaction (processing for ${Math.floor(processingDuration / 1000)}s) ` +
-        `(key: ${requestId.substring(0, 8)}...)`
-      );
-      throw new HttpsError(
-        'already-exists',
-        'DUPLICATE_IN_PROGRESS',
-        { code: 'DUPLICATE_IN_PROGRESS', message: 'This request is already being processed' }
-      );
-    }
-
-    if (data.status === 'failed') {
-      console.log(`[Idempotency-Tx] Previous attempt failed in transaction - allowing retry (key: ${requestId.substring(0, 8)}...)`);
-      transaction.delete(idempotencyRef);
-      return { isDuplicate: false };
-    }
+    // Processing or failed: allow retry. Transaction isolation handles dedup —
+    // if two concurrent transactions proceed, only one will commit; the other
+    // will be retried and see the completed record from the first.
+    console.log(`[Idempotency-Tx] Record exists with status '${data.status}' - allowing retry (key: ${requestId.substring(0, 8)}...)`);
+    return { isDuplicate: false };
   }
 
-  // Create processing record inside transaction
-  const now = Timestamp.now();
-  const expiresAt = Timestamp.fromMillis(now.toMillis() + IDEMPOTENCY_TTL_MS);
-
-  transaction.set(idempotencyRef, {
-    requestId,
-    uid,
-    operation,
-    status: 'processing',
-    createdAt: now,
-    expiresAt,
-    processingStartedAt: now, // U23: Track start time for stale detection
-  } as IdempotencyRecord);
-
-  console.log(`[Idempotency-Tx] Lock acquired in transaction (key: ${requestId.substring(0, 8)}...)`);
+  console.log(`[Idempotency-Tx] No existing record - proceeding (key: ${requestId.substring(0, 8)}...)`);
   return { isDuplicate: false };
 }
 
@@ -322,9 +276,20 @@ export async function markIdempotencyCompleteInTransaction(
   const docId = getIdempotencyDocId(uid, operation, requestId);
   const idempotencyRef = db.collection('idempotency').doc(docId);
 
-  transaction.update(idempotencyRef, {
+  const now = Timestamp.now();
+  const expiresAt = Timestamp.fromMillis(now.toMillis() + IDEMPOTENCY_TTL_MS);
+
+  // Use set() instead of update() — checkIdempotencyInTransaction no longer
+  // creates a 'processing' record (to avoid read-before-write violations),
+  // so the doc may not exist yet.
+  transaction.set(idempotencyRef, {
+    requestId,
+    uid,
+    operation,
     status: 'completed',
-    completedAt: Timestamp.now(),
+    createdAt: now,
+    expiresAt,
+    completedAt: now,
     minimalResult,
   });
 
