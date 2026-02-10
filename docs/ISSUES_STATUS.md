@@ -1,6 +1,6 @@
 # NYU Buddy - Issues Status Report
 
-**Last Updated:** 2026-02-10 (U19 resolved - Presence expiry mid-match safeguards + redirect loop fix)
+**Last Updated:** 2026-02-10 (U19 resolved - Presence expiry mid-match safeguards + redirect loop fix + re-matching after individual completion)
 **Audit Scope:** Complete codebase vs. documentation cross-reference (6 doc files audited)
 **Methodology:** Code is the only source of truth
 
@@ -1100,6 +1100,39 @@ If user's presence expired during an active match:
 - **Deployed:** 2026-02-10 12:56 UTC
 - **Verification:** ✅ Test passed after deployment - meeting confirmation works correctly
 
+**Bug 6: User blocked from re-matching after individual completion (discovered 2026-02-10)**
+- **Symptom:** After User A individually completed match A-B (User B hadn't completed yet), User A's presence was restored to `status: 'available'` and they could browse discovery, but when attempting to send an offer to User C → error: "You are already in an active match"
+- **Root Cause:** Inconsistent "is user in active match?" definitions:
+  - **Presence-based checks** (`createMatchAtomic.ts` line 136): Checks `presence.status === 'matched' && presence.matchId` → User A passes (presence restored to `available`, `matchId` deleted)
+  - **Match-document-based checks** (`offerCreate.ts` lines 149-179): Queries `matches` collection for `ACTIVE_MATCH_STATUSES` → User A fails (old match A-B still has status `'pending'`/`'heading_there'`/`'arrived'`)
+- **Impact:** Users appeared "available" in discovery and could browse, but were blocked from sending/receiving offers until the old match fully completed
+- **Analysis:** Comprehensive audit of 11+ code paths (updateStatus, cancel, confirmMeeting, cleanupExpired, createMatchAtomic, homepage, match page, discovery, offers) revealed:
+  - ✅ All other paths use presence-based checks with safety guards (`presence.matchId !== matchId`)
+  - ✅ User can safely have two simultaneous matches (old match A-B + new match A-C)
+  - ✅ Presence can only store ONE `matchId` (points to new match), old match continues independently
+  - ✅ All operations on old match skip User A (safety check: `matchId !== presence.matchId`)
+  - ❌ Only blocker: `offerCreate.ts` active match check
+- **Fix** (`functions/src/offers/create.ts` lines 145-195, 2026-02-10):
+  - **Sender check (lines 145-172):** Query matches collection, then filter OUT matches where `statusByUser[fromUid] === 'completed'`
+  - **Target check (lines 174-195):** Same filtering logic for `targetUid`
+  - Removed `.limit(1)` to allow filtering all matches before blocking
+  - **Result:** Users who individually complete can immediately create new matches
+- **New Behavior:**
+  - User A completes match A-B → presence restored to `available`
+  - User A can immediately send/receive offers and match with User C
+  - User A's presence points to NEW match (A-C)
+  - Old match (A-B) continues independently for User B
+  - When User B completes match A-B, User A is NOT affected (stays in match A-C)
+  - Safety checks prevent cross-match interference
+- **Edge Cases Verified:**
+  - ✅ Cancel new match → old match unaffected
+  - ✅ Cancel old match → new match unaffected
+  - ✅ User B completes old match → User A stays in new match
+  - ✅ Discovery correctly blocks User A from browsing (status='matched' in new match)
+  - ✅ Homepage redirects to new match only (presence.matchId)
+  - ✅ "Did you meet?" dialog for old match appears AFTER User A completes new match (homepage only, one at a time)
+- **Deployed:** 2026-02-10 (commit: `23429ca0`, branch: `user-messaging`)
+- **Verification:** ✅ TypeScript compilation successful
 
 **Files Modified:**
 - `functions/src/matches/createMatchAtomic.ts` — Save `originalExpiresAt`, extend `expiresAt`, add `statusByUser`/`matchedAt`
@@ -1108,7 +1141,7 @@ If user's presence expired during an active match:
 - `functions/src/matches/confirmMeeting.ts` — Fix transaction order violation: pre-read user docs before writes (Bug 5)
 - `functions/src/presence/cleanupExpired.ts` — Two-pass auto-cancel for matched expired docs
 - `functions/src/utils/idempotency.ts` — Read-only check, set-based completion (no read-before-write violation)
-- `functions/src/offers/create.ts` — Fix `durationMin` → `fromDurationMinutes`/`toDurationMinutes`
+- `functions/src/offers/create.ts` — Fix `durationMin` → `fromDurationMinutes`/`toDurationMinutes` (Bug 4) + Filter individually-completed matches from active match check (Bug 6)
 - `functions/src/offers/respond.ts` — Same durationMinutes fix
 - `src/app/(protected)/page.tsx` — Presence guard on offer fallback redirect, stale overlay clearing
 
@@ -1121,6 +1154,7 @@ If user's presence expired during an active match:
 - ✅ Individual completion no longer causes redirect loop
 - ✅ Presence restored correctly on match termination
 - ✅ Post-match resolution "Did you meet?" confirmation works (Bug 5 fixed)
+- ✅ Re-matching after individual completion works (Bug 6 fixed)
 
 **Timeline:** COMPLETED 2026-02-10
 

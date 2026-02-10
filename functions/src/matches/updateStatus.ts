@@ -12,6 +12,10 @@ interface UpdateMatchStatusData {
  * Updates a user's status in a match and progresses the overall match status
  * when both users reach the same milestone.
  *
+ * All writes (match, presence, offers) are wrapped in a Firestore transaction
+ * for atomicity — either all succeed or all fail. Guard release runs as a
+ * separate post-transaction step (it uses its own internal transaction).
+ *
  * U15 Fix: Clears presence.matchId when match reaches 'completed' status.
  */
 export async function updateMatchStatusHandler(
@@ -37,135 +41,175 @@ export async function updateMatchStatusHandler(
   }
 
   const db = admin.firestore();
-
-  // Get match document
   const matchRef = db.collection('matches').doc(matchId);
-  const matchDoc = await matchRef.get();
 
-  if (!matchDoc.exists) {
-    throw new HttpsError('not-found', 'Match not found');
-  }
+  // Run all reads + writes atomically in a single transaction.
+  // This mirrors the pattern used in cancel.ts (lines 100-204).
+  const { overallStatus, user1Uid, user2Uid } = await db.runTransaction(async (transaction) => {
+    // ===== PHASE 1: ALL READS (must come before any writes) =====
 
-  const match = matchDoc.data()!;
+    // 1a. Read match document (inside transaction for consistency)
+    const matchSnap = await transaction.get(matchRef);
 
-  // Verify user is part of this match
-  if (match.user1Uid !== uid && match.user2Uid !== uid) {
-    throw new HttpsError(
-      'permission-denied',
-      'You are not part of this match'
-    );
-  }
-
-  // Update user's status
-  const statusByUser = { ...match.statusByUser, [uid]: status };
-
-  // Determine overall match status
-  // If both users have the same status, update the match status
-  const user1Status = statusByUser[match.user1Uid];
-  const user2Status = statusByUser[match.user2Uid];
-
-  let overallStatus = match.status;
-
-  // Progress status based on both users
-  if (user1Status === 'completed' && user2Status === 'completed') {
-    overallStatus = 'completed';
-  } else if (user1Status === 'arrived' && user2Status === 'arrived') {
-    overallStatus = 'arrived';
-  } else if (
-    (user1Status === 'heading_there' || user1Status === 'arrived') &&
-    (user2Status === 'heading_there' || user2Status === 'arrived')
-  ) {
-    overallStatus = 'heading_there';
-  }
-
-  // Update match status
-  await matchRef.update({
-    statusByUser,
-    status: overallStatus,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  // Helper: restore or delete a single user's presence based on originalExpiresAt
-  const restorePresence = async (presenceRef: admin.firestore.DocumentReference) => {
-    const presenceSnap = await presenceRef.get();
-    if (!presenceSnap.exists) return;
-
-    const presence = presenceSnap.data()!;
-
-    // Safety: skip if presence is no longer for this match (user started a new session)
-    if (presence.matchId && presence.matchId !== matchId) return;
-    if (presence.status !== 'matched') return;
-
-    const now = admin.firestore.Timestamp.now();
-    const originalExpiresAt = presence.originalExpiresAt || presence.expiresAt;
-
-    const isOriginalExpired = !originalExpiresAt ||
-      (typeof originalExpiresAt.toMillis === 'function' && originalExpiresAt.toMillis() <= now.toMillis());
-
-    if (isOriginalExpired) {
-      // Original session expired during the match — delete presence
-      await presenceRef.delete();
-    } else {
-      // Original session still valid — restore to available with original expiresAt
-      await presenceRef.update({
-        status: 'available',
-        matchId: admin.firestore.FieldValue.delete(),
-        expiresAt: originalExpiresAt,
-        originalExpiresAt: admin.firestore.FieldValue.delete(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+    if (!matchSnap.exists) {
+      throw new HttpsError('not-found', 'Match not found');
     }
-  };
 
-  // Individual completion: restore the completing user's presence immediately
-  // so the homepage stops redirecting them back to the match page.
-  // The other user's presence stays matched until they also complete (or the match is cancelled).
-  if (status === 'completed' && overallStatus !== 'completed') {
-    const myPresenceRef = db.collection('presence').doc(uid);
-    await restorePresence(myPresenceRef);
-    console.log(`[updateMatchStatus] Restored presence for individually completed user ${uid} in match ${matchId}`);
-  }
+    const match = matchSnap.data()!;
 
-  // Clean up accepted offers for this match to prevent homepage redirect loop.
-  // The useOffers real-time listener on the homepage finds offers with status='accepted'
-  // and matchId, which triggers a redirect back to the match page. Updating offers to
-  // 'completed' removes them from the query (which only fetches 'pending'/'accepted').
-  if (status === 'completed') {
-    try {
+    // Verify user is part of this match
+    if (match.user1Uid !== uid && match.user2Uid !== uid) {
+      throw new HttpsError(
+        'permission-denied',
+        'You are not part of this match'
+      );
+    }
+
+    // 1b. Conditionally read presence docs (only needed for 'completed' status)
+    let presenceDocs: admin.firestore.DocumentSnapshot[] = [];
+    if (status === 'completed') {
+      const presenceRefs = [match.user1Uid, match.user2Uid]
+        .filter((u: string) => typeof u === 'string' && u.length > 0)
+        .map((u: string) => db.collection('presence').doc(u));
+
+      if (presenceRefs.length > 0) {
+        presenceDocs = await transaction.getAll(...presenceRefs);
+      }
+    }
+
+    // 1c. Conditionally read accepted offers (only needed for 'completed' status)
+    let offersSnapshot: admin.firestore.QuerySnapshot | null = null;
+    if (status === 'completed') {
       const offersQuery = db.collection('offers')
         .where('matchId', '==', matchId)
         .where('status', '==', 'accepted');
-      const offersSnapshot = await offersQuery.get();
-
-      if (!offersSnapshot.empty) {
-        await Promise.all(offersSnapshot.docs.map(doc =>
-          doc.ref.update({
-            status: 'completed',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          })
-        ));
-        console.log(`[updateMatchStatus] Updated ${offersSnapshot.size} offer(s) to completed for match ${matchId}`);
-      }
-    } catch (offerError) {
-      console.error(`[updateMatchStatus] Failed to update offers for match ${matchId}:`, offerError);
+      offersSnapshot = await transaction.get(offersQuery);
     }
-  }
 
-  // Overall completion: restore both users' presences + release guard
+    // ===== PHASE 2: COMPUTE =====
+
+    // Update user's status
+    const statusByUser = { ...match.statusByUser, [uid]: status };
+
+    // Determine overall match status
+    const user1Status = statusByUser[match.user1Uid];
+    const user2Status = statusByUser[match.user2Uid];
+
+    let computedOverallStatus = match.status;
+
+    if (user1Status === 'completed' && user2Status === 'completed') {
+      computedOverallStatus = 'completed';
+    } else if (user1Status === 'arrived' && user2Status === 'arrived') {
+      computedOverallStatus = 'arrived';
+    } else if (
+      (user1Status === 'heading_there' || user1Status === 'arrived') &&
+      (user2Status === 'heading_there' || user2Status === 'arrived')
+    ) {
+      computedOverallStatus = 'heading_there';
+    }
+
+    // ===== PHASE 3: ALL WRITES =====
+
+    // 3a. Update match document
+    transaction.update(matchRef, {
+      statusByUser,
+      status: computedOverallStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 3b. Individual completion: restore the completing user's presence immediately
+    // so the homepage stops redirecting them back to the match page.
+    if (status === 'completed' && computedOverallStatus !== 'completed') {
+      const myPresenceDoc = presenceDocs.find(
+        (doc) => doc.ref.id === uid
+      );
+
+      if (myPresenceDoc && myPresenceDoc.exists) {
+        const presence = myPresenceDoc.data()!;
+
+        // Safety: skip if presence is no longer for this match
+        if ((!presence.matchId || presence.matchId === matchId) && presence.status === 'matched') {
+          const now = admin.firestore.Timestamp.now();
+          const originalExpiresAt = presence.originalExpiresAt || presence.expiresAt;
+          const isOriginalExpired = !originalExpiresAt ||
+            (typeof originalExpiresAt.toMillis === 'function' && originalExpiresAt.toMillis() <= now.toMillis());
+
+          if (isOriginalExpired) {
+            transaction.delete(myPresenceDoc.ref);
+          } else {
+            transaction.update(myPresenceDoc.ref, {
+              status: 'available',
+              matchId: admin.firestore.FieldValue.delete(),
+              expiresAt: originalExpiresAt,
+              originalExpiresAt: admin.firestore.FieldValue.delete(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+
+          console.log(`[updateMatchStatus] Restored presence for individually completed user ${uid} in match ${matchId}`);
+        }
+      }
+    }
+
+    // 3c. Overall completion: restore both users' presences
+    if (computedOverallStatus === 'completed') {
+      for (const presenceDoc of presenceDocs) {
+        if (!presenceDoc.exists) continue;
+
+        const presence = presenceDoc.data()!;
+
+        // Safety: skip if presence is no longer for this match
+        if (presence.matchId && presence.matchId !== matchId) continue;
+        if (presence.status !== 'matched') continue;
+
+        const now = admin.firestore.Timestamp.now();
+        const originalExpiresAt = presence.originalExpiresAt || presence.expiresAt;
+        const isOriginalExpired = !originalExpiresAt ||
+          (typeof originalExpiresAt.toMillis === 'function' && originalExpiresAt.toMillis() <= now.toMillis());
+
+        if (isOriginalExpired) {
+          transaction.delete(presenceDoc.ref);
+        } else {
+          transaction.update(presenceDoc.ref, {
+            status: 'available',
+            matchId: admin.firestore.FieldValue.delete(),
+            expiresAt: originalExpiresAt,
+            originalExpiresAt: admin.firestore.FieldValue.delete(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      console.log(`[updateMatchStatus] Restored presence for completed match ${matchId}`);
+    }
+
+    // 3d. Clean up accepted offers for this match to prevent homepage redirect loop.
+    if (status === 'completed' && offersSnapshot && !offersSnapshot.empty) {
+      offersSnapshot.docs.forEach((doc) => {
+        transaction.update(doc.ref, {
+          status: 'completed',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      console.log(`[updateMatchStatus] Updated ${offersSnapshot.size} offer(s) to completed for match ${matchId}`);
+    }
+
+    // Return values needed for post-transaction steps
+    return {
+      overallStatus: computedOverallStatus,
+      user1Uid: match.user1Uid as string,
+      user2Uid: match.user2Uid as string,
+    };
+  });
+
+  // POST-TRANSACTION: Release the pair guard when match completes.
+  // This runs outside the transaction because releaseMatchGuard() uses its
+  // own internal transaction — Firestore does not support nested transactions.
+  // Same pattern as cancel.ts (lines 206-213).
   if (overallStatus === 'completed') {
-    const user1PresenceRef = db.collection('presence').doc(match.user1Uid);
-    const user2PresenceRef = db.collection('presence').doc(match.user2Uid);
-
-    await Promise.all([
-      restorePresence(user1PresenceRef),
-      restorePresence(user2PresenceRef),
-    ]);
-    console.log(`[updateMatchStatus] Restored presence for completed match ${matchId}`);
-
-    // U22 CRITICAL FIX: Release the pair guard when match completes
-    // Without this, the pair can NEVER match again (guard blocks future matches forever)
     try {
-      await releaseMatchGuard(matchId, match.user1Uid, match.user2Uid);
+      await releaseMatchGuard(matchId, user1Uid, user2Uid);
       console.log(`[updateMatchStatus] Released guard for completed match ${matchId}`);
     } catch (guardError) {
       // Log but don't fail the completion if guard release fails
