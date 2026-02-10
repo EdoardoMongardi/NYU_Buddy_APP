@@ -112,6 +112,9 @@ export default function MatchTestPage() {
       append(
         `SUCCESS: ${data.message}\n` +
         `  Status: ${data.matchStatus}\n` +
+        `  Raw match status (before): ${data.rawMatchStatus}\n` +
+        `  Raw statusByUser (before): ${JSON.stringify(data.rawStatusByUser)}\n` +
+        `  Simulated UIDs: [${data.simulatedUids.join(', ')}]\n` +
         `  Pending UIDs: [${data.pendingUids.join(', ')}]\n` +
         `  User1: ${data.user1Uid}\n` +
         `  User2: ${data.user2Uid}`

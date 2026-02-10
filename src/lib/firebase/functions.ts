@@ -299,7 +299,11 @@ export const matchResolvePlaceIfNeeded = createCallable<
 // Admin: Force-expire match for testing
 export const adminForceExpireMatch = createCallable<
   { matchId: string; simulateCompletedUids?: string[] },
-  { success: boolean; matchStatus: string; pendingUids: string[]; user1Uid: string; user2Uid: string; message: string }
+  {
+    success: boolean; matchStatus: string; pendingUids: string[];
+    user1Uid: string; user2Uid: string; message: string;
+    rawStatusByUser: Record<string, string>; rawMatchStatus: string; simulatedUids: string[];
+  }
 >('adminForceExpireMatch');
 
 export const checkAvailabilityForUser = createCallable<

@@ -20,6 +20,10 @@ interface ForceExpireResult {
   user1Uid: string;
   user2Uid: string;
   message: string;
+  // Debug fields
+  rawStatusByUser: Record<string, string>;
+  rawMatchStatus: string;
+  simulatedUids: string[];
 }
 
 /**
@@ -70,6 +74,9 @@ export async function adminForceExpireMatchHandler(
       user1Uid: matchData.user1Uid,
       user2Uid: matchData.user2Uid,
       message: 'Match already in expired_pending_confirmation state',
+      rawStatusByUser: matchData.statusByUser || {},
+      rawMatchStatus: matchStatus,
+      simulatedUids: [],
     };
   }
 
@@ -167,5 +174,8 @@ export async function adminForceExpireMatchHandler(
     user1Uid,
     user2Uid,
     message: `Match force-expired. ${pendingConfirmationUids.length} user(s) pending confirmation.`,
+    rawStatusByUser: matchData.statusByUser || {},
+    rawMatchStatus: matchData.status,
+    simulatedUids: simulateCompletedUids || [],
   };
 }
