@@ -93,19 +93,28 @@ export default function HomePage() {
 
     if (presence?.matchId && presence.status === 'matched') {
       setShowMatchOverlay(presence.matchId);
+    } else if (showMatchOverlay && presence && presence.status !== 'matched') {
+      // Presence says user is NOT matched — clear any stale overlay.
+      // This handles the case where cached Firestore data briefly shows
+      // an accepted offer or matched presence before the server update arrives.
+      setShowMatchOverlay(null);
     }
-  }, [presence]);
+  }, [presence, showMatchOverlay]);
 
   // Fallback: Redirect if offer is accepted (Legacy/Backup)
+  // Only trust accepted offers if presence ALSO confirms user is matched.
+  // Without this guard, stale cached offer data from Firestore local persistence
+  // can trigger a redirect back to a completed/cancelled match.
   useEffect(() => {
     if (showMatchOverlay) return; // Prioritize overlay
     if (isAcceptingRef.current) return;
+    if (!presence?.matchId || presence.status !== 'matched') return;
 
     const acceptedOffer = outgoingOffers.find(o => o.status === 'accepted' && o.matchId);
     if (acceptedOffer) {
       setShowMatchOverlay(acceptedOffer.matchId || null);
     }
-  }, [outgoingOffers, showMatchOverlay]);
+  }, [outgoingOffers, showMatchOverlay, presence]);
 
   const handleMatchOverlayComplete = () => {
     if (showMatchOverlay) {
