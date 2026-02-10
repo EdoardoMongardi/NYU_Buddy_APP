@@ -1,6 +1,6 @@
 # NYU Buddy - Issues Status Report
 
-**Last Updated:** 2026-02-09 (U18 resolved - Block/Report available in all match phases)
+**Last Updated:** 2026-02-10 (U19 resolved - Presence expiry mid-match safeguards + redirect loop fix)
 **Audit Scope:** Complete codebase vs. documentation cross-reference (6 doc files audited)
 **Methodology:** Code is the only source of truth
 
@@ -11,14 +11,14 @@
 **Overall Status:** ✅ **PRODUCTION-READY** (with known limitations)
 
 - **Total Issues Identified:** 29
-- **Resolved:** 23 (79%) ✅
-- **Unresolved:** 6 (21%) ⚠️
+- **Resolved:** 25 (86%) ✅
+- **Unresolved:** 4 (14%) ⚠️
   - Critical: 0
   - High: 0
-  - Medium: 1 (edge case, partial implementation)
-  - Low: 5 (minor gaps, scalability concerns)
+  - Medium: 0
+  - Low: 4 (minor gaps, scalability concerns)
 
-**Key Finding:** All critical and high-priority issues resolved. Remaining unresolved issues are edge cases, partial implementations, or architectural limitations that don't block production deployment but should be addressed in future phases.
+**Key Finding:** All critical, high, and medium-priority issues resolved. Remaining unresolved issues are low-priority architectural limitations and minor gaps that don't block production deployment.
 
 ---
 
@@ -917,12 +917,12 @@ match /activeMatchesByPair/{pairKey} {
 
 ## ⚠️ UNRESOLVED ISSUES
 
-**Status:** 6 issues remaining (0 high + 1 medium + 5 low)
+**Status:** 4 issues remaining (0 high + 0 medium + 4 low)
 
-All critical and high-priority issues have been resolved. Remaining issues are:
+All critical, high, and medium-priority issues have been resolved. Remaining issues are:
 - **High Priority (0):** None
-- **Medium Priority (1):** Edge case (presence expiry mid-match)
-- **Low Priority (5):** Minor gaps, scalability concerns, reserved fields
+- **Medium Priority (0):** None
+- **Low Priority (4):** Minor gaps, scalability concerns, reserved fields
 
 ---
 
@@ -991,28 +991,89 @@ Blocking was only available in the "Place Confirmed" phase (Step 2) of a match. 
 
 ---
 
-### U19. Presence Expiry Mid-Match
-**Priority:** MEDIUM
-**Doc Reference:** `PRD_AsIs.md:11.3`
+### U19. ~~Presence Expiry Mid-Match~~ ✅ RESOLVED (2026-02-10)
 
-**Description:**
-If user's presence expires during an active match:
+**Status:** ✅ **RESOLVED** (2026-02-10)
+
+**Pre-Fix Issue:**
+If user's presence expired during an active match:
 - Presence document deleted by cleanup job
-- Pending offers cancelled
-- Match remains active
+- Match remains active with orphaned state
 - Other user sees stale match state
-
-**Impact:**
-- Medium - Affects match coordination
-- Can lead to confusion when one user's presence disappears but match continues
 - No automatic recovery mechanism
 
-**Recommended Action:**
-- Add safeguard to match cleanup logic: if one user's presence is gone, auto-cancel match
-- Or: Presence cleanup job should check for active matches before deletion
-- Or: Match page should detect missing presence and show appropriate message
+**U19 Resolution — 3-Part Fix:**
 
-**Timeline:** Future enhancement
+**Part 1: Extend presence TTL on match creation** (`functions/src/matches/createMatchAtomic.ts`)
+- On match creation, saves `originalExpiresAt` (the user's original session expiry) and extends `expiresAt` to +2 hours
+- Prevents presence from expiring mid-match while preserving the original session info
+- `originalExpiresAt` is restored when match terminates (completion or cancellation)
+- Frontend countdown timer and discovery system unaffected (they use `expiresAt` which gets restored)
+
+**Part 2: Restore originalExpiresAt on match termination**
+
+**On cancellation** (`functions/src/matches/cancel.ts`):
+- Added `'system_presence_expired'` to zero-penalty cancel reasons
+- Safety checks: skip if `presence.matchId !== matchId` or `presence.status !== 'matched'`
+- Restore logic: uses `originalExpiresAt` (falls back to `expiresAt`)
+  - If original expired → `transaction.delete(presenceDoc.ref)` (user goes offline)
+  - If still valid → restore to `available` with original `expiresAt`, delete `originalExpiresAt`
+
+**On completion** (`functions/src/matches/updateStatus.ts`):
+- Extracted `restorePresence()` helper with same safety checks and restore/delete logic
+- **Individual completion:** When one user marks `completed`, immediately restore their presence so the homepage stops redirecting them back
+- **Overall completion:** Restore both users' presences with safety checks (prevents double-restore)
+
+**Part 3: Auto-cancel abandoned matches in cleanup** (`functions/src/presence/cleanupExpired.ts`)
+- Two-pass approach to avoid write amplification:
+  - **Pass 1:** Normal expired docs (not matched) → batch delete (fast)
+  - **Pass 2:** Matched expired docs → individually call `cancelMatchInternal()` with `cancelledBy: 'system'`, `reason: 'system_presence_expired'`, `skipPermissionCheck: true`. Only delete presence on cancel success; preserve on failure.
+- Zero reliability penalty for system-initiated cancellations
+
+**Related Bug Fixes Discovered During U19 Implementation:**
+
+**Bug 1: Redirect loop after individual match completion**
+- **Symptom:** After one user clicked "Complete Meetup" → feedback → homepage, they were immediately redirected back to the match page
+- **Root Cause (Backend):** Accepted offers were never updated to terminal status on match completion. The `useOffers` real-time listener on the homepage found offers with `status: 'accepted'` and `matchId`, triggering a redirect back.
+- **Root Cause (Frontend):** The offer-based fallback redirect on the homepage had no presence guard, and `showMatchOverlay` was a one-way latch (never cleared). Stale cached Firestore offer data could trigger the redirect before the server update arrived.
+- **Backend Fix** (`functions/src/matches/updateStatus.ts`): When any user marks themselves `completed`, query all offers with `matchId` and `status: 'accepted'` and update them to `status: 'completed'`. This mirrors what `cancel.ts` already does (setting offers to `cancelled`).
+- **Frontend Fix** (`src/app/(protected)/page.tsx`):
+  - Added presence guard to offer fallback redirect: `if (!presence?.matchId || presence.status !== 'matched') return;`
+  - Added overlay clearing: when presence changes to non-matched, clear `showMatchOverlay` to null
+
+**Bug 2: Firestore transaction read-before-write violation (U23 regression)**
+- **Symptom:** `offerCreate` and `offerRespond` returned INTERNAL error after U19 deploy
+- **Root Cause:** `checkIdempotencyInTransaction` wrote a 'processing' record (`transaction.set`) before `createMatchAtomic` tried to read (guard doc, presence). Firestore requires all reads before all writes.
+- **Fix** (`functions/src/utils/idempotency.ts`): `checkIdempotencyInTransaction` now only reads (no writes). Transaction isolation handles dedup automatically. `markIdempotencyCompleteInTransaction` uses `set()` instead of `update()`.
+
+**Bug 3: Missing fields in match document**
+- `createMatchAtomic.ts` was missing `statusByUser` and `matchedAt` fields, causing `TypeError: Cannot read properties of undefined` on the match page
+- Fixed by adding `statusByUser: { [user1Uid]: 'pending', [user2Uid]: 'pending' }` and `matchedAt: now`
+
+**Bug 4: Undefined `durationMinutes` in match creation**
+- `offers/create.ts` and `offers/respond.ts` referenced `offer.durationMin` which doesn't exist (field names are `fromDurationMinutes` / `toDurationMinutes`)
+- Fixed to `Math.min(offer.fromDurationMinutes || 30, offer.toDurationMinutes || 30)`
+
+**Files Modified:**
+- `functions/src/matches/createMatchAtomic.ts` — Save `originalExpiresAt`, extend `expiresAt`, add `statusByUser`/`matchedAt`
+- `functions/src/matches/cancel.ts` — Add `system_presence_expired` zero-penalty, restore/delete logic
+- `functions/src/matches/updateStatus.ts` — `restorePresence()` helper, individual completion handling, offer cleanup
+- `functions/src/presence/cleanupExpired.ts` — Two-pass auto-cancel for matched expired docs
+- `functions/src/utils/idempotency.ts` — Read-only check, set-based completion (no read-before-write violation)
+- `functions/src/offers/create.ts` — Fix `durationMin` → `fromDurationMinutes`/`toDurationMinutes`
+- `functions/src/offers/respond.ts` — Same durationMinutes fix
+- `src/app/(protected)/page.tsx` — Presence guard on offer fallback redirect, stale overlay clearing
+
+**Verification:**
+- ✅ TypeScript compiles successfully (both `functions/` and `src/`)
+- ✅ ESLint passes
+- ✅ Next.js build passes
+- ✅ Firebase Functions deployed successfully (all 24 functions)
+- ✅ Match creation works (offer accept + mutual invite)
+- ✅ Individual completion no longer causes redirect loop
+- ✅ Presence restored correctly on match termination
+
+**Timeline:** COMPLETED 2026-02-10
 
 ---
 
@@ -1187,27 +1248,20 @@ This issue was **automatically resolved as part of U20** (Place Selection System
 
 ---
 
-### U25. Presence Cleanup on Match Cancel Edge Case
-**Priority:** LOW
-**Doc Reference:** `StateMachine_AsIs.md:9.2.2`
+### U25. ~~Presence Cleanup on Match Cancel Edge Case~~ ✅ RESOLVED (2026-02-10, part of U19)
 
-**Description:**
-`matchCancel` attempts to restore presence to `available`:
-- If `expiresAt < now`, code silently skips the update (lines 161-162)
-- User effectively becomes **Offline** without explicit deletion (zombie doc)
-- Presence document persists but user appears offline
+**Status:** ✅ **RESOLVED** (2026-02-10 — fixed as part of U19)
 
-**Impact:**
-- Low-Medium - Edge case during cancellation
-- Creates stale presence documents
-- User must manually restart presence
+**Pre-Fix Issue:**
+`matchCancel` restored presence to `available` but if `expiresAt < now`, code silently skipped the update, leaving a zombie presence document.
 
-**Recommended Action:**
-- If presence expired, delete it instead of skipping update
-- Or: Extend expiry timestamp when restoring to `available`
-- Add logging to track frequency of this edge case
+**Resolution:**
+Fixed in U19's `restorePresence()` logic in both `cancel.ts` and `updateStatus.ts`:
+- If `originalExpiresAt` (or `expiresAt`) has expired → **delete** the presence document (user goes offline cleanly)
+- If still valid → restore to `available` with original `expiresAt`
+- No more zombie docs — presence is either restored or deleted
 
-**Timeline:** Future cleanup enhancement
+**Timeline:** COMPLETED 2026-02-10 (same deployment as U19)
 
 ---
 
@@ -1304,9 +1358,9 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~U16: No Push Notification System~~ → ✅ Resolved (2026-02-08)
 - ~~U13: Hardcoded Admin Whitelist Discrepancy~~ → ✅ Resolved (2026-02-08)
 
-### Medium (1)
+### Medium (0)
 - ~~U18: Block During Active Match (auto-cancel not implemented)~~ → ✅ Resolved (2026-02-09)
-- ⚠️ **U19:** Presence Expiry Mid-Match (no safeguards)
+- ~~U19: Presence Expiry Mid-Match (no safeguards)~~ → ✅ Resolved (2026-02-10)
 - ~~U22: Race Conditions (offer/match edge cases)~~ → ✅ Resolved (2026-02-09)
 - ~~U23: No Retry/Idempotency Mechanism~~ → ✅ Resolved (2026-02-08)
 - ~~U21: Email Verification Not Enforced~~ → ✅ Resolved (2026-02-08)
@@ -1317,10 +1371,10 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~U1: Phantom `tick_sync` type~~ → ✅ Resolved (Task 3)
 - ~~U2: Activity list mismatch~~ → ✅ Resolved (Task 2)
 
-### Low (5)
+### Low (4)
 - ⚠️ **U10:** Reserved Fields (meetRate/cancelRate) - kept for future features
 - ~~U24: Legacy Place Confirmation Bypass~~ → ✅ Resolved (2026-02-08, part of U20)
-- ⚠️ **U25:** Presence Cleanup on Match Cancel Edge Case
+- ~~U25: Presence Cleanup on Match Cancel Edge Case~~ → ✅ Resolved (2026-02-10, part of U19)
 - ⚠️ **U26:** Client-Side Location Staleness
 - ⚠️ **U27:** Missing sessionHistory Firestore Index
 - ⚠️ **U28:** Hardcoded Admin Management System (scalability)
@@ -1354,7 +1408,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ✅ Backward compatibility maintained
 
 ### Known Limitations
-⚠️ **6 UNRESOLVED ISSUES** - None are critical or block production:
+⚠️ **4 UNRESOLVED ISSUES** - None are critical or block production:
 
 **Resolved:**
 - ~~"Explore Campus" activity~~ → ✅ Removed (Task 2)
@@ -1370,10 +1424,11 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 - ~~Retry/idempotency mechanism~~ → ✅ Full implementation with testing (2026-02-08)
 - ~~Race conditions (U22)~~ → ✅ Atomic match creation with guards (2026-02-09)
 - ~~Block during active match (U18)~~ → ✅ Block/Report in all match phases (2026-02-09)
+- ~~Presence expiry mid-match (U19)~~ → ✅ Extended TTL + auto-cancel + restore logic (2026-02-10)
+- ~~Presence cleanup edge case (U25)~~ → ✅ Delete or restore based on originalExpiresAt (2026-02-10)
 
 **Unresolved (Not Blocking Production):**
-- ⚠️ **U19 (MEDIUM):** Presence expiry mid-match (no safeguards)
-- ⚠️ **U10, U25-U28 (LOW):** Minor gaps (reserved fields, cleanup edge case, location staleness, missing index, admin scalability)
+- ⚠️ **U10, U26-U28 (LOW):** Minor gaps (reserved fields, location staleness, missing index, admin scalability)
 
 ---
 
@@ -1385,7 +1440,7 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 3. ✅ Zero breaking changes introduced
 4. ✅ Security hardened (admin whitelist, isAdmin protection, Phase 3 rules)
 5. ✅ **READY FOR PRODUCTION DEPLOYMENT**
-6. ⚠️ **6 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
+6. ⚠️ **4 KNOWN LIMITATIONS** - Document and prioritize for future phases (see unresolved issues above)
 
 ### Next Phase (Phase 5 - Enhancements & Issue Resolution)
 
@@ -1393,12 +1448,12 @@ User requested these fields be kept for future features. NOT TO BE DELETED.
 
 1. **Medium Priority (Phase 5.1):**
    - ~~**U18:** Block auto-cancel for active matches~~ → ✅ Resolved (2026-02-09)
-   - **U19:** Add safeguards for presence expiry mid-match
+   - ~~**U19:** Add safeguards for presence expiry mid-match~~ → ✅ Resolved (2026-02-10)
    - ~~**U22:** Race condition hardening~~ → ✅ Resolved (2026-02-09)
 
 2. **Low Priority (Phase 5.2+):**
    - **U27:** Add missing sessionHistory Firestore index
-   - **U25:** Fix presence cleanup edge case on match cancel
+   - ~~**U25:** Fix presence cleanup edge case on match cancel~~ → ✅ Resolved (2026-02-10, part of U19)
    - **U26:** Implement periodic location refresh
    - **U28:** Build scalable admin management system
    - **U10:** Implement aggregate reliability metrics (meetRate/cancelRate)

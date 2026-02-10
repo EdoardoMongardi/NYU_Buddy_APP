@@ -181,12 +181,16 @@ export default function MatchPage() {
     }
   };
 
-  // If match becomes cancelled via listener, redirect immediately
+  // If match becomes cancelled or expired via listener, redirect immediately
   useEffect(() => {
     if (match?.status === 'cancelled') {
       console.log('Match status changed to cancelled in background, redirecting...');
       const reason = cancellationReason || 'cancelled';
       window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
+    }
+    if (match?.status === 'expired_pending_confirmation') {
+      console.log('Match expired pending confirmation, redirecting to homepage...');
+      window.location.href = '/';
     }
   }, [match?.status, cancellationReason]);
 

@@ -101,6 +101,12 @@ export const updateMatchStatus = createCallable<
   { success: boolean }
 >('updateMatchStatus');
 
+// "Did you meet?" confirmation function
+export const matchConfirmMeeting = createCallable<
+  { matchId: string; response: 'met' | 'not_met' | 'dismissed' },
+  { success: boolean; resolved: boolean; finalStatus?: string; outcome?: string }
+>('matchConfirmMeeting');
+
 // Offer functions
 // U23: Retry-wrapped with idempotency
 export async function offerCreate(data: {

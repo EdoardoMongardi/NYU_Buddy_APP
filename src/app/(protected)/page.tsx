@@ -16,6 +16,8 @@ import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import MatchOverlay from '@/components/match/MatchOverlay';
+import { DidYouMeetDialog } from '@/components/match/DidYouMeetDialog';
+import { usePendingConfirmations } from '@/lib/hooks/usePendingConfirmations';
 
 export default function HomePage() {
   const router = useRouter();
@@ -24,6 +26,7 @@ export default function HomePage() {
   const { user, userProfile } = useAuth();
   const { isAvailable, presence } = usePresence();
   const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
+  const { pendingMatches } = usePendingConfirmations();
 
   // Suppression flag: If true, we are currently accepting an offer manually,
   // so we should suppress the banner (and let InvitesTab redirect).
@@ -93,10 +96,11 @@ export default function HomePage() {
 
     if (presence?.matchId && presence.status === 'matched') {
       setShowMatchOverlay(presence.matchId);
-    } else if (showMatchOverlay && presence && presence.status !== 'matched') {
-      // Presence says user is NOT matched — clear any stale overlay.
+    } else if (showMatchOverlay && (!presence || presence.status !== 'matched')) {
+      // Presence says user is NOT matched (or presence is null/deleted) — clear any stale overlay.
       // This handles the case where cached Firestore data briefly shows
       // an accepted offer or matched presence before the server update arrives.
+      // Also handles presence deletion by cleanup (when presence becomes null).
       setShowMatchOverlay(null);
     }
   }, [presence, showMatchOverlay]);
@@ -153,6 +157,18 @@ export default function HomePage() {
           currentUserPhoto={userProfile?.photoURL}
           onComplete={handleMatchOverlayComplete}
           isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)}
+        />
+      )}
+
+      {/* "Did you meet?" popup — only when no active match overlay */}
+      {!showMatchOverlay && pendingMatches.length > 0 && (
+        <DidYouMeetDialog
+          open={true}
+          matchId={pendingMatches[0].matchId}
+          otherUserName={pendingMatches[0].otherDisplayName}
+          otherUserPhotoURL={pendingMatches[0].otherPhotoURL}
+          activity={pendingMatches[0].activity}
+          onComplete={() => {/* Hook auto-refreshes via onSnapshot */}}
         />
       )}
 

@@ -66,6 +66,11 @@ export async function cancelMatchInternal(
     return { success: false, wasSevereCancel: false };
   }
 
+  if (match.status === 'expired_pending_confirmation') {
+    console.warn(`[cancelMatchInternal] Match ${matchId} is expired pending confirmation`);
+    return { success: false, wasSevereCancel: false };
+  }
+
   const otherUid = match.user1Uid === cancelledBy ? match.user2Uid : match.user1Uid;
   const otherStatus = match.statusByUser?.[otherUid];
   const wasSevereCancel = ['heading_there', 'arrived'].includes(otherStatus);

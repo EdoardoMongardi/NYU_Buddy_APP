@@ -20,6 +20,8 @@ import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
 import { matchResolveExpiredHandler } from './matches/resolveExpired';
 import { matchCleanupStalePendingHandler } from './matches/cleanupStalePending';
+import { matchConfirmMeetingHandler } from './matches/confirmMeeting';
+import { matchCleanupExpiredConfirmationsHandler } from './matches/cleanupExpiredConfirmations';
 import { offerExpireStaleHandler } from './offers/expireStale';
 import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
 import { normalizeOfferUpdatedAtHandler } from './migrations/normalizeOfferUpdatedAt';
@@ -138,6 +140,18 @@ export const offerExpireStale = onSchedule(
 export const presenceCleanupExpired = onSchedule(
   { schedule: 'every 5 minutes', region: 'us-east1' },
   presenceCleanupExpiredHandler
+);
+
+// "Did you meet?" confirmation function
+export const matchConfirmMeeting = onCall(
+  { region: 'us-east1' },
+  matchConfirmMeetingHandler
+);
+
+// Auto-resolve expired meeting confirmations every 30 minutes
+export const matchCleanupExpiredConfirmations = onSchedule(
+  { schedule: 'every 30 minutes', region: 'us-east1' },
+  matchCleanupExpiredConfirmationsHandler
 );
 
 // U23: Cleanup expired idempotency records every 2 hours

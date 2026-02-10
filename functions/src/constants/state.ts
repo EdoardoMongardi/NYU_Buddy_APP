@@ -51,6 +51,21 @@ export type TerminalMatchStatus = typeof TERMINAL_MATCH_STATUSES[number];
 export type MatchStatus = ActiveMatchStatus | TerminalMatchStatus;
 
 // ============================================================================
+// CONFIRMATION STATUS
+// ============================================================================
+
+/**
+ * EXPIRED_PENDING_CONFIRMATION
+ *
+ * Intermediate status: match lifecycle is over (presences expired), but we
+ * need user input ("Did you meet?") before determining the final status.
+ * NOT in ACTIVE_MATCH_STATUSES (users can start new matches).
+ * NOT in TERMINAL_MATCH_STATUSES (still awaiting resolution).
+ * Resolves to 'completed' or 'cancelled' with an outcome field.
+ */
+export const EXPIRED_PENDING_CONFIRMATION = 'expired_pending_confirmation' as const;
+
+// ============================================================================
 // PRESENCE STATUS VALUES
 // ============================================================================
 
