@@ -225,6 +225,11 @@ export async function createMatchAtomic(
       activity,
       durationMinutes,
       status: 'pending',
+      statusByUser: {
+        [user1Uid]: 'pending',
+        [user2Uid]: 'pending',
+      },
+      matchedAt: now,
       createdAt: now,
       lastStatusChange: now,
       user1Coords: user1Coords || null,
