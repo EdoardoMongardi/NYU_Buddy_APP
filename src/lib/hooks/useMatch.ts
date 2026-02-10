@@ -122,7 +122,7 @@ export function useMatch(matchId: string | null) {
     );
 
     return () => unsubscribeUser();
-  }, [match, user]); // Depend on match object
+  }, [match?.user1Uid, match?.user2Uid, user]); // Depend on specific UIDs, not the whole match object
 
 
   const updateStatus = useCallback(

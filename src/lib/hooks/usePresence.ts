@@ -36,8 +36,8 @@ export function usePresence() {
       (doc) => {
         if (doc.exists()) {
           const data = doc.data() as PresenceData;
-          // Check if expired
-          if (data.expiresAt.toMillis() > Date.now()) {
+          // Check if expired (with null safety for expiresAt)
+          if (data.expiresAt && typeof data.expiresAt.toMillis === 'function' && data.expiresAt.toMillis() > Date.now()) {
             setPresence(data);
           } else {
             setPresence(null);

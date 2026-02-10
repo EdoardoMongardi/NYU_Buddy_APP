@@ -626,19 +626,21 @@ export default function MatchPage() {
           </motion.div>
         </>
       )}
-      {/* Debug Info */}
-      <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono break-all">
-        <h4 className="font-bold mb-2">Debug Info</h4>
-        <p>My Stored Location (from DB): {myPresence ? `${myPresence.lat.toFixed(5)}, ${myPresence.lng.toFixed(5)}` : 'Loading...'}</p>
-        <div className="mt-2">
-          <strong>Recommended Places:</strong>
-          {placeCandidates.map((p: { placeId: string; name: string; distance: number; lat: number; lng: number }) => (
-            <div key={p.placeId} className="ml-2 mt-1">
-              - {p.name}: {p.distance}m  (Loc: {p.lat?.toFixed(5)}, {p.lng?.toFixed(5)})
-            </div>
-          ))}
+      {/* Debug Info - development only */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono break-all">
+          <h4 className="font-bold mb-2">Debug Info</h4>
+          <p>My Stored Location (from DB): {myPresence ? `${myPresence.lat.toFixed(5)}, ${myPresence.lng.toFixed(5)}` : 'Loading...'}</p>
+          <div className="mt-2">
+            <strong>Recommended Places:</strong>
+            {placeCandidates.map((p: { placeId: string; name: string; distance: number; lat: number; lng: number }) => (
+              <div key={p.placeId} className="ml-2 mt-1">
+                - {p.name}: {p.distance}m  (Loc: {p.lat?.toFixed(5)}, {p.lng?.toFixed(5)})
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
