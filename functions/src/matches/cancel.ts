@@ -80,7 +80,7 @@ export async function cancelMatchInternal(
 
   // 1. No penalty for system reasons, safety, or blocks
   if (reason === 'no_places_available' || reason === 'safety_concern' || reason === 'blocked' ||
-      reason === 'timeout_pending' || reason === 'system_cleanup' || reason === 'system_presence_expired') {
+    reason === 'timeout_pending' || reason === 'system_cleanup' || reason === 'system_presence_expired') {
     penaltyMultiplier = 0;
   }
   // 2. No penalty for 15s grace period
@@ -119,13 +119,22 @@ export async function cancelMatchInternal(
 
     // 2. WRITES
     // Update match to cancelled
-    transaction.update(matchRef, {
+    // If the other user had already individually completed, treat this as a dispute:
+    // their completion is an implicit "I met this person", the cancel is an implicit "I'm not confirming".
+    const matchUpdateData: Record<string, unknown> = {
       status: 'cancelled',
       cancelledBy,
       cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
       cancellationReason: reason || null,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (otherStatus === 'completed') {
+      matchUpdateData.confirmationOutcome = 'disputed';
+      console.log(`[cancelMatchInternal] Other user already completed — marking as disputed`);
+    }
+
+    transaction.update(matchRef, matchUpdateData);
 
     // Update cancelling user's reliability stats (only if not a system cancel)
     if (userDoc.exists && !skipPermissionCheck) {
