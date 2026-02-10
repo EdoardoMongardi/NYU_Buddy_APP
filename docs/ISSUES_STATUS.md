@@ -1054,10 +1054,58 @@ If user's presence expired during an active match:
 - `offers/create.ts` and `offers/respond.ts` referenced `offer.durationMin` which doesn't exist (field names are `fromDurationMinutes` / `toDurationMinutes`)
 - Fixed to `Math.min(offer.fromDurationMinutes || 30, offer.toDurationMinutes || 30)`
 
+**Bug 5: Firestore transaction order violation in `matchConfirmMeeting` (discovered 2026-02-10)**
+- **Symptom:** Post-match resolution testing on `/admin/match-test` page returned `FAILED: functions/internal INTERNAL` error when clicking "Met" to confirm meeting
+- **Test Scenario:** Force-expired match (Case B: one user completed, other pending) → user clicked "Met" → INTERNAL error
+- **Firebase Logs Error (2026-02-10 11:14:59):**
+  ```
+  Unhandled error Error: Firestore transactions require all reads to be executed before all writes.
+      at Transaction.get (/workspace/node_modules/@google-cloud/firestore/build/src/transaction.js:97:19)
+      at /workspace/lib/matches/confirmMeeting.js:170:56
+  ```
+- **Root Cause:** When resolving to `completed` status, the function was reading user documents (lines 182-183) to update reliability stats AFTER already writing to the match document (line 215/226). Firestore requires all `transaction.get()` calls to happen before any `transaction.update()` calls.
+- **Original Code Flow (BROKEN):**
+  ```typescript
+  transaction => {
+    1. Read match document ✅
+    2. ... validation logic ...
+    3. Write to match document (line 215/226) ✅
+    4. IF (status === 'completed'):
+         Read user documents (line 183) ❌ TOO LATE!
+  }
+  ```
+- **Fix** (`functions/src/matches/confirmMeeting.ts` lines 147-153, 180):
+  - **Phase 1 (ALL READS):** Pre-read both user documents at the beginning of the transaction, before any writes
+  - **Phase 2 (COMPUTE AND WRITE):** Use cached `userSnapshots[userUid]` instead of `transaction.get(userRef)`
+  - Added explicit phase separation comments for maintainability
+- **Updated Code Flow (FIXED):**
+  ```typescript
+  transaction => {
+    // ===== PHASE 1: ALL READS =====
+    1. Read match document
+    2. Pre-read BOTH user documents (even if we might not need them)
+       Store in userSnapshots map
+    
+    // ===== PHASE 2: COMPUTE AND WRITE =====
+    3. Write to match document
+    4. IF (status === 'completed'):
+         Use userSnapshots[userUid] (no new reads!)
+  }
+  ```
+- **Trade-off:** Now reads both user documents on EVERY call (even when not resolving to `completed`), but this is acceptable because:
+  - Document reads are cheap (financially and performance-wise)
+  - The overhead is minimal (2 extra reads per call)
+  - Correctness > micro-optimization
+  - Function only called when match expires (infrequent event)
+- **Deployed:** 2026-02-10 12:56 UTC
+- **Verification:** ✅ Test passed after deployment - meeting confirmation works correctly
+
+
 **Files Modified:**
 - `functions/src/matches/createMatchAtomic.ts` — Save `originalExpiresAt`, extend `expiresAt`, add `statusByUser`/`matchedAt`
 - `functions/src/matches/cancel.ts` — Add `system_presence_expired` zero-penalty, restore/delete logic
 - `functions/src/matches/updateStatus.ts` — `restorePresence()` helper, individual completion handling, offer cleanup
+- `functions/src/matches/confirmMeeting.ts` — Fix transaction order violation: pre-read user docs before writes (Bug 5)
 - `functions/src/presence/cleanupExpired.ts` — Two-pass auto-cancel for matched expired docs
 - `functions/src/utils/idempotency.ts` — Read-only check, set-based completion (no read-before-write violation)
 - `functions/src/offers/create.ts` — Fix `durationMin` → `fromDurationMinutes`/`toDurationMinutes`
@@ -1072,6 +1120,7 @@ If user's presence expired during an active match:
 - ✅ Match creation works (offer accept + mutual invite)
 - ✅ Individual completion no longer causes redirect loop
 - ✅ Presence restored correctly on match termination
+- ✅ Post-match resolution "Did you meet?" confirmation works (Bug 5 fixed)
 
 **Timeline:** COMPLETED 2026-02-10
 

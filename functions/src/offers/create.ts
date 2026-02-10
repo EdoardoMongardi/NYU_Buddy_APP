@@ -143,38 +143,56 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
   }
 
   // Check neither is in an active match
-  // Optimized Query: Check specifically for fromUid and targetUid
+  // Exclude matches where user has individually completed (allows re-matching after completion)
   const activeStatuses = ACTIVE_MATCH_STATUSES;
 
   const fromMatchesQuery = await db.collection('matches')
     .where('user1Uid', '==', fromUid)
     .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
+    .get(); // Remove limit(1) since we need to filter by statusByUser
 
   const fromMatchesQuery2 = await db.collection('matches')
     .where('user2Uid', '==', fromUid)
     .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
+    .get(); // Remove limit(1) since we need to filter by statusByUser
 
-  if (!fromMatchesQuery.empty || !fromMatchesQuery2.empty) {
+  // Filter OUT matches where fromUid has individually completed
+  const fromActiveMatches = [
+    ...fromMatchesQuery.docs,
+    ...fromMatchesQuery2.docs,
+  ].filter((doc) => {
+    const match = doc.data();
+    const statusByUser = match.statusByUser || {};
+    // If user has completed their part, don't count this match as "active" for blocking
+    return statusByUser[fromUid] !== 'completed';
+  });
+
+  if (fromActiveMatches.length > 0) {
     throw new HttpsError('failed-precondition', 'You are already in an active match');
   }
 
   const toMatchesQuery = await db.collection('matches')
     .where('user1Uid', '==', targetUid)
     .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
+    .get(); // Remove limit(1) since we need to filter by statusByUser
 
   const toMatchesQuery2 = await db.collection('matches')
     .where('user2Uid', '==', targetUid)
     .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
+    .get(); // Remove limit(1) since we need to filter by statusByUser
 
-  if (!toMatchesQuery.empty || !toMatchesQuery2.empty) {
+  // Filter OUT matches where targetUid has individually completed
+  const toActiveMatches = [
+    ...toMatchesQuery.docs,
+    ...toMatchesQuery2.docs,
+  ].filter((doc) => {
+    const match = doc.data();
+    const statusByUser = match.statusByUser || {};
+    // If user has completed their part, don't count this match as "active" for blocking
+    return statusByUser[targetUid] !== 'completed';
+  });
+
+  if (toActiveMatches.length > 0) {
     throw new HttpsError('failed-precondition', 'This person is already in an active match');
   }
 
@@ -300,49 +318,49 @@ export async function offerCreateHandler(request: CallableRequest<OfferCreateDat
       };
     });
 
-      // U23: If cached, return immediately
-      if (mutualMatchResult.cached) {
-        return {
-          offerId: mutualMatchResult.offerId,
-          matchCreated: mutualMatchResult.matchCreated,
-          matchId: mutualMatchResult.matchId,
-        };
-      }
-
-      // Cleanup other pending offers (Post-transaction)
-      // We don't await this to return faster, or we await to ensure consistency?
-      // Safer to await to ensure user state is clean.
-      await import('./cleanup').then(m => Promise.all([
-        m.cleanupPendingOffers(db, fromUid, reverseOfferDoc.id),
-        m.cleanupPendingOffers(db, targetUid, reverseOfferDoc.id)
-      ]));
-
-      // U16: Send push notifications to both users (mutual match)
-      // Fetch user profiles for display names
-      const [user1Doc, user2Doc] = await Promise.all([
-        db.collection('users').doc(fromUid).get(),
-        db.collection('users').doc(targetUid).get(),
-      ]);
-
-      const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
-      const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
-
-      // Send notifications to both users (awaited to prevent Cloud Function early termination)
-      const notifResults = await Promise.allSettled([
-        sendMatchCreatedNotification(fromUid, user2DisplayName, mutualMatchResult.matchId!),
-        sendMatchCreatedNotification(targetUid, user1DisplayName, mutualMatchResult.matchId!),
-      ]);
-      notifResults.forEach((r, i) => {
-        if (r.status === 'rejected') {
-          console.error(`[offerCreate-mutualMatch] Notification ${i} failed:`, r.reason);
-        }
-      });
-
+    // U23: If cached, return immediately
+    if (mutualMatchResult.cached) {
       return {
         offerId: mutualMatchResult.offerId,
-        matchCreated: true,
+        matchCreated: mutualMatchResult.matchCreated,
         matchId: mutualMatchResult.matchId,
       };
+    }
+
+    // Cleanup other pending offers (Post-transaction)
+    // We don't await this to return faster, or we await to ensure consistency?
+    // Safer to await to ensure user state is clean.
+    await import('./cleanup').then(m => Promise.all([
+      m.cleanupPendingOffers(db, fromUid, reverseOfferDoc.id),
+      m.cleanupPendingOffers(db, targetUid, reverseOfferDoc.id)
+    ]));
+
+    // U16: Send push notifications to both users (mutual match)
+    // Fetch user profiles for display names
+    const [user1Doc, user2Doc] = await Promise.all([
+      db.collection('users').doc(fromUid).get(),
+      db.collection('users').doc(targetUid).get(),
+    ]);
+
+    const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
+    const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
+
+    // Send notifications to both users (awaited to prevent Cloud Function early termination)
+    const notifResults = await Promise.allSettled([
+      sendMatchCreatedNotification(fromUid, user2DisplayName, mutualMatchResult.matchId!),
+      sendMatchCreatedNotification(targetUid, user1DisplayName, mutualMatchResult.matchId!),
+    ]);
+    notifResults.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        console.error(`[offerCreate-mutualMatch] Notification ${i} failed:`, r.reason);
+      }
+    });
+
+    return {
+      offerId: mutualMatchResult.offerId,
+      matchCreated: true,
+      matchId: mutualMatchResult.matchId,
+    };
   }
 
   // Get sender profile (for notification)
