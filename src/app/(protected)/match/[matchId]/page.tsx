@@ -290,26 +290,97 @@ export default function MatchPage() {
 
       {/* STEP 1: PRD v2.4 Location Decision View */}
       {showLocationSelection && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <LocationDecisionPanel
-            placeCandidates={placeCandidates}
-            myChoice={myChoice}
-            otherChoice={otherChoice}
-            otherChosenCandidate={otherChosenCandidate ?? null}
-            otherUserName={otherUserProfile?.displayName || 'Your buddy'}
-            formattedCountdown={formattedCountdown}
-            isSettingChoice={isSettingChoice}
-            onSelectPlace={handleSetChoice}
-            onGoWithTheirChoice={handleGoWithTheirChoice}
-            onCancel={handleCancelClick}
-            isCancelling={isCancelling}
-            isLoading={placeCandidates.length === 0}
-          />
-        </motion.div>
+        <>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <LocationDecisionPanel
+              placeCandidates={placeCandidates}
+              myChoice={myChoice}
+              otherChoice={otherChoice}
+              otherChosenCandidate={otherChosenCandidate ?? null}
+              otherUserName={otherUserProfile?.displayName || 'Your buddy'}
+              formattedCountdown={formattedCountdown}
+              isSettingChoice={isSettingChoice}
+              onSelectPlace={handleSetChoice}
+              onGoWithTheirChoice={handleGoWithTheirChoice}
+              onCancel={handleCancelClick}
+              isCancelling={isCancelling}
+              isLoading={placeCandidates.length === 0}
+            />
+          </motion.div>
+
+          {/* Safety Actions (Step 1) */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-0 shadow-lg">
+              <CardContent className="pt-6">
+                <div className="flex space-x-3">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <Flag className="mr-2 h-4 w-4" />
+                        Report
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Report User</DialogTitle>
+                        <DialogDescription>
+                          Help us keep NYU Buddy safe. Describe the issue.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                          <Label>Reason</Label>
+                          <Textarea
+                            value={reportReason}
+                            onChange={(e) => setReportReason(e.target.value)}
+                            placeholder="Describe the issue..."
+                            rows={4}
+                          />
+                        </div>
+                        <Button
+                          onClick={handleReport}
+                          disabled={!reportReason.trim() || isReporting}
+                          className="w-full"
+                        >
+                          {isReporting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            'Submit Report'
+                          )}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={handleBlock}
+                    disabled={isBlocking}
+                  >
+                    {isBlocking ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Block
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </>
       )}
 
       {/* Cancel Reason Modal */}
