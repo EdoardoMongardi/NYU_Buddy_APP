@@ -243,16 +243,6 @@
       ]
     },
     {
-      "collectionGroup": "idempotency",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "expiresAt",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "matches",
       "queryScope": "COLLECTION",
       "fields": [

@@ -26,6 +26,7 @@ import { offerExpireStaleHandler } from './offers/expireStale';
 import { checkAvailabilityForUserHandler } from './availability/checkAvailability';
 import { normalizeOfferUpdatedAtHandler } from './migrations/normalizeOfferUpdatedAt';
 import { auditPresenceMatchIdHandler } from './migrations/auditPresenceMatchId';
+import { adminForceExpireMatchHandler } from './admin/forceExpireMatch';
 import { idempotencyCleanup } from './idempotency/cleanup';
 
 // Initialize Firebase Admin
@@ -152,6 +153,12 @@ export const matchConfirmMeeting = onCall(
 export const matchCleanupExpiredConfirmations = onSchedule(
   { schedule: 'every 30 minutes', region: 'us-east1' },
   matchCleanupExpiredConfirmationsHandler
+);
+
+// Admin: Force-expire match for testing
+export const adminForceExpireMatch = onCall(
+  { region: 'us-east1' },
+  adminForceExpireMatchHandler
 );
 
 // U23: Cleanup expired idempotency records every 2 hours
