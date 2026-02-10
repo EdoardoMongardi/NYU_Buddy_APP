@@ -126,6 +126,31 @@ export async function updateMatchStatusHandler(
     console.log(`[updateMatchStatus] Restored presence for individually completed user ${uid} in match ${matchId}`);
   }
 
+  // Clean up accepted offers for this match to prevent homepage redirect loop.
+  // The useOffers real-time listener on the homepage finds offers with status='accepted'
+  // and matchId, which triggers a redirect back to the match page. Updating offers to
+  // 'completed' removes them from the query (which only fetches 'pending'/'accepted').
+  if (status === 'completed') {
+    try {
+      const offersQuery = db.collection('offers')
+        .where('matchId', '==', matchId)
+        .where('status', '==', 'accepted');
+      const offersSnapshot = await offersQuery.get();
+
+      if (!offersSnapshot.empty) {
+        await Promise.all(offersSnapshot.docs.map(doc =>
+          doc.ref.update({
+            status: 'completed',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+        ));
+        console.log(`[updateMatchStatus] Updated ${offersSnapshot.size} offer(s) to completed for match ${matchId}`);
+      }
+    } catch (offerError) {
+      console.error(`[updateMatchStatus] Failed to update offers for match ${matchId}:`, offerError);
+    }
+  }
+
   // Overall completion: restore both users' presences + release guard
   if (overallStatus === 'completed') {
     const user1PresenceRef = db.collection('presence').doc(match.user1Uid);
