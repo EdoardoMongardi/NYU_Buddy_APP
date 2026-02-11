@@ -85,6 +85,7 @@ export default function MatchPage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   // Chat hook
@@ -336,8 +337,8 @@ export default function MatchPage() {
 
       {/* STEP 1: Location Decision + Chat Drawer */}
       {showLocationSelection && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto space-y-3 p-3 pb-2">
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          <div className="flex-1 overflow-y-auto space-y-3 p-3 pb-24">
             <LocationDecisionPanel
               placeCandidates={placeCandidates}
               myChoice={myChoice}
@@ -354,34 +355,38 @@ export default function MatchPage() {
             />
           </div>
 
-          {/* Chat Drawer Toggle - positioned immediately after cards */}
-          <div className="border-t border-gray-100"
-            style={{ paddingBottom: chatDrawerOpen ? '0' : 'env(safe-area-inset-bottom, 0px)' }}
+          {/* Chat Drawer Toggle - Fixed Bottom Sheet */}
+          {/* Chat Drawer Toggle - Fixed Bottom Sheet */}
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-40 flex flex-col border-t border-gray-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
+            initial={false}
+            animate={{ height: chatDrawerOpen ? (isKeyboardOpen ? '45vh' : '65vh') : 'auto' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
           >
-            <button
-              onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-50 text-violet-600 text-sm font-medium hover:bg-violet-100 transition-colors"
+            {/* Toggle Handle */}
+            <div
+              style={{ paddingBottom: chatDrawerOpen ? '0' : 'calc(24px + env(safe-area-inset-bottom, 0px))' }}
             >
-              <MessageCircle className="h-4 w-4" />
-              Chat
-              {messages.length > 0 && (
-                <span className="bg-violet-600 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-                  {messages.length}
-                </span>
-              )}
-              {chatDrawerOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-            </button>
+              <button
+                onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-white text-violet-600 text-base font-semibold hover:bg-gray-50 transition-colors"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Chat
+                {messages.length > 0 && (
+                  <span className="bg-violet-600 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                    {messages.length}
+                  </span>
+                )}
+                {chatDrawerOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+              </button>
 
-            {/* Collapsible Chat Drawer */}
+            </div>
+
+            {/* Collapsible Chat Drawer Content */}
             <AnimatePresence>
               {chatDrawerOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: '45vh', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="overflow-hidden border-t border-gray-200 pb-0"
-                >
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   <ChatPanel
                     messages={messages}
                     currentUserUid={user?.uid || ''}
@@ -393,11 +398,13 @@ export default function MatchPage() {
                     isAtLimit={chatIsAtLimit}
                     totalCount={chatTotalCount}
                     error={chatError}
+                    onInputFocus={() => setIsKeyboardOpen(true)}
+                    onInputBlur={() => setIsKeyboardOpen(false)}
                   />
-                </motion.div>
+                </div>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
         </div>
       )}
 

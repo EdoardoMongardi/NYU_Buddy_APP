@@ -2,7 +2,7 @@
   "name": "NYU Buddy",
   "short_name": "NYU Buddy",
   "description": "Connect with NYU students for coffee, lunch, study, and more",
-  "start_url": "/",
+  "start_url": "/preview-chat-ui",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#7c3aed",

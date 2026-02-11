@@ -28,6 +28,8 @@ interface ChatPanelProps {
     // Confirmed place (only for Step 2)
     confirmedPlaceName?: string;
     confirmedPlaceAddress?: string;
+    onInputFocus?: () => void;
+    onInputBlur?: () => void;
 }
 
 // Map third-person status content to first-person for 'You' prefix
@@ -83,6 +85,8 @@ export function ChatPanel({
     onStatusUpdate,
     confirmedPlaceName,
     confirmedPlaceAddress,
+    onInputFocus,
+    onInputBlur,
 }: ChatPanelProps) {
     const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -92,6 +96,15 @@ export function ChatPanel({
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages.length]);
+
+    const handleInputFocus = () => {
+        onInputFocus?.();
+        // Scroll to bottom immediately and after delay for keyboard animation
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
+    };
 
     const handleSend = async () => {
         if (!inputValue.trim() || isSending || isAtLimit) return;
@@ -137,8 +150,10 @@ export function ChatPanel({
 
             {/* Messages area — extra padding at bottom to clear the fixed input bar */}
             <div
-                className="flex-1 overflow-y-auto px-3 py-3 space-y-1 min-h-0"
-                style={{ paddingBottom: 'calc(64px + var(--kb-height, 0px) + env(safe-area-inset-bottom, 0px))' }}
+                className="flex-1 overflow-y-auto px-3 py-3 space-y-1 min-h-0 overscroll-contain"
+                style={{
+                    paddingBottom: `calc(${myStatus && onStatusUpdate ? '114px' : '64px'} + var(--kb-height, 0px) + env(safe-area-inset-bottom, 0px))`
+                }}
             >
                 {messages.length === 0 && (
                     <div className="flex items-center justify-center h-full">
@@ -232,62 +247,69 @@ export function ChatPanel({
             )}
 
             {/* Status quick actions (Step 2 only) */}
-            {myStatus && onStatusUpdate && (
-                <div className="border-t border-gray-100 flex-shrink-0">
-                    <StatusQuickActions
-                        myStatus={myStatus}
-                        isUpdating={isUpdatingStatus || false}
-                        onStatusUpdate={onStatusUpdate}
-                    />
-                </div>
-            )}
+
 
             {/* Input area — position:fixed, sticks to keyboard on iOS */}
             <div
-                className="fixed left-0 right-0 z-50 border-t border-gray-200 bg-white"
+                className="fixed left-0 right-0 z-50 pointer-events-none"
                 style={{
                     bottom: 'calc(var(--kb-height, 0px) + env(safe-area-inset-bottom, 0px))',
                 }}
             >
-                <div className="mx-auto max-w-md px-1 py-1">
-                    <div className="flex items-end gap-2">
-                        <textarea
-                            ref={inputRef}
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={isAtLimit ? 'Message limit reached' : 'Type a message...'}
-                            disabled={isAtLimit}
-                            rows={1}
-                            className="flex-1 resize-none border border-gray-200 rounded-2xl px-3 py-2 text-sm
+                {/* Status quick actions (Step 2 only) - Moves with keyboard */}
+                {myStatus && onStatusUpdate && (
+                    <div className="pointer-events-auto">
+                        <StatusQuickActions
+                            myStatus={myStatus}
+                            isUpdating={isUpdatingStatus || false}
+                            onStatusUpdate={onStatusUpdate}
+                        />
+                    </div>
+                )}
+
+                <div className="border-t border-gray-100 bg-white pointer-events-auto">
+                    <div className="mx-auto max-w-md px-1 py-1">
+                        <div className="flex items-end gap-2">
+                            <textarea
+                                ref={inputRef}
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                onFocus={handleInputFocus}
+                                onBlur={onInputBlur}
+                                placeholder={isAtLimit ? 'Message limit reached' : 'Type a message...'}
+                                disabled={isAtLimit}
+                                rows={1}
+                                className="flex-1 resize-none border border-violet-200 rounded-2xl px-3 py-2 text-sm
                   focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent
                   disabled:bg-gray-50 disabled:text-gray-400
-                  max-h-20 overflow-y-auto"
-                            style={{ minHeight: '36px', fontSize: '16px' }}
-                        />
-                        <Button
-                            size="icon"
-                            className="rounded-full h-9 w-9 bg-violet-600 hover:bg-violet-700 flex-shrink-0"
-                            onClick={handleSend}
-                            disabled={!inputValue.trim() || isSending || isAtLimit}
-                        >
-                            <Send className="h-4 w-4" />
-                        </Button>
-                    </div>
-
-                    {/* Character count + message count */}
-                    <div className="flex justify-between px-1">
-                        {showCharCount && (
-                            <span
-                                className={`text-[10px] ${charCount > 500 ? 'text-red-500' : 'text-gray-400'
-                                    }`}
+                  max-h-20 overflow-y-auto bg-white"
+                                style={{ minHeight: '36px', fontSize: '16px' }}
+                            />
+                            <Button
+                                size="icon"
+                                className="rounded-full h-9 w-9 bg-violet-600 hover:bg-violet-700 flex-shrink-0"
+                                onClick={handleSend}
+                                disabled={!inputValue.trim() || isSending || isAtLimit}
                             >
-                                {charCount}/500
+                                <Send className="h-4 w-4" />
+                            </Button>
+                        </div>
+
+                        {/* Character count + message count */}
+                        <div className="flex justify-between px-1">
+                            {showCharCount && (
+                                <span
+                                    className={`text-[10px] ${charCount > 500 ? 'text-red-500' : 'text-gray-400'
+                                        }`}
+                                >
+                                    {charCount}/500
+                                </span>
+                            )}
+                            <span className="text-[10px] text-gray-300 ml-auto">
+                                {totalCount}/400
                             </span>
-                        )}
-                        <span className="text-[10px] text-gray-300 ml-auto">
-                            {totalCount}/400
-                        </span>
+                        </div>
                     </div>
                 </div>
             </div>
