@@ -51,7 +51,7 @@ import { useToast } from '@/hooks/use-toast';
 export default function MatchPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { presence: myPresence } = usePresence();
   const { toast } = useToast();
   const matchId = params.matchId as string;
@@ -337,7 +337,7 @@ export default function MatchPage() {
       {/* STEP 1: Location Decision + Chat Drawer */}
       {showLocationSelection && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto space-y-4 p-4">
+          <div className="overflow-y-auto space-y-3 p-3 max-h-[60vh]">
             <LocationDecisionPanel
               placeCandidates={placeCandidates}
               myChoice={myChoice}
@@ -384,7 +384,7 @@ export default function MatchPage() {
                     messages={messages}
                     currentUserUid={user?.uid || ''}
                     otherUserName={otherUserProfile?.displayName || 'Buddy'}
-                    currentUserPhotoURL={user?.photoURL}
+                    currentUserPhotoURL={userProfile?.photoURL}
                     otherUserPhotoURL={otherUserProfile?.photoURL}
                     onSendMessage={sendMessage}
                     isSending={isSending}
@@ -406,7 +406,7 @@ export default function MatchPage() {
             messages={messages}
             currentUserUid={user?.uid || ''}
             otherUserName={otherUserProfile?.displayName || 'Buddy'}
-            currentUserPhotoURL={user?.photoURL}
+            currentUserPhotoURL={userProfile?.photoURL}
             otherUserPhotoURL={otherUserProfile?.photoURL}
             onSendMessage={sendMessage}
             isSending={isSending}

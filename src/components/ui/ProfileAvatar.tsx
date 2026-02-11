@@ -16,7 +16,7 @@ interface ProfileAvatarProps {
 }
 
 const sizeClasses = {
-    xs: 'w-6 h-6',
+    xs: 'w-8 h-8',
     sm: 'w-12 h-12',
     md: 'w-20 h-20',
     lg: 'w-24 h-24',
@@ -24,7 +24,7 @@ const sizeClasses = {
 };
 
 const iconSizes = {
-    xs: 'w-3 h-3',
+    xs: 'w-4 h-4',
     sm: 'w-6 h-6',
     md: 'w-10 h-10',
     lg: 'w-12 h-12',
@@ -161,7 +161,7 @@ export function ProfileAvatar({
                         alt={displayName || 'Profile picture'}
                         fill
                         className="object-cover"
-                        sizes={`(max-width: 768px) ${size === 'xl' ? '128px' : size === 'lg' ? '96px' : size === 'md' ? '80px' : size === 'sm' ? '48px' : '24px'}`}
+                        sizes={`(max-width: 768px) ${size === 'xl' ? '128px' : size === 'lg' ? '96px' : size === 'md' ? '80px' : size === 'sm' ? '48px' : '32px'}`}
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
