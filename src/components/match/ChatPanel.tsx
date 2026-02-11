@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { StatusQuickActions } from './StatusQuickActions';
 import { ChatMessage } from '@/lib/hooks/useChat';
 import { Timestamp } from 'firebase/firestore';
@@ -12,6 +13,8 @@ interface ChatPanelProps {
     messages: ChatMessage[];
     currentUserUid: string;
     otherUserName: string;
+    currentUserPhotoURL?: string | null;
+    otherUserPhotoURL?: string | null;
     onSendMessage: (content: string) => Promise<void>;
     isSending: boolean;
     isAtLimit: boolean;
@@ -25,6 +28,14 @@ interface ChatPanelProps {
     confirmedPlaceName?: string;
     confirmedPlaceAddress?: string;
 }
+
+// Map third-person status content to first-person for 'You' prefix
+const FIRST_PERSON_STATUS: Record<string, string> = {
+    'is on the way 🚶': 'are on the way 🚶',
+    'has arrived 📍': 'have arrived 📍',
+    'marked the meetup as complete ✅': 'marked the meetup as complete ✅',
+    'cancelled the match ❌': 'cancelled the match ❌',
+};
 
 function formatTime(timestamp: Timestamp | null): string {
     if (!timestamp) return '';
@@ -59,6 +70,8 @@ export function ChatPanel({
     messages,
     currentUserUid,
     otherUserName,
+    currentUserPhotoURL,
+    otherUserPhotoURL,
     onSendMessage,
     isSending,
     isAtLimit,
@@ -158,24 +171,44 @@ export function ChatPanel({
                                             }`}
                                     >
                                         {isMine ? 'You' : otherUserName.split(' ')[0]}{' '}
-                                        {msg.content}
+                                        {isMine ? (FIRST_PERSON_STATUS[msg.content] || msg.content) : msg.content}
                                     </span>
                                 </motion.div>
                             ) : (
-                                /* Text message bubble */
+                                /* Text message bubble with avatar */
                                 <motion.div
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                                    className={`flex items-end gap-1.5 ${isMine ? 'justify-end' : 'justify-start'}`}
                                 >
+                                    {/* Other user's avatar (left side) */}
+                                    {!isMine && (
+                                        <div className="flex-shrink-0 mb-0.5">
+                                            <ProfileAvatar
+                                                photoURL={otherUserPhotoURL || null}
+                                                displayName={otherUserName}
+                                                size="xs"
+                                            />
+                                        </div>
+                                    )}
                                     <div
-                                        className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${isMine
+                                        className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${isMine
                                             ? 'bg-violet-600 text-white rounded-br-md'
                                             : 'bg-gray-100 text-gray-900 rounded-bl-md'
                                             }`}
                                     >
                                         <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                                     </div>
+                                    {/* Current user's avatar (right side) */}
+                                    {isMine && (
+                                        <div className="flex-shrink-0 mb-0.5">
+                                            <ProfileAvatar
+                                                photoURL={currentUserPhotoURL || null}
+                                                displayName="You"
+                                                size="xs"
+                                            />
+                                        </div>
+                                    )}
                                 </motion.div>
                             )}
                         </div>

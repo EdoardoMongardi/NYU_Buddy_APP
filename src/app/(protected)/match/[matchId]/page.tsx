@@ -354,11 +354,11 @@ export default function MatchPage() {
             />
           </div>
 
-          {/* Chat Drawer Toggle */}
-          <div className="flex-shrink-0">
+          {/* Chat Drawer Toggle - positioned immediately after cards */}
+          <div className="border-t border-gray-100">
             <button
               onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
-              className="w-full flex items-center justify-center gap-2 py-2 bg-violet-50 border-t border-violet-100 text-violet-600 text-sm font-medium hover:bg-violet-100 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-50 text-violet-600 text-sm font-medium hover:bg-violet-100 transition-colors"
             >
               <MessageCircle className="h-4 w-4" />
               Chat
@@ -384,6 +384,8 @@ export default function MatchPage() {
                     messages={messages}
                     currentUserUid={user?.uid || ''}
                     otherUserName={otherUserProfile?.displayName || 'Buddy'}
+                    currentUserPhotoURL={user?.photoURL}
+                    otherUserPhotoURL={otherUserProfile?.photoURL}
                     onSendMessage={sendMessage}
                     isSending={isSending}
                     isAtLimit={chatIsAtLimit}
@@ -404,6 +406,8 @@ export default function MatchPage() {
             messages={messages}
             currentUserUid={user?.uid || ''}
             otherUserName={otherUserProfile?.displayName || 'Buddy'}
+            currentUserPhotoURL={user?.photoURL}
+            otherUserPhotoURL={otherUserProfile?.photoURL}
             onSendMessage={sendMessage}
             isSending={isSending}
             isAtLimit={chatIsAtLimit}
