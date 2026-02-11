@@ -11,7 +11,6 @@ import {
   Flag,
   Ban,
   MessageCircle,
-  Coffee,
   MoreVertical,
   ChevronUp,
   ChevronDown,
@@ -51,12 +50,6 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { usePresence } from '@/lib/hooks/usePresence';
 import { useToast } from '@/hooks/use-toast';
 
-const STATUS_STEPS = [
-  { key: 'pending', label: 'Matched', icon: Check },
-  { key: 'heading_there', label: 'On the way', icon: Navigation },
-  { key: 'arrived', label: 'Arrived', icon: MapPin },
-  { key: 'completed', label: 'Complete', icon: Coffee },
-];
 
 export default function MatchPage() {
   const params = useParams();
