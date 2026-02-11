@@ -236,7 +236,7 @@ export function ChatPanel({
             )}
 
             {/* Input area */}
-            <div className="border-t border-gray-200 p-1 flex-shrink-0">
+            <div className="border-t border-gray-200 p-1 flex-shrink-0 bg-violet-50">
                 <div className="flex items-end gap-2">
                     <textarea
                         ref={inputRef}

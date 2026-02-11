@@ -375,10 +375,10 @@ export default function MatchPage() {
               {chatDrawerOpen && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: '55vh', opacity: 1 }}
+                  animate={{ height: '45vh', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="overflow-hidden border-t border-gray-200"
+                  className="overflow-hidden border-t border-gray-200 pb-0"
                 >
                   <ChatPanel
                     messages={messages}
@@ -401,7 +401,7 @@ export default function MatchPage() {
 
       {/* STEP 2: Full Chat View with Status Pills */}
       {!showLocationSelection && (
-        <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-gray-200 bg-white">
+        <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-gray-200 bg-white pb-0">
           <ChatPanel
             messages={messages}
             currentUserUid={user?.uid || ''}
