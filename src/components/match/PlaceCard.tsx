@@ -22,6 +22,7 @@ interface PlaceCardProps {
     isOtherChoice: boolean;
     isLoading: boolean;
     onSelect: () => void;
+    compact?: boolean;
 }
 
 function getTagIcon(tag: string) {
@@ -38,11 +39,57 @@ export function PlaceCard({
     isOtherChoice,
     isLoading,
     onSelect,
+    compact = false,
 }: PlaceCardProps) {
     // U11: Prefer priceRange text over priceLevel number. If no priceRange, show just icon (no text)
     const priceDisplay = place.priceRange || '';
     const tags = place.tags || ['WiFi', 'Outlets'];
     const photoUrl = place.photoUrl || DEFAULT_PLACE_IMAGE;
+
+    // Compact mode for side-by-side grid
+    if (compact) {
+        return (
+            <div
+                className={`rounded-xl border-2 p-3 transition-all ${isSelected
+                        ? 'border-green-500 bg-green-50'
+                        : isOtherChoice
+                            ? 'border-orange-300 bg-orange-50'
+                            : 'border-gray-200 bg-white'
+                    }`}
+            >
+                <div className="flex items-start gap-2">
+                    <Badge className="bg-black/70 text-white border-0 text-[10px] shrink-0">
+                        #{place.rank}
+                    </Badge>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 text-xs leading-tight truncate">
+                            {place.name}
+                        </h3>
+                        <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                            <MapPin className="w-2.5 h-2.5 inline mr-0.5" />
+                            {place.distance}m
+                        </p>
+                    </div>
+                </div>
+                {isSelected && (
+                    <div className="mt-2 flex items-center gap-1 text-green-600">
+                        <Check className="w-3 h-3" />
+                        <span className="text-[10px] font-medium">Selected</span>
+                    </div>
+                )}
+                {isOtherChoice && !isSelected && (
+                    <Button
+                        onClick={onSelect}
+                        disabled={isLoading}
+                        size="sm"
+                        className="w-full mt-2 h-7 text-[10px] bg-orange-500 hover:bg-orange-600"
+                    >
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Go with this'}
+                    </Button>
+                )}
+            </div>
+        );
+    }
 
     return (
         <motion.div

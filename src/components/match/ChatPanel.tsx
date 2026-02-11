@@ -153,8 +153,8 @@ export function ChatPanel({
                                 >
                                     <span
                                         className={`text-xs px-3 py-1 rounded-full ${isMine
-                                                ? 'bg-violet-50 text-violet-600'
-                                                : 'bg-emerald-50 text-emerald-600'
+                                            ? 'bg-violet-50 text-violet-600'
+                                            : 'bg-emerald-50 text-emerald-600'
                                             }`}
                                     >
                                         {isMine ? 'You' : otherUserName.split(' ')[0]}{' '}
@@ -170,8 +170,8 @@ export function ChatPanel({
                                 >
                                     <div
                                         className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${isMine
-                                                ? 'bg-violet-600 text-white rounded-br-md'
-                                                : 'bg-gray-100 text-gray-900 rounded-bl-md'
+                                            ? 'bg-violet-600 text-white rounded-br-md'
+                                            : 'bg-gray-100 text-gray-900 rounded-bl-md'
                                             }`}
                                     >
                                         <p className="whitespace-pre-wrap break-words">{msg.content}</p>
@@ -217,7 +217,7 @@ export function ChatPanel({
               focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent
               disabled:bg-gray-50 disabled:text-gray-400
               max-h-20 overflow-y-auto"
-                        style={{ minHeight: '36px' }}
+                        style={{ minHeight: '36px', fontSize: '16px' }}
                     />
                     <Button
                         size="icon"
