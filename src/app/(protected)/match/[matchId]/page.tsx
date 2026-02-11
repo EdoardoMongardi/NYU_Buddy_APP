@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin,
   Navigation,
@@ -12,6 +12,10 @@ import {
   Ban,
   MessageCircle,
   Coffee,
+  MoreVertical,
+  ChevronUp,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
@@ -28,15 +32,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { LocationDecisionPanel } from '@/components/match/LocationDecisionPanel';
 import { CancelReasonModal } from '@/components/match/CancelReasonModal';
+import { ChatPanel } from '@/components/match/ChatPanel';
 
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { matchCancel } from '@/lib/firebase/functions';
 import { useMatch } from '@/lib/hooks/useMatch';
 import { useLocationDecision } from '@/lib/hooks/useLocationDecision';
+import { useChat } from '@/lib/hooks/useChat';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePresence } from '@/lib/hooks/usePresence';
 import { useToast } from '@/hooks/use-toast';
@@ -84,6 +97,18 @@ export default function MatchPage() {
   const [isBlocking, setIsBlocking] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+
+  // Chat hook
+  const {
+    messages,
+    sendMessage,
+    isSending,
+    error: chatError,
+    totalCount: chatTotalCount,
+    isAtLimit: chatIsAtLimit,
+  } = useChat(matchId);
 
   const handleStatusUpdate = async (
     status: 'heading_there' | 'arrived' | 'completed'
@@ -181,16 +206,19 @@ export default function MatchPage() {
     }
   };
 
-  // If match becomes cancelled or expired via listener, redirect immediately
+  // If match becomes terminal via listener, redirect immediately
   useEffect(() => {
-    if (match?.status === 'cancelled') {
-      console.log('Match status changed to cancelled in background, redirecting...');
-      const reason = cancellationReason || 'cancelled';
-      window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
-    }
-    if (match?.status === 'expired_pending_confirmation') {
-      console.log('Match expired pending confirmation, redirecting to homepage...');
-      window.location.href = '/';
+    if (!match?.status) return;
+    const terminalStatuses = ['cancelled', 'completed', 'expired_pending_confirmation'];
+    if (terminalStatuses.includes(match.status)) {
+      if (match.status === 'cancelled') {
+        console.log('Match status changed to cancelled in background, redirecting...');
+        const reason = cancellationReason || 'cancelled';
+        window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
+      } else {
+        console.log(`Match status changed to ${match.status}, redirecting to homepage...`);
+        window.location.href = '/';
+      }
     }
   }, [match?.status, cancellationReason]);
 
@@ -249,57 +277,83 @@ export default function MatchPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
-      {/* Match Header - Always Visible */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card className="border-0 shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white">
-            <div className="flex items-center space-x-4">
-              <ProfileAvatar
-                photoURL={otherUserProfile?.photoURL}
-                displayName={otherUserProfile?.displayName}
-                size="lg"
-              />
-              <div>
-                <h2 className="text-xl font-bold">
-                  {otherUserProfile?.displayName || 'Your Buddy'}
-                </h2>
-                <p className="text-white/80 text-sm">
-                  Matched {match.matchedAt?.toDate().toLocaleDateString()}
-                </p>
-              </div>
-            </div>
+    <div className="max-w-md mx-auto flex flex-col" style={{ height: 'calc(100dvh - 5rem)' }}>
+      {/* Compact Match Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-500 to-purple-600 rounded-t-xl flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <ProfileAvatar
+            photoURL={otherUserProfile?.photoURL}
+            displayName={otherUserProfile?.displayName}
+            size="sm"
+          />
+          <div>
+            <h2 className="text-sm font-semibold text-white">
+              {otherUserProfile?.displayName || 'Your Buddy'}
+            </h2>
+            <p className="text-[10px] text-white/60">
+              Matched {match.matchedAt?.toDate().toLocaleDateString()}
+            </p>
           </div>
+        </div>
 
-          <CardContent className="p-6">
-            {/* Interests */}
+        {/* Overflow menu with safety actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {/* Profile info */}
             {otherUserProfile && otherUserProfile.interests.length > 0 && (
-              <div className="mb-4">
-                <p className="text-sm text-gray-500 mb-2">Interests:</p>
-                <div className="flex flex-wrap gap-2">
-                  {otherUserProfile.interests.slice(0, 5).map((interest) => (
-                    <Badge key={interest} variant="secondary">
-                      {interest}
-                    </Badge>
-                  ))}
+              <>
+                <div className="px-2 py-1.5">
+                  <p className="text-xs text-gray-500 mb-1">Interests</p>
+                  <div className="flex flex-wrap gap-1">
+                    {otherUserProfile.interests.slice(0, 5).map((interest) => (
+                      <Badge key={interest} variant="secondary" className="text-[10px]">
+                        {interest}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
+                <DropdownMenuSeparator />
+              </>
             )}
-          </CardContent>
-        </Card>
-      </motion.div>
+            {/* Cancel match */}
+            {match?.status !== 'completed' && (
+              <DropdownMenuItem
+                onClick={handleCancelClick}
+                disabled={isCancelling}
+                className="text-red-600 focus:text-red-600"
+              >
+                {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                Cancel Match
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            {/* Report */}
+            <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
+              <Flag className="h-4 w-4 mr-2" />
+              Report
+            </DropdownMenuItem>
+            {/* Block */}
+            <DropdownMenuItem
+              onClick={handleBlock}
+              disabled={isBlocking}
+              className="text-red-600 focus:text-red-600"
+            >
+              {isBlocking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ban className="h-4 w-4 mr-2" />}
+              Block
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
-      {/* STEP 1: PRD v2.4 Location Decision View */}
+      {/* STEP 1: Location Decision + Chat Drawer */}
       {showLocationSelection && (
-        <>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto space-y-4 p-4">
             <LocationDecisionPanel
               placeCandidates={placeCandidates}
               myChoice={myChoice}
@@ -314,79 +368,83 @@ export default function MatchPage() {
               isCancelling={isCancelling}
               isLoading={placeCandidates.length === 0}
             />
-          </motion.div>
+          </div>
 
-          {/* Safety Actions (Step 1) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="border-0 shadow-lg">
-              <CardContent className="pt-6">
-                <div className="flex space-x-3">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Flag className="mr-2 h-4 w-4" />
-                        Report
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Report User</DialogTitle>
-                        <DialogDescription>
-                          Help us keep NYU Buddy safe. Describe the issue.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 pt-4">
-                        <div className="space-y-2">
-                          <Label>Reason</Label>
-                          <Textarea
-                            value={reportReason}
-                            onChange={(e) => setReportReason(e.target.value)}
-                            placeholder="Describe the issue..."
-                            rows={4}
-                          />
-                        </div>
-                        <Button
-                          onClick={handleReport}
-                          disabled={!reportReason.trim() || isReporting}
-                          className="w-full"
-                        >
-                          {isReporting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            'Submit Report'
-                          )}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+          {/* Chat Drawer Toggle */}
+          <div className="flex-shrink-0">
+            <button
+              onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
+              className="w-full flex items-center justify-center gap-2 py-2 bg-violet-50 border-t border-violet-100 text-violet-600 text-sm font-medium hover:bg-violet-100 transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Chat
+              {messages.length > 0 && (
+                <span className="bg-violet-600 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                  {messages.length}
+                </span>
+              )}
+              {chatDrawerOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+            </button>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={handleBlock}
-                    disabled={isBlocking}
-                  >
-                    {isBlocking ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Ban className="mr-2 h-4 w-4" />
-                        Block
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </>
+            {/* Collapsible Chat Drawer */}
+            <AnimatePresence>
+              {chatDrawerOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: '55vh', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className="overflow-hidden border-t border-gray-200"
+                >
+                  <ChatPanel
+                    messages={messages}
+                    currentUserUid={user?.uid || ''}
+                    otherUserName={otherUserProfile?.displayName || 'Buddy'}
+                    onSendMessage={sendMessage}
+                    isSending={isSending}
+                    isAtLimit={chatIsAtLimit}
+                    totalCount={chatTotalCount}
+                    error={chatError}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       )}
 
+      {/* STEP 2: Full Chat View with Status Pills */}
+      {!showLocationSelection && (
+        <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-gray-200 bg-white">
+          <ChatPanel
+            messages={messages}
+            currentUserUid={user?.uid || ''}
+            otherUserName={otherUserProfile?.displayName || 'Buddy'}
+            onSendMessage={sendMessage}
+            isSending={isSending}
+            isAtLimit={chatIsAtLimit}
+            totalCount={chatTotalCount}
+            error={chatError}
+            confirmedPlaceName={match.confirmedPlaceName}
+            confirmedPlaceAddress={match.confirmedPlaceAddress || undefined}
+            myStatus={myStatus || undefined}
+            isUpdatingStatus={isUpdating}
+            onStatusUpdate={handleStatusUpdate}
+          />
+          {/* Feedback link after individual completion */}
+          {myStatus === 'completed' && (
+            <div className="px-3 py-2 bg-violet-50 border-t border-violet-100 text-center">
+              <button
+                onClick={() => router.push(`/feedback/${matchId}`)}
+                className="text-xs text-violet-600 font-medium hover:underline"
+              >
+                <MessageCircle className="h-3 w-3 inline mr-1" />
+                Leave Feedback
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {/* Cancel Reason Modal */}
       <CancelReasonModal
         open={cancelModalOpen}
@@ -395,240 +453,43 @@ export default function MatchPage() {
         isCancelling={isCancelling}
       />
 
-      {/* STEP 2: Meetup Status View */}
-      {!showLocationSelection && (
-        <>
-          {/* Confirmed Place Display */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="border-0 shadow-lg border-green-200 bg-green-50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Check className="w-5 h-5 text-green-600" />
-                  Meeting Location
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start space-x-3 p-3 bg-white rounded-lg">
-                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900">{match.confirmedPlaceName}</p>
-                    <p className="text-sm text-gray-500 truncate">
-                      {match.confirmedPlaceAddress}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+      {/* Report Dialog (triggered from overflow menu) */}
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report User</DialogTitle>
+            <DialogDescription>
+              Help us keep NYU Buddy safe. Describe the issue.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                placeholder="Describe the issue..."
+                rows={4}
+              />
+            </div>
+            <Button
+              onClick={() => { handleReport(); setReportDialogOpen(false); }}
+              disabled={!reportReason.trim() || isReporting}
+              className="w-full"
+            >
+              {isReporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Submit Report'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-          {/* Status Progress */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-lg">Meetup Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between mb-6">
-                  {STATUS_STEPS.map((step, index) => {
-                    const Icon = step.icon;
-                    const isActive = index <= currentStatusIndex;
-                    const isCurrent = step.key === match.status;
-
-                    return (
-                      <div
-                        key={step.key}
-                        className="flex flex-col items-center space-y-2"
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isActive
-                            ? 'bg-violet-600 text-white'
-                            : 'bg-gray-100 text-gray-400'
-                            } ${isCurrent ? 'ring-2 ring-violet-300 ring-offset-2' : ''}`}
-                        >
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <span
-                          className={`text-xs ${isActive ? 'text-violet-600 font-medium' : 'text-gray-400'
-                            }`}
-                        >
-                          {step.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Status Update Buttons */}
-                <div className="space-y-3">
-                  {myStatus === 'pending' && (
-                    <Button
-                      className="w-full bg-gradient-to-r from-violet-600 to-purple-600"
-                      onClick={() => handleStatusUpdate('heading_there')}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Navigation className="mr-2 h-4 w-4" />
-                          I&apos;m on my way
-                        </>
-                      )}
-                    </Button>
-                  )}
-
-                  {myStatus === 'heading_there' && (
-                    <Button
-                      className="w-full bg-gradient-to-r from-violet-600 to-purple-600"
-                      onClick={() => handleStatusUpdate('arrived')}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <MapPin className="mr-2 h-4 w-4" />
-                          I&apos;ve arrived
-                        </>
-                      )}
-                    </Button>
-                  )}
-
-                  {myStatus === 'arrived' && (
-                    <Button
-                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600"
-                      onClick={() => handleStatusUpdate('completed')}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Check className="mr-2 h-4 w-4" />
-                          Complete Meetup
-                        </>
-                      )}
-                    </Button>
-                  )}
-
-                  {myStatus === 'completed' && (
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      onClick={() => router.push(`/feedback/${matchId}`)}
-                    >
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      Leave Feedback
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Safety Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            <Card className="border-0 shadow-lg">
-              <CardContent className="pt-6">
-                {/* Cancel Button (Step 2) */}
-                {match.status !== 'completed' && (
-                  <div className="mb-4">
-                    <Button
-                      variant="outline"
-                      className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                      onClick={handleCancelClick}
-                      disabled={isCancelling}
-                    >
-                      {isCancelling ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : null}
-                      Cancel Match
-                    </Button>
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      Cancelling now will affect your reliability score
-                    </p>
-                  </div>
-                )}
-                <Separator className="mb-4" />
-                <div className="flex space-x-3">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Flag className="mr-2 h-4 w-4" />
-                        Report
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Report User</DialogTitle>
-                        <DialogDescription>
-                          Help us keep NYU Buddy safe. Describe the issue.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 pt-4">
-                        <div className="space-y-2">
-                          <Label>Reason</Label>
-                          <Textarea
-                            value={reportReason}
-                            onChange={(e) => setReportReason(e.target.value)}
-                            placeholder="Describe the issue..."
-                            rows={4}
-                          />
-                        </div>
-                        <Button
-                          onClick={handleReport}
-                          disabled={!reportReason.trim() || isReporting}
-                          className="w-full"
-                        >
-                          {isReporting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            'Submit Report'
-                          )}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={handleBlock}
-                    disabled={isBlocking}
-                  >
-                    {isBlocking ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Ban className="mr-2 h-4 w-4" />
-                        Block
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </>
-      )}
       {/* Debug Info - development only */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono break-all">
+        <div className="mt-2 p-4 bg-gray-100 rounded-lg text-xs font-mono break-all flex-shrink-0">
           <h4 className="font-bold mb-2">Debug Info</h4>
           <p>My Stored Location (from DB): {myPresence ? `${myPresence.lat.toFixed(5)}, ${myPresence.lng.toFixed(5)}` : 'Loading...'}</p>
           <div className="mt-2">

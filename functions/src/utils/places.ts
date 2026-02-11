@@ -11,7 +11,7 @@ import * as geofire from 'geofire-common';
 export const HARD_CAP = 9;
 export const SOFT_MIN = 6;
 export const SEARCH_RADII_KM = [2, 3, 5];
-export const LOCATION_DECISION_SECONDS = 120;
+export const LOCATION_DECISION_SECONDS = 600;
 export const LOCATION_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
 export interface PlaceCandidate {

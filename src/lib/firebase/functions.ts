@@ -101,6 +101,12 @@ export const updateMatchStatus = createCallable<
   { success: boolean }
 >('updateMatchStatus');
 
+// Match Chat function
+export const matchSendMessage = createCallable<
+  { matchId: string; content: string },
+  { success: boolean; messageId: string }
+>('matchSendMessage');
+
 // "Did you meet?" confirmation function
 export const matchConfirmMeeting = createCallable<
   { matchId: string; response: 'met' | 'not_met' | 'dismissed' },

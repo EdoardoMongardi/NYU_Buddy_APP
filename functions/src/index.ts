@@ -15,6 +15,7 @@ import { offersGetInboxHandler } from './offers/getInbox';
 import { offerGetOutgoingHandler } from './offers/getOutgoing';
 import { matchCancelHandler } from './matches/cancel';
 import { updateMatchStatusHandler } from './matches/updateStatus';
+import { matchSendMessageHandler } from './matches/sendMessage';
 import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
 import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
@@ -69,6 +70,12 @@ export const suggestionPass = onCall(
 export const updateMatchStatus = onCall(
   { region: 'us-east1' },
   updateMatchStatusHandler
+);
+
+// Match Chat function
+export const matchSendMessage = onCall(
+  { region: 'us-east1' },
+  matchSendMessageHandler
 );
 
 // Offer functions

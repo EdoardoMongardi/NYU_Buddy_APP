@@ -221,6 +221,21 @@ export async function cancelMatchInternal(
     console.error(`[cancelMatchInternal] Failed to release guard for match ${matchId}:`, guardError);
   }
 
+  // POST-TRANSACTION: Append cancellation announcement to chat (non-critical).
+  // If this fails, the cancellation itself already succeeded atomically.
+  try {
+    await db.collection('matches').doc(matchId).collection('messages').add({
+      type: 'status',
+      senderUid: cancelledBy,
+      content: 'left the meetup',
+      statusValue: 'cancelled',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`[cancelMatchInternal] Cancellation announcement written for match ${matchId}`);
+  } catch (msgError) {
+    console.error(`[cancelMatchInternal] Failed to write cancellation message (non-critical):`, msgError);
+  }
+
   console.log(`[cancelMatchInternal] Successfully cancelled match ${matchId}`);
   return {
     success: true,

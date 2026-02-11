@@ -217,5 +217,25 @@ export async function updateMatchStatusHandler(
     }
   }
 
+  // POST-TRANSACTION: Append status announcement to chat (non-critical).
+  // If this fails, the status update itself already succeeded atomically.
+  try {
+    const statusLabels: Record<string, string> = {
+      heading_there: 'is on the way 🚶',
+      arrived: 'has arrived 📍',
+      completed: 'completed the meetup ✅',
+    };
+    await db.collection('matches').doc(matchId).collection('messages').add({
+      type: 'status',
+      senderUid: uid,
+      content: statusLabels[status] || status,
+      statusValue: status,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`[updateMatchStatus] Status announcement written for ${status} by ${uid}`);
+  } catch (msgError) {
+    console.error(`[updateMatchStatus] Failed to write status message (non-critical):`, msgError);
+  }
+
   return { success: true };
 }
