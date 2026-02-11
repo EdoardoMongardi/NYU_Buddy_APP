@@ -3,66 +3,65 @@
 import { useEffect, useCallback } from 'react';
 
 /**
- * Hook that uses the VisualViewport API to track iOS keyboard height
- * and set a CSS custom property `--kb-shift` on the document root.
- *
- * On iOS Safari, `window.visualViewport.height` shrinks when the keyboard
- * opens, while `window.innerHeight` stays at the layout viewport height.
- * This difference is the keyboard height.
- *
- * Components can use `transform: translateY(var(--kb-shift, 0px))` to
- * "follow" the keyboard, eliminating the gap between input and keyboard.
- *
- * Also locks body scroll to prevent iOS from pushing the entire page up.
+ * Detects whether we're running on iOS Safari / WebView.
+ * We gate the keyboard-follow logic to iOS only because:
+ * - Android Chrome handles keyboard resize correctly via native viewport adjustment
+ * - Desktop browsers don't have virtual keyboards
+ * - Only iOS Safari has the layout-viewport vs visual-viewport mismatch that causes the gap
  */
-export function useKeyboardFollow(enabled = true) {
-    const setShift = useCallback(() => {
+function isIOS(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+/**
+ * Hook that uses the VisualViewport API to track iOS keyboard height
+ * and set a CSS custom property `--kb-height` on the document root.
+ *
+ * Consumers should use:
+ *   bottom: calc(var(--kb-height, 0px) + env(safe-area-inset-bottom, 0px))
+ * on a `position: fixed` element to follow the keyboard.
+ *
+ * On non-iOS platforms, --kb-height stays at 0px so nothing changes.
+ * We do NOT lock body overflow here — scroll containment is handled
+ * via CSS on the chat containers themselves (overflow-hidden on parents,
+ * overflow-y-auto on message list).
+ */
+export function useIOSKeyboard(enabled = true) {
+    const setHeight = useCallback(() => {
         const vv = window.visualViewport;
         if (!vv) return;
 
-        // Amount the visual viewport is smaller than the layout viewport
-        // = keyboard height + any toolbar/prediction bar
-        const keyboardHeight = Math.max(
+        // On iOS, visualViewport.height shrinks when keyboard opens.
+        // innerHeight stays at layout viewport height.
+        // The difference = keyboard height (including prediction bar / Done toolbar).
+        const kbHeight = Math.max(
             0,
             window.innerHeight - vv.height - vv.offsetTop
         );
 
         document.documentElement.style.setProperty(
-            '--kb-shift',
-            `-${keyboardHeight}px`
-        );
-
-        // Also set the visual viewport height for containers that need it
-        document.documentElement.style.setProperty(
-            '--vv-height',
-            `${vv.height}px`
+            '--kb-height',
+            `${kbHeight}px`
         );
     }, []);
 
     useEffect(() => {
         if (!enabled) return;
+        if (!isIOS()) return; // No-op on non-iOS
 
         const vv = window.visualViewport;
         if (!vv) return;
 
-        // Lock body scroll to prevent iOS page push
-        const prevOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-
-        setShift();
-        vv.addEventListener('resize', setShift);
-        vv.addEventListener('scroll', setShift);
-        window.addEventListener('orientationchange', setShift);
+        setHeight();
+        vv.addEventListener('resize', setHeight);
+        vv.addEventListener('scroll', setHeight);
 
         return () => {
-            vv.removeEventListener('resize', setShift);
-            vv.removeEventListener('scroll', setShift);
-            window.removeEventListener('orientationchange', setShift);
-            document.body.style.overflow = prevOverflow;
-
-            // Reset CSS vars
-            document.documentElement.style.removeProperty('--kb-shift');
-            document.documentElement.style.removeProperty('--vv-height');
+            vv.removeEventListener('resize', setHeight);
+            vv.removeEventListener('scroll', setHeight);
+            document.documentElement.style.removeProperty('--kb-height');
         };
-    }, [enabled, setShift]);
+    }, [enabled, setHeight]);
 }

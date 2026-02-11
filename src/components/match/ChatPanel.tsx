@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { StatusQuickActions } from './StatusQuickActions';
 import { ChatMessage } from '@/lib/hooks/useChat';
-import { useKeyboardFollow } from '@/lib/hooks/useKeyboardFollow';
+import { useIOSKeyboard } from '@/lib/hooks/useKeyboardFollow';
 import { Timestamp } from 'firebase/firestore';
 
 interface ChatPanelProps {
@@ -111,8 +111,8 @@ export function ChatPanel({
     const charCount = inputValue.trim().length;
     const showCharCount = charCount > 400;
 
-    // iOS keyboard follow — shifts input to track keyboard
-    useKeyboardFollow(true);
+    // iOS keyboard follow — sets --kb-height CSS var on iOS
+    useIOSKeyboard(true);
 
     return (
         <div className="flex flex-col h-full">
@@ -135,8 +135,11 @@ export function ChatPanel({
                 </div>
             )}
 
-            {/* Messages area */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 min-h-0">
+            {/* Messages area — extra padding at bottom to clear the fixed input bar */}
+            <div
+                className="flex-1 overflow-y-auto px-3 py-3 space-y-1 min-h-0"
+                style={{ paddingBottom: 'calc(64px + var(--kb-height, 0px) + env(safe-area-inset-bottom, 0px))' }}
+            >
                 {messages.length === 0 && (
                     <div className="flex items-center justify-center h-full">
                         <p className="text-sm text-gray-400">
@@ -239,53 +242,53 @@ export function ChatPanel({
                 </div>
             )}
 
-            {/* Input area - follows iOS keyboard via transform */}
+            {/* Input area — position:fixed, sticks to keyboard on iOS */}
             <div
-                className="border-t border-gray-200 px-1 py-1 flex-shrink-0 bg-white"
+                className="fixed left-0 right-0 z-50 border-t border-gray-200 bg-white"
                 style={{
-                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-                    transform: 'translateY(var(--kb-shift, 0px))',
-                    willChange: 'transform',
+                    bottom: 'calc(var(--kb-height, 0px) + env(safe-area-inset-bottom, 0px))',
                 }}
             >
-                <div className="flex items-end gap-2">
-                    <textarea
-                        ref={inputRef}
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder={isAtLimit ? 'Message limit reached' : 'Type a message...'}
-                        disabled={isAtLimit}
-                        rows={1}
-                        className="flex-1 resize-none border border-gray-200 rounded-2xl px-3 py-2 text-sm
-              focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent
-              disabled:bg-gray-50 disabled:text-gray-400
-              max-h-20 overflow-y-auto"
-                        style={{ minHeight: '36px', fontSize: '16px' }}
-                    />
-                    <Button
-                        size="icon"
-                        className="rounded-full h-9 w-9 bg-violet-600 hover:bg-violet-700 flex-shrink-0"
-                        onClick={handleSend}
-                        disabled={!inputValue.trim() || isSending || isAtLimit}
-                    >
-                        <Send className="h-4 w-4" />
-                    </Button>
-                </div>
-
-                {/* Character count + message count */}
-                <div className="flex justify-between px-1">
-                    {showCharCount && (
-                        <span
-                            className={`text-[10px] ${charCount > 500 ? 'text-red-500' : 'text-gray-400'
-                                }`}
+                <div className="mx-auto max-w-md px-1 py-1">
+                    <div className="flex items-end gap-2">
+                        <textarea
+                            ref={inputRef}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder={isAtLimit ? 'Message limit reached' : 'Type a message...'}
+                            disabled={isAtLimit}
+                            rows={1}
+                            className="flex-1 resize-none border border-gray-200 rounded-2xl px-3 py-2 text-sm
+                  focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-transparent
+                  disabled:bg-gray-50 disabled:text-gray-400
+                  max-h-20 overflow-y-auto"
+                            style={{ minHeight: '36px', fontSize: '16px' }}
+                        />
+                        <Button
+                            size="icon"
+                            className="rounded-full h-9 w-9 bg-violet-600 hover:bg-violet-700 flex-shrink-0"
+                            onClick={handleSend}
+                            disabled={!inputValue.trim() || isSending || isAtLimit}
                         >
-                            {charCount}/500
+                            <Send className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    {/* Character count + message count */}
+                    <div className="flex justify-between px-1">
+                        {showCharCount && (
+                            <span
+                                className={`text-[10px] ${charCount > 500 ? 'text-red-500' : 'text-gray-400'
+                                    }`}
+                            >
+                                {charCount}/500
+                            </span>
+                        )}
+                        <span className="text-[10px] text-gray-300 ml-auto">
+                            {totalCount}/400
                         </span>
-                    )}
-                    <span className="text-[10px] text-gray-300 ml-auto">
-                        {totalCount}/400
-                    </span>
+                    </div>
                 </div>
             </div>
         </div>

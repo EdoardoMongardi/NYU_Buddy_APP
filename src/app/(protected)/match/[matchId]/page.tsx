@@ -355,7 +355,9 @@ export default function MatchPage() {
           </div>
 
           {/* Chat Drawer Toggle - positioned immediately after cards */}
-          <div className="border-t border-gray-100">
+          <div className="border-t border-gray-100"
+            style={{ paddingBottom: chatDrawerOpen ? '0' : 'env(safe-area-inset-bottom, 0px)' }}
+          >
             <button
               onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-50 text-violet-600 text-sm font-medium hover:bg-violet-100 transition-colors"
@@ -401,7 +403,7 @@ export default function MatchPage() {
 
       {/* STEP 2: Full Chat View with Status Pills */}
       {!showLocationSelection && (
-        <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-gray-200 bg-white pb-0">
+        <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-gray-200 bg-white">
           <ChatPanel
             messages={messages}
             currentUserUid={user?.uid || ''}
