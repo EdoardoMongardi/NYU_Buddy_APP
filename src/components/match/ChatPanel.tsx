@@ -231,25 +231,22 @@ export function ChatPanel({
                 </div>
             )}
 
-            {/* Status quick actions (Step 2 only) */}
-            {myStatus && onStatusUpdate && (
-                <div className="border-t border-gray-100 flex-shrink-0">
-                    <StatusQuickActions
-                        myStatus={myStatus}
-                        isUpdating={isUpdatingStatus || false}
-                        onStatusUpdate={onStatusUpdate}
-                    />
-                </div>
-            )}
-
             {/* Input area — position:fixed, sticks to keyboard on iOS */}
             <div
-                className="fixed left-0 right-0 z-50 border-t border-gray-200 bg-white"
+                className="fixed left-0 right-0 z-50 border-t border-gray-200 bg-violet-50"
                 style={{
                     bottom: 'calc(var(--kb-height, 0px) + env(safe-area-inset-bottom, 0px))',
                 }}
             >
                 <div className="mx-auto max-w-md px-1 py-1">
+                    {/* Status quick actions (Step 2 only) — inside fixed bar so keyboard never covers them */}
+                    {myStatus && onStatusUpdate && (
+                        <StatusQuickActions
+                            myStatus={myStatus}
+                            isUpdating={isUpdatingStatus || false}
+                            onStatusUpdate={onStatusUpdate}
+                        />
+                    )}
                     <div className="flex items-end gap-2">
                         <textarea
                             ref={inputRef}
