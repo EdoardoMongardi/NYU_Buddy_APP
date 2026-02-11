@@ -336,9 +336,8 @@ export default function MatchPage() {
 
       {/* STEP 1: Location Decision + Chat Drawer */}
       {showLocationSelection && (
-        <div className="flex-1 overflow-y-auto">
-          {/* Location cards */}
-          <div className="space-y-3 p-3 pb-2">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto space-y-3 p-3 pb-2">
             <LocationDecisionPanel
               placeCandidates={placeCandidates}
               myChoice={myChoice}
@@ -355,7 +354,7 @@ export default function MatchPage() {
             />
           </div>
 
-          {/* Chat Drawer Toggle - flows naturally after cards */}
+          {/* Chat Drawer Toggle - positioned immediately after cards */}
           <div className="border-t border-gray-100"
             style={{ paddingBottom: chatDrawerOpen ? '0' : 'env(safe-area-inset-bottom, 0px)' }}
           >
@@ -378,10 +377,10 @@ export default function MatchPage() {
               {chatDrawerOpen && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: '40vh', opacity: 1 }}
+                  animate={{ height: '45vh', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="overflow-hidden border-t border-gray-200"
+                  className="overflow-hidden border-t border-gray-200 pb-0"
                 >
                   <ChatPanel
                     messages={messages}
