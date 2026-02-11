@@ -21,8 +21,6 @@ import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import {
   Dialog,
@@ -30,7 +28,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -252,9 +249,6 @@ export default function MatchPage() {
     }
   };
 
-  const currentStatusIndex = STATUS_STEPS.findIndex(
-    (s) => s.key === match?.status
-  );
 
   // 2-Step View Logic
   const showLocationSelection = !match?.confirmedPlaceName;
