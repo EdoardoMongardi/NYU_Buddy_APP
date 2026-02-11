@@ -4,9 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  MapPin,
-  Navigation,
-  Check,
   Loader2,
   Flag,
   Ban,
