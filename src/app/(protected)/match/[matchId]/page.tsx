@@ -337,7 +337,7 @@ export default function MatchPage() {
       {/* STEP 1: Location Decision + Chat Drawer */}
       {showLocationSelection && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="overflow-y-auto space-y-3 p-3 max-h-[60vh]">
+          <div className="flex-1 overflow-y-auto space-y-3 p-3 pb-2">
             <LocationDecisionPanel
               placeCandidates={placeCandidates}
               myChoice={myChoice}

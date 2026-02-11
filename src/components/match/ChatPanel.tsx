@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { StatusQuickActions } from './StatusQuickActions';
 import { ChatMessage } from '@/lib/hooks/useChat';
+import { useKeyboardFollow } from '@/lib/hooks/useKeyboardFollow';
 import { Timestamp } from 'firebase/firestore';
 
 interface ChatPanelProps {
@@ -109,6 +110,9 @@ export function ChatPanel({
 
     const charCount = inputValue.trim().length;
     const showCharCount = charCount > 400;
+
+    // iOS keyboard follow — shifts input to track keyboard
+    useKeyboardFollow(true);
 
     return (
         <div className="flex flex-col h-full">
@@ -235,8 +239,15 @@ export function ChatPanel({
                 </div>
             )}
 
-            {/* Input area */}
-            <div className="border-t border-gray-200 p-1 flex-shrink-0 bg-violet-50">
+            {/* Input area - follows iOS keyboard via transform */}
+            <div
+                className="border-t border-gray-200 px-1 py-1 flex-shrink-0 bg-white"
+                style={{
+                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                    transform: 'translateY(var(--kb-shift, 0px))',
+                    willChange: 'transform',
+                }}
+            >
                 <div className="flex items-end gap-2">
                     <textarea
                         ref={inputRef}
