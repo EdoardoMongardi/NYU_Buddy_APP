@@ -77,11 +77,8 @@ export default function PreviewChatUIPage() {
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const [myChoice, setMyChoice] = useState<{ placeId: string; placeRank: number } | null>(null);
     const [messages, setMessages] = useState(MOCK_MESSAGES);
-    const [inputValue, setInputValue] = useState('');
-
     // Step 2 specific state
     const [myStatus, setMyStatus] = useState<string>('heading_there');
-    const [statusMessages, setStatusMessages] = useState<ChatMessage[]>([]);
 
     const handleSendMessage = async (content: string) => {
         const newMsg: ChatMessage = {
