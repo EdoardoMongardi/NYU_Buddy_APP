@@ -64,6 +64,7 @@ export function StatusQuickActions({
                 size="sm"
                 variant="outline"
                 className={`rounded-full text-xs font-medium ${nextStatus.className}`}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onStatusUpdate(nextStatus.key)}
                 disabled={isUpdating}
             >

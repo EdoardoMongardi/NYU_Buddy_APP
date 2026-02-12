@@ -126,11 +126,17 @@ export default function MatchPage() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // Pick animation speed: drawer toggle → 0.8s, keyboard → 0.28s.
+  // Pick animation speed:
+  //   drawer toggle     → 0.8s
+  //   keyboard change   → 0.28s
+  //   keyboard change while drawer is still mid-toggle → 0 (instant)
   const prevDrawerOpen = useRef(chatDrawerOpen);
   const drawerToggled = prevDrawerOpen.current !== chatDrawerOpen;
   prevDrawerOpen.current = chatDrawerOpen;
-  const animDuration = drawerToggled ? 0.8 : 0.28;
+  const drawerToggledAtRef = useRef(0);
+  if (drawerToggled) drawerToggledAtRef.current = Date.now();
+  const recentlyToggled = Date.now() - drawerToggledAtRef.current < 800;
+  const animDuration = drawerToggled ? 0.8 : recentlyToggled ? 0 : 0.28;
 
   // ── Handlers ──
 

@@ -38,6 +38,11 @@ export function useVisualViewport(): boolean {
         let rafId: number | null = null;
         let animStartTime = 0;
         let maxHeight = vv.height;
+        // baseHeight: the most recent viewport height when the keyboard
+        // was NOT open.  Used as the close-animation target instead of
+        // maxHeight, because Safari's URL bar can make the settled
+        // height smaller than the all-time maximum.
+        let baseHeight = vv.height;
 
         // ── Open transition (CSS-based, suppresses rAF writes) ──
         let suppressVvhUntil = 0;
@@ -135,6 +140,11 @@ export function useVisualViewport(): boolean {
             }
 
             // --- Normal frame-by-frame tracking ---
+            // Keep baseHeight fresh whenever the keyboard is closed.
+            if (!kbOpen && closePhase === 'off') {
+                baseHeight = height;
+            }
+
             root.style.setProperty('--vvh', `${height}px`);
             root.style.setProperty(
                 '--safe-bottom',
@@ -198,7 +208,7 @@ export function useVisualViewport(): boolean {
                     closePhase = 'main';
                     closeStart = Date.now();
                     closeFromH = vv.height;
-                    closeToH = maxHeight;
+                    closeToH = baseHeight;   // use baseHeight, not maxHeight
                     closeKbOpenH = vv.height;
                     closeGuard = true;
                     setIsKeyboardOpen(false);
