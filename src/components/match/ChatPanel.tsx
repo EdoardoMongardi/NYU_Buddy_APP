@@ -296,14 +296,14 @@ export function ChatPanel({
                 }}
             >
                 <div
-                    className="mx-auto max-w-md px-2"
+                    className="mx-auto max-w-md px-3"
                     style={{
                         paddingTop: compact ? '2px' : '6px',
                         paddingBottom: compact ? '2px' : '6px',
                         transition: 'padding 0.28s ease-out',
                     }}
                 >
-                    <div className="flex items-end gap-2">
+                    <div className="flex items-end gap-1.5">
                         <textarea
                             ref={inputRef}
                             value={inputValue}
@@ -328,17 +328,17 @@ export function ChatPanel({
                         />
                         <Button
                             size="icon"
-                            className="rounded-full h-9 w-9 bg-violet-600 hover:bg-violet-700 flex-shrink-0"
+                            className="rounded-full h-8 w-8 bg-violet-600 hover:bg-violet-700 flex-shrink-0"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={handleSend}
                             disabled={!inputValue.trim() || isSending || isAtLimit}
                         >
-                            <Send className="h-4 w-4" />
+                            <Send className="h-3.5 w-3.5" />
                         </Button>
                     </div>
 
                     {!compact && (
-                        <div className="flex justify-between px-1">
+                        <div className="flex justify-between px-1 mt-0.5">
                             {showCharCount && (
                                 <span className={`text-[10px] ${charCount > 500 ? 'text-red-500' : 'text-gray-400'}`}>
                                     {charCount}/500

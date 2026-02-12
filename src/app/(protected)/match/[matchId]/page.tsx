@@ -135,8 +135,8 @@ export default function MatchPage() {
   prevDrawerOpen.current = chatDrawerOpen;
   const drawerToggledAtRef = useRef(0);
   if (drawerToggled) drawerToggledAtRef.current = Date.now();
-  const recentlyToggled = Date.now() - drawerToggledAtRef.current < 800;
-  const animDuration = drawerToggled ? 0.8 : recentlyToggled ? 0 : 0.28;
+  const recentlyToggled = Date.now() - drawerToggledAtRef.current < 600;
+  const animDuration = drawerToggled ? 0.6 : recentlyToggled ? 0 : 0.28;
 
   // ── Handlers ──
 
@@ -267,7 +267,8 @@ export default function MatchPage() {
 
   return (
     <div
-      className="fixed inset-x-0 flex flex-col bg-white overflow-hidden z-50"
+      className="fixed inset-x-0 mx-auto w-full max-w-lg flex flex-col bg-white overflow-hidden z-50
+                 sm:rounded-xl sm:shadow-2xl sm:border sm:border-gray-200"
       style={{
         top: 'var(--vv-offset-top, 0px)',
         height: 'var(--vvh, 100dvh)',
