@@ -18,7 +18,7 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "NYU Buddy",
   description: "Find your study buddy at NYU",
-  manifest: "/manifest.json",
+  manifest: "/manifest.json?v=2",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
