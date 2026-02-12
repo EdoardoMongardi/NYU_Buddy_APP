@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Loader2,
   Flag,
@@ -45,6 +45,9 @@ import { useLocationDecision } from '@/lib/hooks/useLocationDecision';
 import { useChat } from '@/lib/hooks/useChat';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePresence } from '@/lib/hooks/usePresence';
+import { useVisualViewport } from '@/lib/hooks/useVisualViewport';
+import { useLockBodyScroll } from '@/lib/hooks/useLockBodyScroll';
+import { useWhiteThemeColor } from '@/lib/hooks/useWhiteThemeColor';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -52,9 +55,14 @@ export default function MatchPage() {
   const params = useParams();
   const router = useRouter();
   const { user, userProfile } = useAuth();
-  const { presence: myPresence } = usePresence();
+  usePresence(); // keep for side-effect (registers user presence)
   const { toast } = useToast();
   const matchId = params.matchId as string;
+
+  // ── Visual viewport keyboard management ──
+  const isKbOpen = useVisualViewport();
+  useLockBodyScroll();
+  useWhiteThemeColor();
 
   const {
     match,
@@ -63,10 +71,9 @@ export default function MatchPage() {
     error,
     updateStatus,
     myStatus,
-    cancellationReason, // Phase 2.2-C: Normalized cancellation reason
+    cancellationReason,
   } = useMatch(matchId);
 
-  // PRD v2.4: Location Decision Hook
   const {
     placeCandidates,
     myChoice,
@@ -85,10 +92,8 @@ export default function MatchPage() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
-  // Chat hook
   const {
     messages,
     sendMessage,
@@ -98,6 +103,37 @@ export default function MatchPage() {
     isAtLimit: chatIsAtLimit,
   } = useChat(matchId);
 
+  // ── Drawer animation bookkeeping ──
+  const [contentMounted, setContentMounted] = useState(false);
+
+  useEffect(() => {
+    if (chatDrawerOpen) setContentMounted(true);
+  }, [chatDrawerOpen]);
+
+  const handleDrawerAnimComplete = () => {
+    if (!chatDrawerOpen) setContentMounted(false);
+  };
+
+  // Measure the toggle-handle height for precise collapsed animation.
+  const toggleRef = useRef<HTMLDivElement>(null);
+  const [collapsedH, setCollapsedH] = useState(80);
+  useEffect(() => {
+    const measure = () => {
+      if (toggleRef.current) setCollapsedH(toggleRef.current.offsetHeight);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  // Pick animation speed: drawer toggle → 0.8s, keyboard → 0.28s.
+  const prevDrawerOpen = useRef(chatDrawerOpen);
+  const drawerToggled = prevDrawerOpen.current !== chatDrawerOpen;
+  prevDrawerOpen.current = chatDrawerOpen;
+  const animDuration = drawerToggled ? 0.8 : 0.28;
+
+  // ── Handlers ──
+
   const handleStatusUpdate = async (
     status: 'heading_there' | 'arrived' | 'completed'
   ) => {
@@ -105,7 +141,6 @@ export default function MatchPage() {
     try {
       await updateStatus(status);
       if (status === 'completed') {
-        // Redirect to feedback page
         router.push(`/feedback/${matchId}`);
       }
     } finally {
@@ -115,12 +150,10 @@ export default function MatchPage() {
 
   const handleReport = async () => {
     if (!match || !user || !reportReason.trim()) return;
-
     setIsReporting(true);
     try {
       const otherUid =
         match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
-
       await setDoc(doc(getFirebaseDb(), 'reports', `${matchId}_${user.uid}`), {
         reportedBy: user.uid,
         reportedUser: otherUid,
@@ -128,7 +161,6 @@ export default function MatchPage() {
         reason: reportReason.trim(),
         createdAt: serverTimestamp(),
       });
-
       setReportReason('');
       alert('Report submitted. Thank you for keeping NYU Buddy safe.');
     } catch {
@@ -140,43 +172,21 @@ export default function MatchPage() {
 
   const handleBlock = async () => {
     if (!match || !user || !matchId) return;
-
     const otherUid =
       match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
-
-    // Confirmation dialog
     const confirmed = window.confirm(
       `Are you sure you want to block ${otherUserProfile?.displayName || 'this user'}?\n\nThey will no longer appear in your future searches, and this match will end immediately.`
     );
-
     if (!confirmed) return;
 
     setIsBlocking(true);
     try {
-      console.log('[handleBlock] Starting block process for otherUid:', otherUid);
-      console.log('[handleBlock] Current user.uid:', user.uid);
-
-      // 1. Create the block document FIRST (before cancel triggers redirect)
       const blockRef = doc(getFirebaseDb(), 'blocks', user.uid, 'blocked', otherUid);
-      console.log('[handleBlock] Block ref path:', blockRef.path);
-
       const blockDoc = await getDoc(blockRef);
-      console.log('[handleBlock] Existing block doc exists:', blockDoc.exists());
-
       if (!blockDoc.exists()) {
-        console.log('[handleBlock] Creating new block document...');
-        await setDoc(blockRef, {
-          blockedAt: serverTimestamp(),
-        });
-        console.log('[handleBlock] Block document CREATED successfully for', otherUid);
-      } else {
-        console.log('[handleBlock] Block already exists, skipping create');
+        await setDoc(blockRef, { blockedAt: serverTimestamp() });
       }
-
-      // 2. THEN cancel the match (this triggers the redirect via listener)
-      console.log('[handleBlock] Calling matchCancel...');
       await matchCancel({ matchId, reason: 'blocked' });
-
       toast({
         title: 'User blocked',
         description: `${otherUserProfile?.displayName || 'This user'} won't appear in your suggestions anymore.`,
@@ -194,255 +204,290 @@ export default function MatchPage() {
     }
   };
 
-  // If match becomes terminal via listener, redirect immediately
+  // Terminal match status → redirect.
   useEffect(() => {
     if (!match?.status) return;
     const terminalStatuses = ['cancelled', 'completed', 'expired_pending_confirmation'];
     if (terminalStatuses.includes(match.status)) {
       if (match.status === 'cancelled') {
-        console.log('Match status changed to cancelled in background, redirecting...');
         const reason = cancellationReason || 'cancelled';
         window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
       } else {
-        console.log(`Match status changed to ${match.status}, redirecting to homepage...`);
         window.location.href = '/';
       }
     }
   }, [match?.status, cancellationReason]);
 
-  const handleCancelClick = () => {
-    setCancelModalOpen(true);
-  };
+  const handleCancelClick = () => setCancelModalOpen(true);
 
   const handleConfirmCancel = async (reason: string, details?: string) => {
     if (!matchId) return;
-
     setIsCancelling(true);
     try {
-      // Pass reason and details (if "other", combine them or just pass reason)
       const finalReason = details ? `${reason}: ${details}` : reason;
       await matchCancel({ matchId, reason: finalReason });
       router.push('/');
     } catch (err) {
       console.error('Cancel Match Error:', err);
       const message = err instanceof Error ? err.message : 'Failed to cancel match';
-
-      // If match is already cancelled (400 Bad Request often returns this), treat as success
       if (message.toLowerCase().includes('cancelled') || message.includes('400')) {
-        console.log('Match already cancelled, forcing redirect...');
         window.location.href = '/?cancelled=true';
         return;
       }
       alert(message);
     } finally {
       setCancelModalOpen(false);
-      // setIsCancelling(false); // Don't reset if we might be redirecting to avoid flicker
     }
   };
 
+  const handleToggleDrawer = () => {
+    if (chatDrawerOpen) {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+    setChatDrawerOpen(!chatDrawerOpen);
+  };
 
   // 2-Step View Logic
   const showLocationSelection = !match?.confirmedPlaceName;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
-      </div>
-    );
-  }
+  // Drawer height: 100% when keyboard open, 65% when closed, collapsed when drawer closed.
+  const drawerHeight = chatDrawerOpen
+    ? (isKbOpen ? '100%' : '65%')
+    : collapsedH;
 
-  if (error || !match) {
-    return (
-      <div className="max-w-md mx-auto text-center py-12">
-        <p className="text-red-500 mb-4">{error || 'Match not found'}</p>
-        <Button onClick={() => router.push('/')}>Go Home</Button>
-      </div>
-    );
-  }
+  // ── Render ──
 
   return (
-    <div className="max-w-md mx-auto flex flex-col" style={{ height: 'calc(100dvh - 5rem)' }}>
-      {/* Compact Match Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-500 to-purple-600 rounded-t-xl flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <ProfileAvatar
-            photoURL={otherUserProfile?.photoURL}
-            displayName={otherUserProfile?.displayName}
-            size="sm"
-          />
-          <div>
-            <h2 className="text-sm font-semibold text-white">
-              {otherUserProfile?.displayName || 'Your Buddy'}
-            </h2>
-            <p className="text-[10px] text-white/60">
-              Matched {match.matchedAt?.toDate().toLocaleDateString()}
-            </p>
-          </div>
-        </div>
-
-        {/* Overflow menu with safety actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-8 w-8">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {/* Profile info */}
-            {otherUserProfile && otherUserProfile.interests.length > 0 && (
-              <>
-                <div className="px-2 py-1.5">
-                  <p className="text-xs text-gray-500 mb-1">Interests</p>
-                  <div className="flex flex-wrap gap-1">
-                    {otherUserProfile.interests.slice(0, 5).map((interest) => (
-                      <Badge key={interest} variant="secondary" className="text-[10px]">
-                        {interest}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            {/* Cancel match */}
-            {match?.status !== 'completed' && (
-              <DropdownMenuItem
-                onClick={handleCancelClick}
-                disabled={isCancelling}
-                className="text-red-600 focus:text-red-600"
-              >
-                {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
-                Cancel Match
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            {/* Report */}
-            <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
-              <Flag className="h-4 w-4 mr-2" />
-              Report
-            </DropdownMenuItem>
-            {/* Block */}
-            <DropdownMenuItem
-              onClick={handleBlock}
-              disabled={isBlocking}
-              className="text-red-600 focus:text-red-600"
-            >
-              {isBlocking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ban className="h-4 w-4 mr-2" />}
-              Block
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {/* STEP 1: Location Decision + Chat Drawer */}
-      {showLocationSelection && (
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          <div className="flex-1 overflow-y-auto space-y-3 p-3 pb-24">
-            <LocationDecisionPanel
-              placeCandidates={placeCandidates}
-              myChoice={myChoice}
-              otherChoice={otherChoice}
-              otherChosenCandidate={otherChosenCandidate ?? null}
-              otherUserName={otherUserProfile?.displayName || 'Your buddy'}
-              formattedCountdown={formattedCountdown}
-              isSettingChoice={isSettingChoice}
-              onSelectPlace={handleSetChoice}
-              onGoWithTheirChoice={handleGoWithTheirChoice}
-              onCancel={handleCancelClick}
-              isCancelling={isCancelling}
-              isLoading={placeCandidates.length === 0}
-            />
-          </div>
-
-          {/* Chat Drawer Toggle - Fixed Bottom Sheet */}
-          {/* Chat Drawer Toggle - Fixed Bottom Sheet */}
-          <motion.div
-            className="fixed bottom-0 left-0 right-0 z-40 flex flex-col border-t border-gray-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
-            initial={false}
-            animate={{ height: chatDrawerOpen ? (isKeyboardOpen ? '45vh' : '65vh') : 'auto' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          >
-            {/* Toggle Handle */}
-            <div
-              style={{ paddingBottom: chatDrawerOpen ? '0' : 'calc(24px + env(safe-area-inset-bottom, 0px))' }}
-            >
-              <button
-                onClick={() => setChatDrawerOpen(!chatDrawerOpen)}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-white text-violet-600 text-base font-semibold hover:bg-gray-50 transition-colors"
-              >
-                <MessageCircle className="h-4 w-4" />
-                Chat
-                {messages.length > 0 && (
-                  <span className="bg-violet-600 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-                    {messages.length}
-                  </span>
-                )}
-                {chatDrawerOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
-              </button>
-
-            </div>
-
-            {/* Collapsible Chat Drawer Content */}
-            <AnimatePresence>
-              {chatDrawerOpen && (
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <ChatPanel
-                    messages={messages}
-                    currentUserUid={user?.uid || ''}
-                    otherUserName={otherUserProfile?.displayName || 'Buddy'}
-                    currentUserPhotoURL={userProfile?.photoURL}
-                    otherUserPhotoURL={otherUserProfile?.photoURL}
-                    onSendMessage={sendMessage}
-                    isSending={isSending}
-                    isAtLimit={chatIsAtLimit}
-                    totalCount={chatTotalCount}
-                    error={chatError}
-                    onInputFocus={() => setIsKeyboardOpen(true)}
-                    onInputBlur={() => setIsKeyboardOpen(false)}
-                  />
-                </div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+    <div
+      className="fixed inset-x-0 flex flex-col bg-white overflow-hidden z-50"
+      style={{
+        top: 'var(--vv-offset-top, 0px)',
+        height: 'var(--vvh, 100dvh)',
+        transitionProperty: 'height',
+        transitionDuration: 'var(--vvh-duration, 0ms)',
+        transitionTimingFunction: 'ease-out',
+      }}
+    >
+      {/* ── Loading / Error ── */}
+      {loading && (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
         </div>
       )}
 
-      {/* STEP 2: Full Chat View with Status Pills */}
-      {!showLocationSelection && (
-        <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-gray-200 bg-white">
-          <ChatPanel
-            messages={messages}
-            currentUserUid={user?.uid || ''}
-            otherUserName={otherUserProfile?.displayName || 'Buddy'}
-            currentUserPhotoURL={userProfile?.photoURL}
-            otherUserPhotoURL={otherUserProfile?.photoURL}
-            onSendMessage={sendMessage}
-            isSending={isSending}
-            isAtLimit={chatIsAtLimit}
-            totalCount={chatTotalCount}
-            error={chatError}
-            confirmedPlaceName={match.confirmedPlaceName}
-            confirmedPlaceAddress={match.confirmedPlaceAddress || undefined}
-            myStatus={myStatus || undefined}
-            isUpdatingStatus={isUpdating}
-            onStatusUpdate={handleStatusUpdate}
-          />
-          {/* Feedback link after individual completion */}
-          {myStatus === 'completed' && (
-            <div className="px-3 py-2 bg-violet-50 border-t border-violet-100 text-center">
-              <button
-                onClick={() => router.push(`/feedback/${matchId}`)}
-                className="text-xs text-violet-600 font-medium hover:underline"
+      {!loading && (error || !match) && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-500 mb-4">{error || 'Match not found'}</p>
+            <Button onClick={() => router.push('/')}>Go Home</Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main content (only when data is loaded) ── */}
+      {!loading && match && (
+        <>
+          {/* ── Header ── */}
+          <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-3 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <ProfileAvatar
+                photoURL={otherUserProfile?.photoURL}
+                displayName={otherUserProfile?.displayName}
+                size="sm"
+              />
+              <div>
+                <h2 className="text-sm font-semibold text-white">
+                  {otherUserProfile?.displayName || 'Your Buddy'}
+                </h2>
+                <p className="text-[10px] text-white/60">
+                  Matched {match.matchedAt?.toDate().toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+
+            {/* Overflow menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {otherUserProfile && otherUserProfile.interests.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5">
+                      <p className="text-xs text-gray-500 mb-1">Interests</p>
+                      <div className="flex flex-wrap gap-1">
+                        {otherUserProfile.interests.slice(0, 5).map((interest) => (
+                          <Badge key={interest} variant="secondary" className="text-[10px]">
+                            {interest}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {match?.status !== 'completed' && (
+                  <DropdownMenuItem
+                    onClick={handleCancelClick}
+                    disabled={isCancelling}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                    Cancel Match
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
+                  <Flag className="h-4 w-4 mr-2" />
+                  Report
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleBlock}
+                  disabled={isBlocking}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  {isBlocking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ban className="h-4 w-4 mr-2" />}
+                  Block
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* ── STEP 1: Location Decision + Chat Drawer ── */}
+          {showLocationSelection && (
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+              <div
+                className="flex-1 overflow-y-auto p-3 pb-16 bg-violet-50"
+                style={{ overscrollBehavior: 'contain' }}
               >
-                <MessageCircle className="h-3 w-3 inline mr-1" />
-                Leave Feedback
-              </button>
+                <LocationDecisionPanel
+                  placeCandidates={placeCandidates}
+                  myChoice={myChoice}
+                  otherChoice={otherChoice}
+                  otherChosenCandidate={otherChosenCandidate ?? null}
+                  otherUserName={otherUserProfile?.displayName || 'Your buddy'}
+                  formattedCountdown={formattedCountdown}
+                  isSettingChoice={isSettingChoice}
+                  onSelectPlace={handleSetChoice}
+                  onGoWithTheirChoice={handleGoWithTheirChoice}
+                  onCancel={handleCancelClick}
+                  isCancelling={isCancelling}
+                  isLoading={placeCandidates.length === 0}
+                />
+              </div>
+
+              {/* ── Chat Drawer ── */}
+              <motion.div
+                className="absolute bottom-0 left-0 right-0 z-40 flex flex-col
+                           overflow-hidden border-t border-gray-200 bg-white
+                           shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
+                initial={false}
+                animate={{ height: drawerHeight }}
+                onAnimationComplete={handleDrawerAnimComplete}
+                transition={{
+                  type: 'tween',
+                  duration: animDuration,
+                  ease: [0.25, 0.1, 0.25, 1],
+                }}
+              >
+                {/* Toggle handle — measured for collapsed height */}
+                <div
+                  ref={toggleRef}
+                  className="flex-shrink-0"
+                  style={{
+                    paddingBottom: chatDrawerOpen
+                      ? '0'
+                      : 'var(--safe-bottom, env(safe-area-inset-bottom, 0px))',
+                  }}
+                >
+                  <button
+                    onClick={handleToggleDrawer}
+                    className={`w-full flex items-center justify-center gap-2
+                      bg-white text-violet-600 font-semibold
+                      hover:bg-gray-50
+                      ${isKbOpen && chatDrawerOpen ? 'py-2 text-sm' : 'py-5 text-base'}`}
+                    style={{ transition: 'padding 0.28s ease-out, color 0.15s, background-color 0.15s' }}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Chat
+                    {messages.length > 0 && (
+                      <span className="bg-violet-600 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                        {messages.length}
+                      </span>
+                    )}
+                    {chatDrawerOpen
+                      ? <ChevronDown className="h-3 w-3" />
+                      : <ChevronUp className="h-3 w-3" />}
+                  </button>
+                </div>
+
+                {/* Content stays mounted during close so it slides away */}
+                {contentMounted && (
+                  <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                    <ChatPanel
+                      messages={messages}
+                      currentUserUid={user?.uid || ''}
+                      otherUserName={otherUserProfile?.displayName || 'Buddy'}
+                      currentUserPhotoURL={userProfile?.photoURL}
+                      otherUserPhotoURL={otherUserProfile?.photoURL}
+                      onSendMessage={sendMessage}
+                      isSending={isSending}
+                      isAtLimit={chatIsAtLimit}
+                      totalCount={chatTotalCount}
+                      error={chatError}
+                      compact={isKbOpen}
+                    />
+                  </div>
+                )}
+              </motion.div>
             </div>
           )}
-        </div>
+
+          {/* ── STEP 2: Full Chat View ── */}
+          {!showLocationSelection && (
+            <div className="flex-1 flex flex-col overflow-hidden bg-white">
+              <div className="flex-1 overflow-hidden">
+                <ChatPanel
+                  messages={messages}
+                  currentUserUid={user?.uid || ''}
+                  otherUserName={otherUserProfile?.displayName || 'Buddy'}
+                  currentUserPhotoURL={userProfile?.photoURL}
+                  otherUserPhotoURL={otherUserProfile?.photoURL}
+                  onSendMessage={sendMessage}
+                  isSending={isSending}
+                  isAtLimit={chatIsAtLimit}
+                  totalCount={chatTotalCount}
+                  error={chatError}
+                  confirmedPlaceName={match.confirmedPlaceName}
+                  confirmedPlaceAddress={match.confirmedPlaceAddress || undefined}
+                  myStatus={myStatus || undefined}
+                  isUpdatingStatus={isUpdating}
+                  onStatusUpdate={handleStatusUpdate}
+                  compact={isKbOpen}
+                />
+              </div>
+              {/* Feedback link after completion */}
+              {myStatus === 'completed' && (
+                <div className="flex-shrink-0 px-3 py-2 bg-violet-50 border-t border-violet-100 text-center">
+                  <button
+                    onClick={() => router.push(`/feedback/${matchId}`)}
+                    className="text-xs text-violet-600 font-medium hover:underline"
+                  >
+                    <MessageCircle className="h-3 w-3 inline mr-1" />
+                    Leave Feedback
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
-      {/* Cancel Reason Modal */}
+
+      {/* ── Modals (use portals, render on top) ── */}
       <CancelReasonModal
         open={cancelModalOpen}
         onOpenChange={setCancelModalOpen}
@@ -450,7 +495,6 @@ export default function MatchPage() {
         isCancelling={isCancelling}
       />
 
-      {/* Report Dialog (triggered from overflow menu) */}
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -483,22 +527,6 @@ export default function MatchPage() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Debug Info - development only */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-2 p-4 bg-gray-100 rounded-lg text-xs font-mono break-all flex-shrink-0">
-          <h4 className="font-bold mb-2">Debug Info</h4>
-          <p>My Stored Location (from DB): {myPresence ? `${myPresence.lat.toFixed(5)}, ${myPresence.lng.toFixed(5)}` : 'Loading...'}</p>
-          <div className="mt-2">
-            <strong>Recommended Places:</strong>
-            {placeCandidates.map((p: { placeId: string; name: string; distance: number; lat: number; lng: number }) => (
-              <div key={p.placeId} className="ml-2 mt-1">
-                - {p.name}: {p.distance}m  (Loc: {p.lat?.toFixed(5)}, {p.lng?.toFixed(5)})
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
