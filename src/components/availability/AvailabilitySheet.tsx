@@ -152,7 +152,7 @@ export default function AvailabilitySheet() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-white rounded-2xl p-5 border border-emerald-100 shadow-sm"
+        className="bg-emerald-50/20 rounded-2xl p-5 border border-emerald-100/60 shadow-card border-l-[3px] border-l-emerald-400"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2.5">
@@ -193,7 +193,7 @@ export default function AvailabilitySheet() {
       <SheetTrigger asChild>
         <Button
           size="lg"
-          className="w-full bg-violet-600 hover:bg-violet-700 h-[52px] text-[16px] font-semibold rounded-2xl touch-scale shadow-sm"
+          className="w-full bg-violet-600 hover:bg-violet-700 h-[52px] text-[16px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)]"
         >
           <MapPin className="mr-2 h-5 w-5" />
           Set Availability

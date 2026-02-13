@@ -61,7 +61,7 @@ export default function InvitesTab({
   // Not available state
   if (!isAvailable) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
           <div className="mx-auto mb-4 flex justify-center">
             <ProfileAvatar
@@ -84,7 +84,7 @@ export default function InvitesTab({
   // Loading state
   if (loading && offers.length === 0) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-4" />
           <p className="text-gray-500">Loading invites...</p>
@@ -96,7 +96,7 @@ export default function InvitesTab({
   // Error state
   if (error) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
           <p className="text-red-500 mb-4">{error}</p>
           <Button onClick={onRefresh} variant="outline">
@@ -111,9 +111,9 @@ export default function InvitesTab({
   // Empty state
   if (offers.length === 0) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-100 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-50 flex items-center justify-center">
             <Inbox className="w-8 h-8 text-violet-600" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">

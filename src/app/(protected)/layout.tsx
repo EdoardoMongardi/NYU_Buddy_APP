@@ -48,7 +48,7 @@ export default function ProtectedLayout({
 
   if (loading || isChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50/80">
+      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f7]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-violet-500 mx-auto" />
           <p className="mt-2 text-gray-400 text-sm">Loading...</p>
@@ -58,11 +58,19 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/80">
+    <div className="min-h-screen bg-[#f2f2f7] relative">
+      {/* Subtle top gradient for visual gravity — purely decorative */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-72"
+        style={{
+          background: 'linear-gradient(180deg, rgba(120, 90, 220, 0.03) 0%, rgba(120, 90, 220, 0.01) 40%, transparent 100%)',
+        }}
+        aria-hidden="true"
+      />
       <Navbar />
       <NotificationPrompt />
       <InstallBanner />
-      <main className="container mx-auto px-5 pt-4 pb-8">{children}</main>
+      <main className="container mx-auto px-5 pt-4 pb-8 relative">{children}</main>
     </div>
   );
 }

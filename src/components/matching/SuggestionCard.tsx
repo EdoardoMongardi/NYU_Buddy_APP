@@ -71,7 +71,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // Not available state
   if (!isAvailable) {
     return (
-      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
           <div className="mx-auto mb-4 flex justify-center">
             <ProfileAvatar
@@ -94,7 +94,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // Loading state (initial)
   if (loading && !suggestion) {
     return (
-      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
           <Loader2 className="w-7 h-7 animate-spin text-violet-500 mx-auto mb-4" />
           <p className="text-[14px] text-gray-400">Finding nearby buddies...</p>
@@ -106,7 +106,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // Error state
   if (error) {
     return (
-      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
           <p className="text-red-500 text-[14px] mb-4">{error}</p>
           <Button onClick={() => fetchSuggestion('refresh')} variant="outline">
@@ -121,9 +121,9 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // No one available state (or cycle end)
   if (!suggestion && searchMessage) {
     return (
-      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-50 flex items-center justify-center">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-100/60 flex items-center justify-center">
             <UserX className="w-7 h-7 text-gray-300" />
           </div>
           <h3 className="text-[17px] font-semibold text-gray-900 mb-1.5">
@@ -154,10 +154,10 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         className="relative"
       >
-        <Card className="border border-gray-100 shadow-sm bg-white overflow-hidden min-h-[400px] flex flex-col rounded-2xl">
+        <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden min-h-[400px] flex flex-col rounded-2xl">
           <CardContent className="p-0 flex-1 flex flex-col">
             {/* Header */}
-            <div className="bg-gray-50 p-6 relative border-b border-gray-100">
+            <div className="bg-gray-50/80 p-6 relative border-b border-gray-100/80">
               {cycleInfo && cycleInfo.total > 1 && (
                 <div className="absolute top-4 right-4 bg-gray-200/60 rounded-full px-2.5 py-0.5 text-[11px] text-gray-500 font-medium">
                   {cycleInfo.current} / {cycleInfo.total}
@@ -260,7 +260,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
                   {canSendMore ? (
                     <Button
                       size="lg"
-                      className="flex-[2] h-[52px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-sm transition-all text-[15px] font-semibold touch-scale"
+                      className="flex-[2] h-[52px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-[0_2px_12px_rgba(124,58,237,0.25)] transition-all text-[15px] font-semibold touch-scale"
                       onClick={handleInvite}
                       disabled={isResponding}
                     >

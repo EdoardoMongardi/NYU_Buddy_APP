@@ -15,7 +15,7 @@ export default function TabNavigation({
   inviteCount,
 }: TabNavigationProps) {
   return (
-    <div className="flex bg-white/80 backdrop-blur-sm rounded-2xl p-1 mb-6 border border-gray-100">
+    <div className="flex bg-gray-200/50 rounded-2xl p-1 mb-6 shadow-track-inset">
       <button
         onClick={() => onTabChange('discover')}
         className={`flex-1 relative flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[14px] font-medium transition-colors touch-scale ${
@@ -29,7 +29,7 @@ export default function TabNavigation({
         {activeTab === 'discover' && (
           <motion.div
             layoutId="activeTab"
-            className="absolute inset-0 bg-white rounded-xl shadow-sm -z-10"
+            className="absolute inset-0 bg-white rounded-xl shadow-elevated ring-1 ring-black/[0.04] -z-10"
             transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
           />
         )}
@@ -53,7 +53,7 @@ export default function TabNavigation({
         {activeTab === 'invites' && (
           <motion.div
             layoutId="activeTab"
-            className="absolute inset-0 bg-white rounded-xl shadow-sm -z-10"
+            className="absolute inset-0 bg-white rounded-xl shadow-elevated ring-1 ring-black/[0.04] -z-10"
             transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
           />
         )}

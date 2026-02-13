@@ -31,7 +31,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-50">
+      <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-200/40 sticky top-0 z-50">
         <div className="container mx-auto px-5">
           <div className="flex items-center justify-between h-14">
             <Link href="/" className="flex items-center space-x-2">
