@@ -157,7 +157,7 @@ export default function AvailabilitySheet() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2.5">
             <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="font-semibold text-gray-900 text-[15px]">You&apos;re Available</span>
+            <span className="font-semibold text-gray-800 text-[15px]">You&apos;re Available</span>
           </div>
           <Button
             variant="ghost"

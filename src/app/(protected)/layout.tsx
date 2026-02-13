@@ -63,7 +63,7 @@ export default function ProtectedLayout({
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-72"
         style={{
-          background: 'linear-gradient(180deg, rgba(120, 90, 220, 0.03) 0%, rgba(120, 90, 220, 0.01) 40%, transparent 100%)',
+          background: 'linear-gradient(180deg, rgba(120, 90, 220, 0.045) 0%, rgba(120, 90, 220, 0.015) 40%, transparent 100%)',
         }}
         aria-hidden="true"
       />

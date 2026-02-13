@@ -80,7 +80,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
               size="lg"
             />
           </div>
-          <h3 className="text-[17px] font-semibold text-gray-900 mb-1.5">
+          <h3 className="text-[17px] font-semibold text-gray-800 mb-1.5">
             Set your availability
           </h3>
           <p className="text-[14px] text-gray-400">
@@ -126,7 +126,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
           <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-100/60 flex items-center justify-center">
             <UserX className="w-7 h-7 text-gray-300" />
           </div>
-          <h3 className="text-[17px] font-semibold text-gray-900 mb-1.5">
+          <h3 className="text-[17px] font-semibold text-gray-800 mb-1.5">
             {cycleInfo?.isCycleEnd ? "That's everyone for now" : "No one nearby"}
           </h3>
           <p className="text-[14px] text-gray-400 mb-6">
@@ -169,18 +169,18 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
                   photoURL={suggestion.photoURL}
                   displayName={suggestion.displayName}
                   size="lg"
-                  className="border-2 border-white shadow-sm"
+                  className="border-[3px] border-white shadow-md ring-2 ring-violet-100/60"
                 />
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 tracking-tight">
+                  <h3 className="text-xl font-bold text-gray-800 tracking-tight">
                     {suggestion.displayName}
                   </h3>
                   <div className="flex items-center space-x-2 mt-1.5">
-                    <div className="flex items-center text-[12px] text-gray-500 bg-white rounded-full px-2 py-0.5 shadow-sm">
-                      <MapPin className="w-3 h-3 mr-1 text-gray-400" />
+                    <div className="flex items-center text-[12px] text-gray-500 bg-white/80 rounded-full px-2.5 py-1 border border-gray-100/60">
+                      <MapPin className="w-3 h-3 mr-1 text-violet-400" />
                       <span>{suggestion.distance}m</span>
                     </div>
-                    <div className="flex items-center text-[12px] text-gray-500 bg-white rounded-full px-2 py-0.5 shadow-sm">
+                    <div className="flex items-center text-[12px] text-gray-500 bg-white/80 rounded-full px-2.5 py-1 border border-gray-100/60">
                       <Clock className="w-3 h-3 mr-1 text-gray-400" />
                       <span>{suggestion.durationMinutes}m</span>
                     </div>
@@ -198,9 +198,9 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
             <div className="p-6 flex-1 flex flex-col">
               {/* Explanation */}
               {suggestion.explanation && (
-                <div className="mb-4 bg-gray-50 p-3 rounded-xl">
-                  <p className="text-[13px] text-gray-500 italic text-center leading-relaxed">
-                    &quot;{suggestion.explanation}&quot;
+                <div className="mb-4 bg-violet-50/30 p-3.5 rounded-xl border border-violet-100/30">
+                  <p className="text-[13px] text-gray-600 italic text-center leading-relaxed">
+                    &ldquo;{suggestion.explanation}&rdquo;
                   </p>
                 </div>
               )}
@@ -208,7 +208,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
               {/* Common Interests */}
               {commonInterests.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider mb-2">
                     You both like
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -216,7 +216,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
                       <Badge
                         key={interest}
                         variant="secondary"
-                        className="bg-green-100 text-green-700 hover:bg-green-200 border-none px-2 py-1"
+                        className="bg-violet-50 text-violet-600 border border-violet-100/60 px-2.5 py-1 text-[13px]"
                       >
                         {interest}
                       </Badge>
@@ -227,17 +227,17 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
 
               {/* All Interests */}
               <div className="mb-6 flex-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
                   Interests
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {suggestion.interests.slice(0, 5).map((interest) => (
-                    <Badge key={interest} variant="outline" className="text-zinc-600 border-zinc-200">
+                    <Badge key={interest} variant="outline" className="text-gray-600 border-gray-200/80 text-[13px]">
                       {interest}
                     </Badge>
                   ))}
                   {suggestion.interests.length > 5 && (
-                    <Badge variant="outline" className="text-zinc-500 border-dashed">
+                    <Badge variant="outline" className="text-gray-400 border-dashed text-[13px]">
                       +{suggestion.interests.length - 5}
                     </Badge>
                   )}
@@ -245,7 +245,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-auto space-y-3">
+              <div className="mt-auto pt-4 border-t border-gray-100/60">
                 <div className="flex space-x-3">
                   <Button
                     variant="outline"

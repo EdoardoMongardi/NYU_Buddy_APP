@@ -50,67 +50,70 @@ export default function OfferCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -100 }}
     >
-      <Card className={`border-0 shadow-lg bg-white overflow-hidden ${isExpired ? 'opacity-50' : ''}`}>
+      <Card className={`border border-gray-200/60 shadow-card bg-white overflow-hidden rounded-2xl ${isExpired ? 'opacity-50' : ''}`}>
         <CardContent className="p-0">
           {/* Header */}
-          <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-4 text-white">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-gray-50/80 p-5 border-b border-gray-100/80">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <ProfileAvatar
                   photoURL={offer.fromPhotoURL}
                   displayName={offer.fromDisplayName}
                   size="sm"
+                  className="ring-2 ring-violet-100/60 border-2 border-white"
                 />
                 <div>
-                  <h3 className="font-bold text-lg">{offer.fromDisplayName}</h3>
-                  <div className="flex items-center gap-1 text-white/80 text-sm">
-                    <MapPin className="w-3 h-3" />
-                    <span>{offer.distanceMeters}m away</span>
+                  <h3 className="font-bold text-[17px] text-gray-800">{offer.fromDisplayName}</h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center text-[12px] text-gray-500 bg-white/80 rounded-full px-2 py-0.5 border border-gray-100/60">
+                      <MapPin className="w-3 h-3 mr-1 text-violet-400" />
+                      <span>{offer.distanceMeters}m</span>
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="flex items-center gap-1 text-white/80 text-sm">
-                  <Clock className="w-3 h-3" />
-                  <span className={timeRemaining <= 60 ? 'text-red-200 font-bold' : ''}>
+                <div className="flex items-center gap-1 text-gray-500 text-[13px]">
+                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                  <span className={timeRemaining <= 60 ? 'text-red-500 font-bold' : ''}>
                     {isExpired ? 'Expired' : formatTime(timeRemaining)}
                   </span>
                 </div>
                 {offer.matchScore > 0 && (
-                  <div className="text-sm mt-1">
-                    <span className="text-white/60">Match:</span>{' '}
-                    <span className="font-bold">{offer.matchScore}%</span>
+                  <div className="text-[12px] mt-1 text-gray-400">
+                    <span>Match:</span>{' '}
+                    <span className="font-semibold text-violet-500">{offer.matchScore}%</span>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2">
-              <Coffee className="w-4 h-4" />
+            <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 text-[13px] font-medium text-gray-600 shadow-sm">
+              <Coffee className="w-4 h-4 text-violet-500" />
               <span>{offer.activity}</span>
             </div>
 
             {offer.explanation && (
-              <p className="mt-2 text-sm text-white/80 italic">
-                {offer.explanation}
+              <p className="mt-2.5 text-[13px] text-gray-500 italic leading-relaxed">
+                &ldquo;{offer.explanation}&rdquo;
               </p>
             )}
           </div>
 
           {/* Body */}
-          <div className="p-4">
+          <div className="p-5">
             {/* Interests */}
             {offer.fromInterests.length > 0 && (
-              <div className="mb-4">
-                <p className="text-sm text-gray-500 mb-2">Interests:</p>
+              <div className="mb-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Interests</p>
                 <div className="flex flex-wrap gap-2">
                   {offer.fromInterests.slice(0, 4).map((interest) => (
-                    <Badge key={interest} variant="outline" className="text-xs">
+                    <Badge key={interest} variant="outline" className="text-[13px] text-gray-600 border-gray-200/80">
                       {interest}
                     </Badge>
                   ))}
                   {offer.fromInterests.length > 4 && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-[13px] text-gray-400 border-dashed">
                       +{offer.fromInterests.length - 4}
                     </Badge>
                   )}
@@ -123,7 +126,7 @@ export default function OfferCard({
               <Button
                 variant="outline"
                 size="lg"
-                className="flex-1 h-12 border-2 border-gray-200 hover:border-red-300 hover:bg-red-50"
+                className="flex-1 h-[52px] border border-gray-200 hover:bg-gray-50 rounded-2xl touch-scale"
                 onClick={() => onDecline(offer.offerId)}
                 disabled={isResponding || isExpired}
               >
@@ -135,7 +138,7 @@ export default function OfferCard({
               </Button>
               <Button
                 size="lg"
-                className="flex-1 h-12 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                className="flex-[2] h-[52px] bg-emerald-500 hover:bg-emerald-600 rounded-2xl shadow-[0_2px_12px_rgba(16,185,129,0.25)] text-[15px] font-semibold touch-scale"
                 onClick={() => onAccept(offer.offerId)}
                 disabled={isResponding || isExpired}
               >

@@ -28,6 +28,26 @@ export default function HomePage() {
   const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
   const { pendingMatches } = usePendingConfirmations();
 
+  // ── Contextual greeting (purely cosmetic, no business logic) ──
+  const [greeting, setGreeting] = useState('');
+  const [contextSubtitle, setContextSubtitle] = useState('Connect with nearby NYU students');
+
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(
+      h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Hey there'
+    );
+    setContextSubtitle(
+      h < 11 ? 'Start your day with a study buddy'
+        : h < 14 ? 'Who\u2019s around for lunch?'
+        : h < 17 ? 'Find your afternoon buddy'
+        : h < 21 ? 'Wind down with someone nearby'
+        : 'Find a late-night study partner'
+    );
+  }, []);
+
+  const firstName = userProfile?.displayName?.split(' ')[0];
+
   // Suppression flag: If true, we are currently accepting an offer manually,
   // so we should suppress the banner (and let InvitesTab redirect).
   const isAcceptingRef = useRef(false);
@@ -176,19 +196,24 @@ export default function HomePage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="flex justify-between items-center"
+        className="flex justify-between items-start"
       >
         <div>
-          <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Find a Buddy</h1>
+          {greeting && (
+            <p className="text-[13px] font-medium text-violet-500/70 mb-0.5">
+              {greeting}{firstName ? `, ${firstName}` : ''}
+            </p>
+          )}
+          <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
           <p className="text-[15px] text-gray-400 mt-0.5">
-            Connect with nearby NYU students
+            {contextSubtitle}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.push('/profile')}
-          className="rounded-full hover:bg-gray-100 touch-scale h-11 w-11"
+          className="rounded-full hover:bg-gray-100 touch-scale h-11 w-11 mt-1"
         >
           <Settings className="w-5 h-5 text-gray-400" />
         </Button>
