@@ -2,6 +2,22 @@
 
 import { useState, useEffect } from 'react';
 
+// ── Keep-keyboard signal ──────────────────────────────────────────
+// Call signalKeepKeyboard() from onPointerDown on buttons that should
+// NOT dismiss the iOS keyboard.  The focusout handler checks this
+// timestamp and synchronously re-focuses the textarea instead of
+// starting the close animation.
+let _keepFocusUntil = 0;
+
+/**
+ * Signal that the keyboard should stay open even though a non-input
+ * element is being tapped.  Call this from `onPointerDown` — it fires
+ * before iOS Safari blurs the active input.
+ */
+export function signalKeepKeyboard() {
+    _keepFocusUntil = Date.now() + 400;
+}
+
 /**
  * Tracks the iOS visual viewport and manages keyboard open/close
  * animations for a full-screen fixed chat layout.
@@ -50,7 +66,7 @@ export function useVisualViewport(): boolean {
         const startOpenTransition = (targetH: number, safeBtm: string) => {
             closePhase = 'off';
             closeGuard = false;
-            root.style.setProperty('--vvh-duration', '270ms');
+            root.style.setProperty('--vvh-duration', '260ms');
             root.style.setProperty('--vvh', `${targetH}px`);
             root.style.setProperty('--safe-bottom', safeBtm);
             suppressVvhUntil = Date.now() + 310;
@@ -204,6 +220,14 @@ export function useVisualViewport(): boolean {
                 (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) &&
                 !(related instanceof HTMLTextAreaElement || related instanceof HTMLInputElement)
             ) {
+                // If a keep-keyboard element was just tapped, re-focus
+                // the input synchronously to prevent the keyboard from
+                // closing.  This must run before the close animation.
+                if (Date.now() < _keepFocusUntil) {
+                    (target as HTMLElement).focus({ preventScroll: true });
+                    return;
+                }
+
                 if (maxHeight - vv.height > 100) {
                     closePhase = 'main';
                     closeStart = Date.now();

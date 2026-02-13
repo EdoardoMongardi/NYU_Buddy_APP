@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { Navigation, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { signalKeepKeyboard } from '@/lib/hooks/useVisualViewport';
 
 interface MatchProgressBarProps {
     myStatus: string;
@@ -123,6 +124,7 @@ export function MatchProgressBar({
                         size="sm"
                         className={`rounded-full text-xs font-semibold text-white shadow-sm
                                     h-7 px-3.5 ${config.next.bg}`}
+                        onPointerDown={() => signalKeepKeyboard()}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onStatusUpdate(config.next!.key)}
                         disabled={isUpdating}
