@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, MapPin } from 'lucide-react';
+import { Send, MapPin, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
-import { StatusQuickActions } from './StatusQuickActions';
+import { MatchProgressBar } from './MatchProgressBar';
 import { ChatMessage } from '@/lib/hooks/useChat';
 import { Timestamp } from 'firebase/firestore';
 
@@ -22,10 +22,11 @@ export interface ChatPanelProps {
     isAtLimit: boolean;
     totalCount: number;
     error: string | null;
-    // Status quick-action props (only for Step 2)
+    // Status progress-bar props (only for Step 2)
     myStatus?: string;
     isUpdatingStatus?: boolean;
-    onStatusUpdate?: (status: 'heading_there' | 'arrived' | 'completed') => void;
+    onStatusUpdate?: (status: 'heading_there' | 'arrived') => void;
+    onCompleteClick?: () => void;
     // Confirmed place (only for Step 2)
     confirmedPlaceName?: string;
     confirmedPlaceAddress?: string;
@@ -86,6 +87,7 @@ export function ChatPanel({
     myStatus,
     isUpdatingStatus,
     onStatusUpdate,
+    onCompleteClick,
     confirmedPlaceName,
     confirmedPlaceAddress,
     compact = false,
@@ -220,7 +222,26 @@ export function ChatPanel({
                                 </div>
                             )}
 
-                            {msg.type === 'status' ? (
+                            {msg.type === 'status' && msg.content.includes('complete') ? (
+                                /* ── Prominent completion card ── */
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="flex justify-center my-3"
+                                >
+                                    <div className="flex items-center gap-2 bg-green-50 border border-green-200
+                                                    rounded-xl px-4 py-2.5 shadow-sm">
+                                        <div className="w-5 h-5 rounded-full bg-green-100 flex items-center
+                                                        justify-center flex-shrink-0">
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                                        </div>
+                                        <span className="text-xs font-semibold text-green-700">
+                                            {isMine ? 'You' : otherUserName.split(' ')[0]} completed the meetup
+                                        </span>
+                                    </div>
+                                </motion.div>
+                            ) : msg.type === 'status' ? (
+                                /* ── Regular status pill ── */
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
@@ -276,13 +297,15 @@ export function ChatPanel({
                 </div>
             )}
 
-            {/* ── Status quick actions (Step 2) ── */}
-            {myStatus && onStatusUpdate && (
+            {/* ── Match progress bar (Step 2) ── */}
+            {myStatus && onStatusUpdate && onCompleteClick && (
                 <div className="flex-shrink-0">
-                    <StatusQuickActions
+                    <MatchProgressBar
                         myStatus={myStatus}
                         isUpdating={isUpdatingStatus || false}
                         onStatusUpdate={onStatusUpdate}
+                        onCompleteClick={onCompleteClick}
+                        compact={compact}
                     />
                 </div>
             )}

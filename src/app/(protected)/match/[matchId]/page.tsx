@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { LocationDecisionPanel } from '@/components/match/LocationDecisionPanel';
 import { CancelReasonModal } from '@/components/match/CancelReasonModal';
+import { CompleteConfirmDialog } from '@/components/match/CompleteConfirmDialog';
 import { ChatPanel } from '@/components/match/ChatPanel';
 
 import { getFirebaseDb } from '@/lib/firebase/client';
@@ -91,6 +92,7 @@ export default function MatchPage() {
   const [isBlocking, setIsBlocking] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
@@ -141,16 +143,26 @@ export default function MatchPage() {
   // ── Handlers ──
 
   const handleStatusUpdate = async (
-    status: 'heading_there' | 'arrived' | 'completed'
+    status: 'heading_there' | 'arrived'
   ) => {
     setIsUpdating(true);
     try {
       await updateStatus(status);
-      if (status === 'completed') {
-        router.push(`/feedback/${matchId}`);
-      }
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleCompleteClick = () => setCompleteDialogOpen(true);
+
+  const handleConfirmComplete = async () => {
+    setIsUpdating(true);
+    try {
+      await updateStatus('completed');
+      router.push(`/feedback/${matchId}`);
+    } finally {
+      setIsUpdating(false);
+      setCompleteDialogOpen(false);
     }
   };
 
@@ -474,6 +486,7 @@ export default function MatchPage() {
                   myStatus={myStatus || undefined}
                   isUpdatingStatus={isUpdating}
                   onStatusUpdate={handleStatusUpdate}
+                  onCompleteClick={handleCompleteClick}
                   compact={isKbOpen}
                 />
               </div>
@@ -500,6 +513,13 @@ export default function MatchPage() {
         onOpenChange={setCancelModalOpen}
         onConfirmCancel={handleConfirmCancel}
         isCancelling={isCancelling}
+      />
+
+      <CompleteConfirmDialog
+        open={completeDialogOpen}
+        onOpenChange={setCompleteDialogOpen}
+        onConfirm={handleConfirmComplete}
+        isLoading={isUpdating}
       />
 
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
