@@ -38,7 +38,7 @@
     },
     "singleProjectMode": true,
     "storage": {
-      "port": 8080
+      "port": 9199
     }
   }
 }

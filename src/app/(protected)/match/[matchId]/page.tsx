@@ -1,24 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  MapPin,
-  Navigation,
-  Check,
   Loader2,
   Flag,
   Ban,
   MessageCircle,
-  Coffee,
+  MoreVertical,
+  ChevronUp,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import {
   Dialog,
@@ -26,35 +24,46 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { LocationDecisionPanel } from '@/components/match/LocationDecisionPanel';
 import { CancelReasonModal } from '@/components/match/CancelReasonModal';
+import { CompleteConfirmDialog } from '@/components/match/CompleteConfirmDialog';
+import { ChatPanel } from '@/components/match/ChatPanel';
 
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { matchCancel } from '@/lib/firebase/functions';
 import { useMatch } from '@/lib/hooks/useMatch';
 import { useLocationDecision } from '@/lib/hooks/useLocationDecision';
+import { useChat } from '@/lib/hooks/useChat';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePresence } from '@/lib/hooks/usePresence';
+import { useVisualViewport } from '@/lib/hooks/useVisualViewport';
+import { useLockBodyScroll } from '@/lib/hooks/useLockBodyScroll';
+import { useWhiteThemeColor } from '@/lib/hooks/useWhiteThemeColor';
 import { useToast } from '@/hooks/use-toast';
 
-const STATUS_STEPS = [
-  { key: 'pending', label: 'Matched', icon: Check },
-  { key: 'heading_there', label: 'On the way', icon: Navigation },
-  { key: 'arrived', label: 'Arrived', icon: MapPin },
-  { key: 'completed', label: 'Complete', icon: Coffee },
-];
 
 export default function MatchPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
-  const { presence: myPresence } = usePresence();
+  const { user, userProfile } = useAuth();
+  usePresence(); // keep for side-effect (registers user presence)
   const { toast } = useToast();
   const matchId = params.matchId as string;
+
+  // ── Visual viewport keyboard management ──
+  const isKbOpen = useVisualViewport();
+  useLockBodyScroll();
+  useWhiteThemeColor();
 
   const {
     match,
@@ -63,10 +72,9 @@ export default function MatchPage() {
     error,
     updateStatus,
     myStatus,
-    cancellationReason, // Phase 2.2-C: Normalized cancellation reason
+    cancellationReason,
   } = useMatch(matchId);
 
-  // PRD v2.4: Location Decision Hook
   const {
     placeCandidates,
     myChoice,
@@ -84,30 +92,86 @@ export default function MatchPage() {
   const [isBlocking, setIsBlocking] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+
+  const {
+    messages,
+    sendMessage,
+    isSending,
+    error: chatError,
+    totalCount: chatTotalCount,
+    isAtLimit: chatIsAtLimit,
+  } = useChat(matchId);
+
+  // ── Drawer animation bookkeeping ──
+  const [contentMounted, setContentMounted] = useState(false);
+
+  useEffect(() => {
+    if (chatDrawerOpen) setContentMounted(true);
+  }, [chatDrawerOpen]);
+
+  const handleDrawerAnimComplete = () => {
+    if (!chatDrawerOpen) setContentMounted(false);
+  };
+
+  // Measure the toggle-handle height for precise collapsed animation.
+  const toggleRef = useRef<HTMLDivElement>(null);
+  const [collapsedH, setCollapsedH] = useState(80);
+  useEffect(() => {
+    const measure = () => {
+      if (toggleRef.current) setCollapsedH(toggleRef.current.offsetHeight);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  // Pick animation speed:
+  //   drawer toggle     → 0.8s
+  //   keyboard change   → 0.28s
+  //   keyboard change while drawer is still mid-toggle → 0 (instant)
+  const prevDrawerOpen = useRef(chatDrawerOpen);
+  const drawerToggled = prevDrawerOpen.current !== chatDrawerOpen;
+  prevDrawerOpen.current = chatDrawerOpen;
+  const drawerToggledAtRef = useRef(0);
+  if (drawerToggled) drawerToggledAtRef.current = Date.now();
+  const recentlyToggled = Date.now() - drawerToggledAtRef.current < 600;
+  const animDuration = drawerToggled ? 0.6 : recentlyToggled ? 0 : 0.28;
+
+  // ── Handlers ──
 
   const handleStatusUpdate = async (
-    status: 'heading_there' | 'arrived' | 'completed'
+    status: 'heading_there' | 'arrived'
   ) => {
     setIsUpdating(true);
     try {
       await updateStatus(status);
-      if (status === 'completed') {
-        // Redirect to feedback page
-        router.push(`/feedback/${matchId}`);
-      }
     } finally {
       setIsUpdating(false);
     }
   };
 
+  const handleCompleteClick = () => setCompleteDialogOpen(true);
+
+  const handleConfirmComplete = async () => {
+    setIsUpdating(true);
+    try {
+      await updateStatus('completed');
+      router.push(`/feedback/${matchId}`);
+    } finally {
+      setIsUpdating(false);
+      setCompleteDialogOpen(false);
+    }
+  };
+
   const handleReport = async () => {
     if (!match || !user || !reportReason.trim()) return;
-
     setIsReporting(true);
     try {
       const otherUid =
         match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
-
       await setDoc(doc(getFirebaseDb(), 'reports', `${matchId}_${user.uid}`), {
         reportedBy: user.uid,
         reportedUser: otherUid,
@@ -115,7 +179,6 @@ export default function MatchPage() {
         reason: reportReason.trim(),
         createdAt: serverTimestamp(),
       });
-
       setReportReason('');
       alert('Report submitted. Thank you for keeping NYU Buddy safe.');
     } catch {
@@ -127,43 +190,21 @@ export default function MatchPage() {
 
   const handleBlock = async () => {
     if (!match || !user || !matchId) return;
-
     const otherUid =
       match.user1Uid === user.uid ? match.user2Uid : match.user1Uid;
-
-    // Confirmation dialog
     const confirmed = window.confirm(
       `Are you sure you want to block ${otherUserProfile?.displayName || 'this user'}?\n\nThey will no longer appear in your future searches, and this match will end immediately.`
     );
-
     if (!confirmed) return;
 
     setIsBlocking(true);
     try {
-      console.log('[handleBlock] Starting block process for otherUid:', otherUid);
-      console.log('[handleBlock] Current user.uid:', user.uid);
-
-      // 1. Create the block document FIRST (before cancel triggers redirect)
       const blockRef = doc(getFirebaseDb(), 'blocks', user.uid, 'blocked', otherUid);
-      console.log('[handleBlock] Block ref path:', blockRef.path);
-
       const blockDoc = await getDoc(blockRef);
-      console.log('[handleBlock] Existing block doc exists:', blockDoc.exists());
-
       if (!blockDoc.exists()) {
-        console.log('[handleBlock] Creating new block document...');
-        await setDoc(blockRef, {
-          blockedAt: serverTimestamp(),
-        });
-        console.log('[handleBlock] Block document CREATED successfully for', otherUid);
-      } else {
-        console.log('[handleBlock] Block already exists, skipping create');
+        await setDoc(blockRef, { blockedAt: serverTimestamp() });
       }
-
-      // 2. THEN cancel the match (this triggers the redirect via listener)
-      console.log('[handleBlock] Calling matchCancel...');
       await matchCancel({ matchId, reason: 'blocked' });
-
       toast({
         title: 'User blocked',
         description: `${otherUserProfile?.displayName || 'This user'} won't appear in your suggestions anymore.`,
@@ -181,138 +222,292 @@ export default function MatchPage() {
     }
   };
 
-  // If match becomes cancelled via listener, redirect immediately
+  // Terminal match status → redirect.
   useEffect(() => {
-    if (match?.status === 'cancelled') {
-      console.log('Match status changed to cancelled in background, redirecting...');
-      const reason = cancellationReason || 'cancelled';
-      window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
+    if (!match?.status) return;
+    const terminalStatuses = ['cancelled', 'completed', 'expired_pending_confirmation'];
+    if (terminalStatuses.includes(match.status)) {
+      if (match.status === 'cancelled') {
+        const reason = cancellationReason || 'cancelled';
+        window.location.href = `/?cancelled=true&reason=${encodeURIComponent(reason)}`;
+      } else {
+        window.location.href = '/';
+      }
     }
   }, [match?.status, cancellationReason]);
 
-  const handleCancelClick = () => {
-    setCancelModalOpen(true);
-  };
+  const handleCancelClick = () => setCancelModalOpen(true);
 
   const handleConfirmCancel = async (reason: string, details?: string) => {
     if (!matchId) return;
-
     setIsCancelling(true);
     try {
-      // Pass reason and details (if "other", combine them or just pass reason)
       const finalReason = details ? `${reason}: ${details}` : reason;
       await matchCancel({ matchId, reason: finalReason });
       router.push('/');
     } catch (err) {
       console.error('Cancel Match Error:', err);
       const message = err instanceof Error ? err.message : 'Failed to cancel match';
-
-      // If match is already cancelled (400 Bad Request often returns this), treat as success
       if (message.toLowerCase().includes('cancelled') || message.includes('400')) {
-        console.log('Match already cancelled, forcing redirect...');
         window.location.href = '/?cancelled=true';
         return;
       }
       alert(message);
     } finally {
       setCancelModalOpen(false);
-      // setIsCancelling(false); // Don't reset if we might be redirecting to avoid flicker
     }
   };
 
-  const currentStatusIndex = STATUS_STEPS.findIndex(
-    (s) => s.key === match?.status
-  );
+  const handleToggleDrawer = () => {
+    if (chatDrawerOpen) {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+    setChatDrawerOpen(!chatDrawerOpen);
+  };
 
   // 2-Step View Logic
   const showLocationSelection = !match?.confirmedPlaceName;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
-      </div>
-    );
-  }
+  // Drawer height: 100% when keyboard open, 65% when closed, collapsed when drawer closed.
+  const drawerHeight = chatDrawerOpen
+    ? (isKbOpen ? '100%' : '65%')
+    : collapsedH;
 
-  if (error || !match) {
-    return (
-      <div className="max-w-md mx-auto text-center py-12">
-        <p className="text-red-500 mb-4">{error || 'Match not found'}</p>
-        <Button onClick={() => router.push('/')}>Go Home</Button>
-      </div>
-    );
-  }
+  // ── Render ──
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
-      {/* Match Header - Always Visible */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card className="border-0 shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white">
-            <div className="flex items-center space-x-4">
+    <div
+      className="fixed inset-x-0 mx-auto w-full max-w-lg flex flex-col bg-white overflow-hidden z-50
+                 sm:rounded-xl sm:shadow-2xl sm:border sm:border-gray-200"
+      style={{
+        top: 'var(--vv-offset-top, 0px)',
+        height: 'var(--vvh, 100dvh)',
+        transitionProperty: 'height',
+        transitionDuration: 'var(--vvh-duration, 0ms)',
+        transitionTimingFunction: 'ease-out',
+      }}
+    >
+      {/* ── Loading / Error ── */}
+      {loading && (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+        </div>
+      )}
+
+      {!loading && (error || !match) && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-500 mb-4">{error || 'Match not found'}</p>
+            <Button onClick={() => router.push('/')}>Go Home</Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main content (only when data is loaded) ── */}
+      {!loading && match && (
+        <>
+          {/* ── Header ── */}
+          <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-3 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-3">
               <ProfileAvatar
                 photoURL={otherUserProfile?.photoURL}
                 displayName={otherUserProfile?.displayName}
-                size="lg"
+                size="sm"
               />
               <div>
-                <h2 className="text-xl font-bold">
+                <h2 className="text-sm font-semibold text-white">
                   {otherUserProfile?.displayName || 'Your Buddy'}
                 </h2>
-                <p className="text-white/80 text-sm">
+                <p className="text-[10px] text-white/60">
                   Matched {match.matchedAt?.toDate().toLocaleDateString()}
                 </p>
               </div>
             </div>
+
+            {/* Overflow menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {otherUserProfile && otherUserProfile.interests.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5">
+                      <p className="text-xs text-gray-500 mb-1">Interests</p>
+                      <div className="flex flex-wrap gap-1">
+                        {otherUserProfile.interests.slice(0, 5).map((interest) => (
+                          <Badge key={interest} variant="secondary" className="text-[10px]">
+                            {interest}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {match?.status !== 'completed' && (
+                  <DropdownMenuItem
+                    onClick={handleCancelClick}
+                    disabled={isCancelling}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    {isCancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                    Cancel Match
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
+                  <Flag className="h-4 w-4 mr-2" />
+                  Report
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleBlock}
+                  disabled={isBlocking}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  {isBlocking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Ban className="h-4 w-4 mr-2" />}
+                  Block
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          <CardContent className="p-6">
-            {/* Interests */}
-            {otherUserProfile && otherUserProfile.interests.length > 0 && (
-              <div className="mb-4">
-                <p className="text-sm text-gray-500 mb-2">Interests:</p>
-                <div className="flex flex-wrap gap-2">
-                  {otherUserProfile.interests.slice(0, 5).map((interest) => (
-                    <Badge key={interest} variant="secondary">
-                      {interest}
-                    </Badge>
-                  ))}
-                </div>
+          {/* ── STEP 1: Location Decision + Chat Drawer ── */}
+          {showLocationSelection && (
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+              <div
+                className="flex-1 overflow-y-auto p-3 pb-16 bg-violet-50"
+                style={{ overscrollBehavior: 'contain' }}
+              >
+                <LocationDecisionPanel
+                  placeCandidates={placeCandidates}
+                  myChoice={myChoice}
+                  otherChoice={otherChoice}
+                  otherChosenCandidate={otherChosenCandidate ?? null}
+                  otherUserName={otherUserProfile?.displayName || 'Your buddy'}
+                  formattedCountdown={formattedCountdown}
+                  isSettingChoice={isSettingChoice}
+                  onSelectPlace={handleSetChoice}
+                  onGoWithTheirChoice={handleGoWithTheirChoice}
+                  onCancel={handleCancelClick}
+                  isCancelling={isCancelling}
+                  isLoading={placeCandidates.length === 0}
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
 
-      {/* STEP 1: PRD v2.4 Location Decision View */}
-      {showLocationSelection && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <LocationDecisionPanel
-            placeCandidates={placeCandidates}
-            myChoice={myChoice}
-            otherChoice={otherChoice}
-            otherChosenCandidate={otherChosenCandidate ?? null}
-            otherUserName={otherUserProfile?.displayName || 'Your buddy'}
-            formattedCountdown={formattedCountdown}
-            isSettingChoice={isSettingChoice}
-            onSelectPlace={handleSetChoice}
-            onGoWithTheirChoice={handleGoWithTheirChoice}
-            onCancel={handleCancelClick}
-            isCancelling={isCancelling}
-            isLoading={placeCandidates.length === 0}
-          />
-        </motion.div>
+              {/* ── Chat Drawer ── */}
+              <motion.div
+                className="absolute bottom-0 left-0 right-0 z-40 flex flex-col
+                           overflow-hidden border-t border-gray-200 bg-white
+                           shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
+                initial={false}
+                animate={{ height: drawerHeight }}
+                onAnimationComplete={handleDrawerAnimComplete}
+                transition={{
+                  type: 'tween',
+                  duration: animDuration,
+                  ease: [0.25, 0.1, 0.25, 1],
+                }}
+              >
+                {/* Toggle handle — measured for collapsed height */}
+                <div
+                  ref={toggleRef}
+                  className="flex-shrink-0"
+                  style={{
+                    paddingBottom: chatDrawerOpen
+                      ? '0'
+                      : 'var(--safe-bottom, env(safe-area-inset-bottom, 0px))',
+                  }}
+                >
+                  <button
+                    onClick={handleToggleDrawer}
+                    className={`w-full flex items-center justify-center gap-2
+                      bg-white text-violet-600 font-semibold
+                      hover:bg-gray-50
+                      ${isKbOpen && chatDrawerOpen ? 'py-2 text-sm' : 'py-5 text-base'}`}
+                    style={{ transition: 'padding 0.28s ease-out, color 0.15s, background-color 0.15s' }}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Chat
+                    {messages.length > 0 && (
+                      <span className="bg-violet-600 text-white text-[10px] rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                        {messages.length}
+                      </span>
+                    )}
+                    {chatDrawerOpen
+                      ? <ChevronDown className="h-3 w-3" />
+                      : <ChevronUp className="h-3 w-3" />}
+                  </button>
+                </div>
+
+                {/* Content stays mounted during close so it slides away */}
+                {contentMounted && (
+                  <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                    <ChatPanel
+                      messages={messages}
+                      currentUserUid={user?.uid || ''}
+                      otherUserName={otherUserProfile?.displayName || 'Buddy'}
+                      currentUserPhotoURL={userProfile?.photoURL}
+                      otherUserPhotoURL={otherUserProfile?.photoURL}
+                      onSendMessage={sendMessage}
+                      isSending={isSending}
+                      isAtLimit={chatIsAtLimit}
+                      totalCount={chatTotalCount}
+                      error={chatError}
+                      compact={isKbOpen}
+                    />
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          )}
+
+          {/* ── STEP 2: Full Chat View ── */}
+          {!showLocationSelection && (
+            <div className="flex-1 flex flex-col overflow-hidden bg-white">
+              <div className="flex-1 overflow-hidden">
+                <ChatPanel
+                  messages={messages}
+                  currentUserUid={user?.uid || ''}
+                  otherUserName={otherUserProfile?.displayName || 'Buddy'}
+                  currentUserPhotoURL={userProfile?.photoURL}
+                  otherUserPhotoURL={otherUserProfile?.photoURL}
+                  onSendMessage={sendMessage}
+                  isSending={isSending}
+                  isAtLimit={chatIsAtLimit}
+                  totalCount={chatTotalCount}
+                  error={chatError}
+                  confirmedPlaceName={match.confirmedPlaceName}
+                  confirmedPlaceAddress={match.confirmedPlaceAddress || undefined}
+                  myStatus={myStatus || undefined}
+                  isUpdatingStatus={isUpdating}
+                  onStatusUpdate={handleStatusUpdate}
+                  onCompleteClick={handleCompleteClick}
+                  compact={isKbOpen}
+                />
+              </div>
+              {/* Feedback link after completion */}
+              {myStatus === 'completed' && (
+                <div className="flex-shrink-0 px-3 py-2 bg-violet-50 border-t border-violet-100 text-center">
+                  <button
+                    onClick={() => router.push(`/feedback/${matchId}`)}
+                    className="text-xs text-violet-600 font-medium hover:underline"
+                  >
+                    <MessageCircle className="h-3 w-3 inline mr-1" />
+                    Leave Feedback
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Cancel Reason Modal */}
+      {/* ── Modals (use portals, render on top) ── */}
       <CancelReasonModal
         open={cancelModalOpen}
         onOpenChange={setCancelModalOpen}
@@ -320,250 +515,45 @@ export default function MatchPage() {
         isCancelling={isCancelling}
       />
 
-      {/* STEP 2: Meetup Status View */}
-      {!showLocationSelection && (
-        <>
-          {/* Confirmed Place Display */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="border-0 shadow-lg border-green-200 bg-green-50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Check className="w-5 h-5 text-green-600" />
-                  Meeting Location
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start space-x-3 p-3 bg-white rounded-lg">
-                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900">{match.confirmedPlaceName}</p>
-                    <p className="text-sm text-gray-500 truncate">
-                      {match.confirmedPlaceAddress}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+      <CompleteConfirmDialog
+        open={completeDialogOpen}
+        onOpenChange={setCompleteDialogOpen}
+        onConfirm={handleConfirmComplete}
+        isLoading={isUpdating}
+      />
 
-          {/* Status Progress */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-lg">Meetup Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between mb-6">
-                  {STATUS_STEPS.map((step, index) => {
-                    const Icon = step.icon;
-                    const isActive = index <= currentStatusIndex;
-                    const isCurrent = step.key === match.status;
-
-                    return (
-                      <div
-                        key={step.key}
-                        className="flex flex-col items-center space-y-2"
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isActive
-                            ? 'bg-violet-600 text-white'
-                            : 'bg-gray-100 text-gray-400'
-                            } ${isCurrent ? 'ring-2 ring-violet-300 ring-offset-2' : ''}`}
-                        >
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <span
-                          className={`text-xs ${isActive ? 'text-violet-600 font-medium' : 'text-gray-400'
-                            }`}
-                        >
-                          {step.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Status Update Buttons */}
-                <div className="space-y-3">
-                  {myStatus === 'pending' && (
-                    <Button
-                      className="w-full bg-gradient-to-r from-violet-600 to-purple-600"
-                      onClick={() => handleStatusUpdate('heading_there')}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Navigation className="mr-2 h-4 w-4" />
-                          I&apos;m on my way
-                        </>
-                      )}
-                    </Button>
-                  )}
-
-                  {myStatus === 'heading_there' && (
-                    <Button
-                      className="w-full bg-gradient-to-r from-violet-600 to-purple-600"
-                      onClick={() => handleStatusUpdate('arrived')}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <MapPin className="mr-2 h-4 w-4" />
-                          I&apos;ve arrived
-                        </>
-                      )}
-                    </Button>
-                  )}
-
-                  {myStatus === 'arrived' && (
-                    <Button
-                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600"
-                      onClick={() => handleStatusUpdate('completed')}
-                      disabled={isUpdating}
-                    >
-                      {isUpdating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Check className="mr-2 h-4 w-4" />
-                          Complete Meetup
-                        </>
-                      )}
-                    </Button>
-                  )}
-
-                  {myStatus === 'completed' && (
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      onClick={() => router.push(`/feedback/${matchId}`)}
-                    >
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      Leave Feedback
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Safety Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            <Card className="border-0 shadow-lg">
-              <CardContent className="pt-6">
-                {/* Cancel Button (Step 2) */}
-                {match.status !== 'completed' && (
-                  <div className="mb-4">
-                    <Button
-                      variant="outline"
-                      className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                      onClick={handleCancelClick}
-                      disabled={isCancelling}
-                    >
-                      {isCancelling ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : null}
-                      Cancel Match
-                    </Button>
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      Cancelling now will affect your reliability score
-                    </p>
-                  </div>
-                )}
-                <Separator className="mb-4" />
-                <div className="flex space-x-3">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        <Flag className="mr-2 h-4 w-4" />
-                        Report
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Report User</DialogTitle>
-                        <DialogDescription>
-                          Help us keep NYU Buddy safe. Describe the issue.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 pt-4">
-                        <div className="space-y-2">
-                          <Label>Reason</Label>
-                          <Textarea
-                            value={reportReason}
-                            onChange={(e) => setReportReason(e.target.value)}
-                            placeholder="Describe the issue..."
-                            rows={4}
-                          />
-                        </div>
-                        <Button
-                          onClick={handleReport}
-                          disabled={!reportReason.trim() || isReporting}
-                          className="w-full"
-                        >
-                          {isReporting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            'Submit Report'
-                          )}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={handleBlock}
-                    disabled={isBlocking}
-                  >
-                    {isBlocking ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Ban className="mr-2 h-4 w-4" />
-                        Block
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </>
-      )}
-      {/* Debug Info */}
-      <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono break-all">
-        <h4 className="font-bold mb-2">Debug Info</h4>
-        <p>My Stored Location (from DB): {myPresence ? `${myPresence.lat.toFixed(5)}, ${myPresence.lng.toFixed(5)}` : 'Loading...'}</p>
-        <div className="mt-2">
-          <strong>Recommended Places:</strong>
-          {placeCandidates.map((p: { placeId: string; name: string; distance: number; lat: number; lng: number }) => (
-            <div key={p.placeId} className="ml-2 mt-1">
-              - {p.name}: {p.distance}m  (Loc: {p.lat?.toFixed(5)}, {p.lng?.toFixed(5)})
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report User</DialogTitle>
+            <DialogDescription>
+              Help us keep NYU Buddy safe. Describe the issue.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                placeholder="Describe the issue..."
+                rows={4}
+              />
             </div>
-          ))}
-        </div>
-      </div>
+            <Button
+              onClick={() => { handleReport(); setReportDialogOpen(false); }}
+              disabled={!reportReason.trim() || isReporting}
+              className="w-full"
+            >
+              {isReporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Submit Report'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

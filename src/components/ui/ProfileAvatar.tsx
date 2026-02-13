@@ -9,13 +9,14 @@ import ImageCropperModal from './ImageCropperModal';
 interface ProfileAvatarProps {
     photoURL?: string | null;
     displayName?: string;
-    size?: 'sm' | 'md' | 'lg' | 'xl';
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     editable?: boolean;
     onImageSelect?: (file: File) => void;
     className?: string;
 }
 
 const sizeClasses = {
+    xs: 'w-8 h-8',
     sm: 'w-12 h-12',
     md: 'w-20 h-20',
     lg: 'w-24 h-24',
@@ -23,6 +24,7 @@ const sizeClasses = {
 };
 
 const iconSizes = {
+    xs: 'w-4 h-4',
     sm: 'w-6 h-6',
     md: 'w-10 h-10',
     lg: 'w-12 h-12',
@@ -30,6 +32,7 @@ const iconSizes = {
 };
 
 const cameraIconSizes = {
+    xs: 'w-3 h-3',
     sm: 'w-4 h-4',
     md: 'w-5 h-5',
     lg: 'w-6 h-6',
@@ -158,7 +161,7 @@ export function ProfileAvatar({
                         alt={displayName || 'Profile picture'}
                         fill
                         className="object-cover"
-                        sizes={`(max-width: 768px) ${size === 'xl' ? '128px' : size === 'lg' ? '96px' : size === 'md' ? '80px' : '48px'}`}
+                        sizes={`(max-width: 768px) ${size === 'xl' ? '128px' : size === 'lg' ? '96px' : size === 'md' ? '80px' : size === 'sm' ? '48px' : '32px'}`}
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">

@@ -1,5 +1,6 @@
 import { httpsCallable, HttpsCallable } from 'firebase/functions';
 import { getFirebaseFunctions } from './client';
+import { retryWithBackoff } from '../utils/retry';
 
 // Helper to create lazy-initialized callables (deferred until first call)
 function createCallable<TRequest, TResponse>(name: string): HttpsCallable<TRequest, TResponse> {
@@ -13,10 +14,31 @@ function createCallable<TRequest, TResponse>(name: string): HttpsCallable<TReque
 }
 
 // Presence functions
-export const presenceStart = createCallable<
-  { activity: string; durationMin: number; lat: number; lng: number },
-  { success: boolean }
->('presenceStart');
+// U23: Retry-wrapped with idempotency
+export async function presenceStart(data: {
+  activity: string;
+  durationMin: number;
+  lat: number;
+  lng: number;
+  idempotencyKey?: string;
+}): Promise<{ success: boolean; sessionId: string; expiresAt: string }> {
+  return retryWithBackoff(async (generatedKey) => {
+    // Use provided key if available, otherwise use retry-generated key
+    const keyToUse = data.idempotencyKey || generatedKey;
+    const fn = httpsCallable<
+      { activity: string; durationMin: number; lat: number; lng: number; idempotencyKey: string },
+      { success: boolean; sessionId: string; expiresAt: string }
+    >(getFirebaseFunctions(), 'presenceStart');
+    const result = await fn({
+      activity: data.activity,
+      durationMin: data.durationMin,
+      lat: data.lat,
+      lng: data.lng,
+      idempotencyKey: keyToUse,
+    });
+    return result.data;
+  });
+}
 
 export const presenceEnd = createCallable<void, { success: boolean }>('presenceEnd');
 
@@ -79,27 +101,82 @@ export const updateMatchStatus = createCallable<
   { success: boolean }
 >('updateMatchStatus');
 
-// Offer functions
-export const offerCreate = createCallable<
-  {
-    targetUid: string;
-    explanation?: string;
-    matchScore?: number;
-    distanceMeters?: number;
-  },
-  {
-    offerId: string;
-    matchCreated: boolean;
-    matchId?: string;
-    expiresAt?: string;
-    cooldownUntil?: string;
-  }
->('offerCreate');
+// Match Chat function
+export const matchSendMessage = createCallable<
+  { matchId: string; content: string },
+  { success: boolean; messageId: string }
+>('matchSendMessage');
 
-export const offerRespond = createCallable<
-  { offerId: string; action: 'accept' | 'decline' },
-  { matchCreated: boolean; matchId?: string }
->('offerRespond');
+// "Did you meet?" confirmation function
+export const matchConfirmMeeting = createCallable<
+  { matchId: string; response: 'met' | 'not_met' | 'dismissed' },
+  { success: boolean; resolved: boolean; finalStatus?: string; outcome?: string }
+>('matchConfirmMeeting');
+
+// Offer functions
+// U23: Retry-wrapped with idempotency
+export async function offerCreate(data: {
+  targetUid: string;
+  explanation?: string;
+  matchScore?: number;
+  distanceMeters?: number;
+  idempotencyKey?: string;
+}): Promise<{
+  offerId: string;
+  matchCreated: boolean;
+  matchId?: string;
+  expiresAt?: string;
+  cooldownUntil?: string;
+}> {
+  return retryWithBackoff(async (generatedKey) => {
+    const keyToUse = data.idempotencyKey || generatedKey;
+    const fn = httpsCallable<
+      {
+        targetUid: string;
+        explanation?: string;
+        matchScore?: number;
+        distanceMeters?: number;
+        idempotencyKey: string;
+      },
+      {
+        offerId: string;
+        matchCreated: boolean;
+        matchId?: string;
+        expiresAt?: string;
+        cooldownUntil?: string;
+      }
+    >(getFirebaseFunctions(), 'offerCreate');
+    const result = await fn({
+      targetUid: data.targetUid,
+      explanation: data.explanation,
+      matchScore: data.matchScore,
+      distanceMeters: data.distanceMeters,
+      idempotencyKey: keyToUse,
+    });
+    return result.data;
+  });
+}
+
+// U23: Retry-wrapped with idempotency
+export async function offerRespond(data: {
+  offerId: string;
+  action: 'accept' | 'decline';
+  idempotencyKey?: string;
+}): Promise<{ matchCreated: boolean; matchId?: string; offerId: string }> {
+  return retryWithBackoff(async (generatedKey) => {
+    const keyToUse = data.idempotencyKey || generatedKey;
+    const fn = httpsCallable<
+      { offerId: string; action: 'accept' | 'decline'; idempotencyKey: string },
+      { matchCreated: boolean; matchId?: string; offerId: string }
+    >(getFirebaseFunctions(), 'offerRespond');
+    const result = await fn({
+      offerId: data.offerId,
+      action: data.action,
+      idempotencyKey: keyToUse,
+    });
+    return result.data;
+  });
+}
 
 export const offerCancel = createCallable<
   { offerId: string },
@@ -148,10 +225,26 @@ export const offerGetOutgoing = createCallable<
 >('offerGetOutgoing');
 
 // Match functions
-export const matchCancel = createCallable<
-  { matchId: string; reason?: string },
-  { success: boolean; wasSevereCancel: boolean }
->('matchCancel');
+// U23: Retry-wrapped with idempotency
+export async function matchCancel(data: {
+  matchId: string;
+  reason?: string;
+  idempotencyKey?: string;
+}): Promise<{ success: boolean; wasSevereCancel: boolean }> {
+  return retryWithBackoff(async (generatedKey) => {
+    const keyToUse = data.idempotencyKey || generatedKey;
+    const fn = httpsCallable<
+      { matchId: string; reason?: string; idempotencyKey: string },
+      { success: boolean; wasSevereCancel: boolean }
+    >(getFirebaseFunctions(), 'matchCancel');
+    const result = await fn({
+      matchId: data.matchId,
+      reason: data.reason,
+      idempotencyKey: keyToUse,
+    });
+    return result.data;
+  });
+}
 
 // PRD v2.4: Location Decision Functions
 export interface PlaceCandidate {
@@ -208,6 +301,16 @@ export const matchResolvePlaceIfNeeded = createCallable<
     usedFallback?: boolean;
   }
 >('matchResolvePlaceIfNeeded');
+
+// Admin: Force-expire match for testing
+export const adminForceExpireMatch = createCallable<
+  { matchId: string; simulateCompletedUids?: string[] },
+  {
+    success: boolean; matchStatus: string; pendingUids: string[];
+    user1Uid: string; user2Uid: string; message: string;
+    rawStatusByUser: Record<string, string>; rawMatchStatus: string; simulatedUids: string[];
+  }
+>('adminForceExpireMatch');
 
 export const checkAvailabilityForUser = createCallable<
   { activityType?: string; lat?: number; lng?: number },

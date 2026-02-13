@@ -1,10 +1,13 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { requireEmailVerification } from '../utils/verifyEmail';
+import { withIdempotencyLock, MinimalResult } from '../utils/idempotency';
+import { releaseMatchGuard } from './createMatchAtomic';
 
 interface MatchCancelData {
   matchId: string;
   reason?: string;
+  idempotencyKey?: string; // U23: Optional idempotency key for duplicate prevention
 }
 
 interface CancelMatchOptions {
@@ -63,6 +66,11 @@ export async function cancelMatchInternal(
     return { success: false, wasSevereCancel: false };
   }
 
+  if (match.status === 'expired_pending_confirmation') {
+    console.warn(`[cancelMatchInternal] Match ${matchId} is expired pending confirmation`);
+    return { success: false, wasSevereCancel: false };
+  }
+
   const otherUid = match.user1Uid === cancelledBy ? match.user2Uid : match.user1Uid;
   const otherStatus = match.statusByUser?.[otherUid];
   const wasSevereCancel = ['heading_there', 'arrived'].includes(otherStatus);
@@ -72,7 +80,7 @@ export async function cancelMatchInternal(
 
   // 1. No penalty for system reasons, safety, or blocks
   if (reason === 'no_places_available' || reason === 'safety_concern' || reason === 'blocked' ||
-      reason === 'timeout_pending' || reason === 'system_cleanup') {
+    reason === 'timeout_pending' || reason === 'system_cleanup' || reason === 'system_presence_expired') {
     penaltyMultiplier = 0;
   }
   // 2. No penalty for 15s grace period
@@ -111,13 +119,22 @@ export async function cancelMatchInternal(
 
     // 2. WRITES
     // Update match to cancelled
-    transaction.update(matchRef, {
+    // If the other user had already individually completed, treat this as a dispute:
+    // their completion is an implicit "I met this person", the cancel is an implicit "I'm not confirming".
+    const matchUpdateData: Record<string, unknown> = {
       status: 'cancelled',
       cancelledBy,
       cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
       cancellationReason: reason || null,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (otherStatus === 'completed') {
+      matchUpdateData.confirmationOutcome = 'disputed';
+      console.log(`[cancelMatchInternal] Other user already completed — marking as disputed`);
+    }
+
+    transaction.update(matchRef, matchUpdateData);
 
     // Update cancelling user's reliability stats (only if not a system cancel)
     if (userDoc.exists && !skipPermissionCheck) {
@@ -158,29 +175,66 @@ export async function cancelMatchInternal(
     });
 
     // Update presence docs
+    // U19: Restore originalExpiresAt if it exists, or delete presence if original session expired
     for (const presenceDoc of presenceDocs) {
       if (!presenceDoc.exists) continue;
 
       const presence = presenceDoc.data();
       if (!presence) continue;
 
+      // Safety: skip if presence is no longer for this match (user already restored or started new session)
+      if (presence.matchId && presence.matchId !== matchId) continue;
+      if (presence.status !== 'matched') continue;
+
       const now = admin.firestore.Timestamp.now();
-      const expiresAt = presence.expiresAt;
 
-      // Safely check expiration
-      const isExpired = !expiresAt ||
-        (typeof expiresAt.toMillis === 'function' && expiresAt.toMillis() <= now.toMillis());
+      // U19: Use originalExpiresAt (saved when match was created) to check if
+      // the user's original session is still valid. Fall back to expiresAt for
+      // matches created before U19 fix.
+      const originalExpiresAt = presence.originalExpiresAt || presence.expiresAt;
 
-      // Only reset if presence hasn't expired
-      if (!isExpired) {
+      const isOriginalExpired = !originalExpiresAt ||
+        (typeof originalExpiresAt.toMillis === 'function' && originalExpiresAt.toMillis() <= now.toMillis());
+
+      if (isOriginalExpired) {
+        // Original session expired during the match — delete presence (user goes offline)
+        transaction.delete(presenceDoc.ref);
+      } else {
+        // Original session still valid — restore to available with original expiresAt
         transaction.update(presenceDoc.ref, {
           status: 'available',
-          matchId: admin.firestore.FieldValue.delete(), // U15 Fix: Clear matchId on match termination
+          matchId: admin.firestore.FieldValue.delete(),
+          expiresAt: originalExpiresAt,
+          originalExpiresAt: admin.firestore.FieldValue.delete(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }
     }
   });
+
+  // U22: Release the pair guard after cancellation
+  try {
+    await releaseMatchGuard(matchId, match.user1Uid, match.user2Uid);
+    console.log(`[cancelMatchInternal] Released guard for cancelled match ${matchId}`);
+  } catch (guardError) {
+    // Log but don't fail the cancellation if guard release fails
+    console.error(`[cancelMatchInternal] Failed to release guard for match ${matchId}:`, guardError);
+  }
+
+  // POST-TRANSACTION: Append cancellation announcement to chat (non-critical).
+  // If this fails, the cancellation itself already succeeded atomically.
+  try {
+    await db.collection('matches').doc(matchId).collection('messages').add({
+      type: 'status',
+      senderUid: cancelledBy,
+      content: 'left the meetup',
+      statusValue: 'cancelled',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`[cancelMatchInternal] Cancellation announcement written for match ${matchId}`);
+  } catch (msgError) {
+    console.error(`[cancelMatchInternal] Failed to write cancellation message (non-critical):`, msgError);
+  }
 
   console.log(`[cancelMatchInternal] Successfully cancelled match ${matchId}`);
   return {
@@ -200,7 +254,7 @@ export async function matchCancelHandler(request: CallableRequest<MatchCancelDat
     await requireEmailVerification(request);
 
     const uid = request.auth.uid;
-    const { matchId, reason } = request.data;
+    const { matchId, reason, idempotencyKey } = request.data;
     const db = admin.firestore();
 
     console.log(`[matchCancel] Starting cancel for match ${matchId} by user ${uid}`);
@@ -210,14 +264,39 @@ export async function matchCancelHandler(request: CallableRequest<MatchCancelDat
       throw new HttpsError('invalid-argument', 'Match ID is required');
     }
 
-    // Use the shared internal function
-    const result = await cancelMatchInternal(db, matchId, {
-      cancelledBy: uid,
-      reason,
-      skipPermissionCheck: false,
-    });
+    // U23: Wrap with idempotency lock
+    const { result, cached } = await withIdempotencyLock<MinimalResult & { success: boolean; wasSevereCancel: boolean }>(
+      uid,
+      'matchCancel',
+      idempotencyKey,
+      async () => {
+        // Use the shared internal function
+        const cancelResult = await cancelMatchInternal(db, matchId, {
+          cancelledBy: uid,
+          reason,
+          skipPermissionCheck: false,
+        });
 
-    return result;
+        // Return minimal result for caching
+        return {
+          primaryId: matchId,
+          flags: {
+            success: cancelResult.success,
+            wasSevereCancel: cancelResult.wasSevereCancel,
+          },
+          ...cancelResult, // Include full result for return
+        } as MinimalResult & { success: boolean; wasSevereCancel: boolean };
+      }
+    );
+
+    if (cached) {
+      console.log(`[matchCancel] Returning cached result (match already cancelled)`);
+    }
+
+    return {
+      success: result.success,
+      wasSevereCancel: result.wasSevereCancel,
+    };
   } catch (error) {
     console.error('[matchCancel] CRITICAL ERROR:', error);
     if (error instanceof HttpsError) {

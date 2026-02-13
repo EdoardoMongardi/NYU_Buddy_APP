@@ -7,6 +7,7 @@ import {
     Info,
     Check,
     Loader2,
+    MapPin,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,11 @@ export function LocationDecisionPanel({
     const bothChoseSame = myChoice && otherChoice && myChoice.placeId === otherChoice.placeId;
     const currentSelection = myChoice?.placeId;
 
+    // My chosen candidate
+    const myChosenCandidate = myChoice
+        ? placeCandidates.find((p) => p.placeId === myChoice.placeId) || null
+        : null;
+
     // Loading State
     if (isLoading && placeCandidates.length === 0) {
         return (
@@ -103,8 +109,8 @@ export function LocationDecisionPanel({
     }
 
     return (
-        <div className="space-y-4">
-            {/* Header with countdown */}
+        <div className="space-y-3">
+            {/* Header with countdown + info */}
             <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                     <Clock className="w-5 h-5 text-violet-600" />
@@ -140,24 +146,104 @@ export function LocationDecisionPanel({
                 </Dialog>
             </div>
 
-            {/* Candidates List (Swipeable) */}
-            <div className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                    <p className="text-sm text-gray-500 flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        Swipe to see more options
+            {/* Both chose same — success banner */}
+            {bothChoseSame && (
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-200"
+                >
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-green-700">
+                            You both picked the same!
+                        </p>
+                        <p className="text-xs text-green-600 truncate">
+                            {otherChosenCandidate?.name}
+                        </p>
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Side-by-side choice grid */}
+            <div className="grid grid-cols-2 gap-2">
+                {/* LEFT: My Choice */}
+                <div>
+                    <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1 px-1">
+                        Your pick
                     </p>
-                    <span className="text-xs text-gray-400">
+                    {myChosenCandidate ? (
+                        <div className="relative">
+                            <PlaceCard
+                                place={myChosenCandidate}
+                                isSelected={true}
+                                isOtherChoice={false}
+                                isLoading={false}
+                                onSelect={() => { }} // Already selected
+                                compact
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 min-h-[100px]">
+                            <MapPin className="w-5 h-5 text-gray-300 mb-1" />
+                            <p className="text-[10px] text-gray-400 text-center">
+                                Swipe below to pick
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* RIGHT: Their Choice */}
+                <div>
+                    <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1 px-1">
+                        {otherUserName.split(' ')[0]}&apos;s pick
+                    </p>
+                    {otherChoice ? (
+                        otherChosenCandidate ? (
+                            <div className="relative">
+                                <PlaceCard
+                                    place={otherChosenCandidate}
+                                    isSelected={false}
+                                    isOtherChoice={true}
+                                    isLoading={isSettingChoice}
+                                    onSelect={onGoWithTheirChoice}
+                                    compact
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center bg-gray-50 border border-gray-200 rounded-xl p-4 min-h-[100px]">
+                                <p className="text-xs text-gray-500 text-center">
+                                    Picked #{otherChoice.placeRank}
+                                </p>
+                            </div>
+                        )
+                    ) : (
+                        <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 min-h-[100px]">
+                            <Loader2 className="w-5 h-5 animate-spin text-gray-300 mb-1" />
+                            <p className="text-[10px] text-gray-400 text-center">
+                                Waiting...
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Candidates Swipe Row */}
+            <div>
+                <div className="flex items-center justify-between px-1 mb-1">
+                    <p className="text-xs text-gray-500">
+                        Swipe to see options
+                    </p>
+                    <span className="text-[10px] text-gray-400">
                         {placeCandidates.length} spots
                     </span>
                 </div>
 
-                <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 px-1 -mx-4 sm:mx-0 sm:px-0 scrollbar-hide">
-                    {/* Add padding start to account for negative margin on mobile */}
-                    <div className="w-2 shrink-0 sm:hidden" />
-
+                <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-2 px-1 -mx-1 scrollbar-hide">
                     {placeCandidates.map((place) => (
-                        <div key={place.placeId} className="w-[85vw] sm:w-[350px] shrink-0 snap-center">
+                        <div key={place.placeId} className="w-[70vw] sm:w-[280px] shrink-0 snap-center">
                             <PlaceCard
                                 place={place}
                                 isSelected={currentSelection === place.placeId}
@@ -165,80 +251,15 @@ export function LocationDecisionPanel({
                                 isLoading={isSettingChoice && currentSelection !== place.placeId}
                                 onSelect={() => onSelectPlace(place.placeId, place.rank)}
                             />
-                            {/* Label for own selection */}
                             {currentSelection === place.placeId && (
-                                <p className="text-center text-sm font-medium text-green-600 mt-2">
-                                    You picked this
+                                <p className="text-center text-[10px] font-medium text-green-600 mt-1">
+                                    ✓ Your pick
                                 </p>
                             )}
                         </div>
                     ))}
-
-                    <div className="w-2 shrink-0 sm:hidden" />
                 </div>
             </div>
-
-            {/* Their Choice Section */}
-            <Card className={`border-0 shadow-md ${bothChoseSame ? 'bg-green-50 border-green-500' : 'bg-white'}`}>
-                <CardContent className="p-4">
-                    {!otherChoice ? (
-                        <div className="flex items-center gap-3">
-                            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                            <p className="text-sm text-gray-500">
-                                Waiting for {otherUserName} to choose...
-                            </p>
-                        </div>
-                    ) : bothChoseSame ? (
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="flex items-center gap-3"
-                        >
-                            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                                <Check className="w-5 h-5 text-green-600" />
-                            </div>
-                            <div>
-                                <p className="font-semibold text-green-700">
-                                    You both picked the same!
-                                </p>
-                                <p className="text-sm text-green-600">
-                                    {otherChosenCandidate?.name}
-                                </p>
-                            </div>
-                        </motion.div>
-                    ) : (
-                        <div className="space-y-2">
-                            <p className="text-sm font-medium text-gray-700 mb-2">
-                                {otherUserName} picked:
-                            </p>
-                            {otherChosenCandidate ? (
-                                <PlaceCard
-                                    place={otherChosenCandidate}
-                                    isSelected={false}
-                                    isOtherChoice={true}
-                                    isLoading={isSettingChoice}
-                                    onSelect={onGoWithTheirChoice}
-                                />
-                            ) : (
-                                <div className="p-4 bg-gray-100 rounded-lg text-sm text-gray-500">
-                                    Unknown place selected (#{otherChoice.placeRank})
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Cancel button */}
-            <Button
-                variant="outline"
-                className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                onClick={onCancel}
-                disabled={isCancelling}
-            >
-                {isCancelling && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Cancel Match
-            </Button>
         </div>
     );
 }

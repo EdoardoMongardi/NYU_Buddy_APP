@@ -1,12 +1,17 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
-import { ACTIVE_MATCH_STATUSES } from '../constants/state';
 import { requireEmailVerification } from '../utils/verifyEmail';
 import { sendMatchCreatedNotification } from '../utils/notifications';
+import {
+  checkIdempotencyInTransaction,
+  markIdempotencyCompleteInTransaction,
+} from '../utils/idempotency';
+import { createMatchAtomic } from '../matches/createMatchAtomic';
 
 interface OfferRespondData {
   offerId: string;
   action: 'accept' | 'decline';
+  idempotencyKey?: string; // U23: Optional idempotency key for duplicate prevention
 }
 
 export async function offerRespondHandler(request: CallableRequest<OfferRespondData>) {
@@ -63,7 +68,21 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
 
   // Handle decline
   if (action === 'decline') {
-    await db.runTransaction(async (transaction) => {
+    const declineResult = await db.runTransaction(async (transaction) => {
+      // U23: Check idempotency for decline action
+      const { idempotencyKey } = request.data;
+      const idempotencyCheck = await checkIdempotencyInTransaction(
+        transaction,
+        uid,
+        'offerRespond_decline',
+        idempotencyKey
+      );
+
+      if (idempotencyCheck.isDuplicate) {
+        console.log(`[offerRespond-decline] Returning cached result for duplicate request`);
+        return { cached: true, matchCreated: false };
+      }
+
       // Update offer status
       transaction.update(offerRef, {
         status: 'declined',
@@ -97,10 +116,24 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
         action: 'reject',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // U23: Mark idempotency as completed
+      await markIdempotencyCompleteInTransaction(
+        transaction,
+        uid,
+        'offerRespond_decline',
+        idempotencyKey,
+        {
+          primaryId: offerId,
+          flags: { matchCreated: false },
+        }
+      );
+
+      return { cached: false, matchCreated: false };
     });
 
     return {
-      matchCreated: false,
+      matchCreated: declineResult.matchCreated,
     };
   }
 
@@ -138,49 +171,10 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     throw new HttpsError('failed-precondition', 'Your availability has expired');
   }
 
-  // Check neither is in an active match
-  const activeStatuses = ACTIVE_MATCH_STATUSES;
-
-  // Check Sender (fromUid)
-  const fromMatchesQuery = await db.collection('matches')
-    .where('user1Uid', '==', offer.fromUid)
-    .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
-  const fromMatchesQuery2 = await db.collection('matches')
-    .where('user2Uid', '==', offer.fromUid)
-    .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
-
-  if (!fromMatchesQuery.empty || !fromMatchesQuery2.empty) {
-    // First-accept-wins: sender is no longer available
-    await offerRef.update({
-      status: 'expired',
-      respondedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    return {
-      matchCreated: false,
-      code: 'NO_LONGER_AVAILABLE',
-      message: 'Too late — they just matched with someone else.',
-    };
-  }
-
-  // Check Receiver (uid)
-  const toMatchesQuery = await db.collection('matches')
-    .where('user1Uid', '==', uid)
-    .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
-  const toMatchesQuery2 = await db.collection('matches')
-    .where('user2Uid', '==', uid)
-    .where('status', 'in', activeStatuses)
-    .limit(1)
-    .get();
-
-  if (!toMatchesQuery.empty || !toMatchesQuery2.empty) {
-    throw new HttpsError('failed-precondition', 'You are already in an active match');
-  }
+  // U22 FIX: Active match checks moved into transaction via createMatchAtomic guard
+  // The guard doc in `activeMatchesByPair` prevents race conditions atomically
+  // These outside-TX checks are REMOVED to eliminate TOCTOU races
+  // If a user is already matched, createMatchAtomic will return existing match (idempotent)
 
   // Check activity/duration still compatible
   if (fromPresence.activity !== toPresence.activity) {
@@ -191,59 +185,92 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
     throw new HttpsError('failed-precondition', 'Activities no longer match');
   }
 
-  // Create match
-  const matchRef = db.collection('matches').doc();
-  const [user1Uid, user2Uid] = offer.fromUid < uid
-    ? [offer.fromUid, uid]
-    : [uid, offer.fromUid];
+  // U22 FIX: Use createMatchAtomic for race-free match creation
+  const { idempotencyKey } = request.data;
 
-  await db.runTransaction(async (transaction) => {
-    // Create match
-    transaction.set(matchRef, {
-      user1Uid,
-      user2Uid,
-      status: 'pending',
-      statusByUser: {
-        [user1Uid]: 'pending',
-        [user2Uid]: 'pending',
+  // U23: Transaction-scoped idempotency + U22: Atomic match creation with guard
+  const transactionResult = await db.runTransaction(async (transaction) => {
+    // U23: Check idempotency inside transaction
+    const idempotencyCheck = await checkIdempotencyInTransaction(
+      transaction,
+      uid,
+      'offerRespond',
+      idempotencyKey
+    );
+
+    if (idempotencyCheck.isDuplicate) {
+      console.log(`[offerRespond] Returning cached result for duplicate request`);
+      // Return cached minimal result - transaction will abort gracefully
+      return {
+        cached: true,
+        matchId: idempotencyCheck.cachedResult!.primaryId,
+        offerId: idempotencyCheck.cachedResult!.secondaryIds?.[0],
+        matchCreated: idempotencyCheck.cachedResult!.flags?.matchCreated || false,
+      };
+    }
+
+    // U22: Use atomic match creation helper with pair-level guard
+    const matchResult = await createMatchAtomic(
+      {
+        user1Uid: offer.fromUid,
+        user2Uid: uid,
+        activity: offer.activity,
+        durationMinutes: Math.min(offer.fromDurationMinutes || 30, offer.toDurationMinutes || 30),
+        user1Coords: { lat: fromPresence.lat, lng: fromPresence.lng },
+        user2Coords: { lat: toPresence.lat, lng: toPresence.lng },
+        triggeringOfferId: offerId,
       },
-      offerId,
-      activity: offer.activity,
-      confirmedPlaceId: null,
-      confirmedPlaceName: null,
-      confirmedPlaceAddress: null,
-      placeConfirmedBy: null,
-      placeConfirmedAt: null,
-      cancelledBy: null,
-      cancelledAt: null,
-      matchedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      transaction // Run within this transaction for idempotency atomicity
+    );
 
-    // Update offer to accepted
+    const matchId = matchResult.matchId;
+
+    // Update offer to accepted (createMatchAtomic handles presence updates)
     transaction.update(offerRef, {
       status: 'accepted',
-      matchId: matchRef.id,
+      matchId,
       respondedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update sender's presence - clear all outgoing offers
+    // Clear sender's outgoing offers array
     transaction.update(fromPresenceDoc.ref, {
       activeOutgoingOfferIds: [],
-      status: 'matched',
-      matchId: matchRef.id, // U14 Fix: Set matchId consistently
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Update receiver's presence
-    transaction.update(toPresenceDoc.ref, {
-      status: 'matched',
-      matchId: matchRef.id, // U14 Fix: Set matchId consistently
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // U23: Mark idempotency as completed (inside transaction for atomicity)
+    await markIdempotencyCompleteInTransaction(
+      transaction,
+      uid,
+      'offerRespond',
+      idempotencyKey,
+      {
+        primaryId: matchId,
+        secondaryIds: [offerId],
+        flags: { matchCreated: matchResult.isNewMatch },
+      }
+    );
+
+    // Return result to outer scope
+    return {
+      cached: false,
+      matchId,
+      offerId,
+      matchCreated: matchResult.isNewMatch,
+    };
   });
 
+  // U23: If cached, return immediately (no cleanup or notifications)
+  if (transactionResult.cached) {
+    return {
+      matchCreated: transactionResult.matchCreated,
+      matchId: transactionResult.matchId,
+      activeMatchId: transactionResult.matchId,
+    };
+  }
+
   // Post-match Cleanup using utility (Cancels all other offers involved)
+  // Only run for fresh operations (not cached)
   await import('./cleanup').then(m => Promise.all([
     m.cleanupPendingOffers(db, offer.fromUid, offerId),
     m.cleanupPendingOffers(db, uid, offerId)
@@ -252,24 +279,27 @@ export async function offerRespondHandler(request: CallableRequest<OfferRespondD
   // U16: Send push notifications to both users
   // Fetch user profiles for display names
   const [user1Doc, user2Doc] = await Promise.all([
-    db.collection('users').doc(user1Uid).get(),
-    db.collection('users').doc(user2Uid).get(),
+    db.collection('users').doc(offer.fromUid).get(),
+    db.collection('users').doc(uid).get(),
   ]);
 
   const user1DisplayName = user1Doc.data()?.displayName || 'Someone';
   const user2DisplayName = user2Doc.data()?.displayName || 'Someone';
 
-  // Send notifications to both users (fire-and-forget)
-  Promise.all([
-    sendMatchCreatedNotification(user1Uid, user2DisplayName, matchRef.id),
-    sendMatchCreatedNotification(user2Uid, user1DisplayName, matchRef.id),
-  ]).catch((err) => {
-    console.error('[offerRespond] Failed to send match notifications:', err);
+  // Send notifications to both users (awaited to prevent Cloud Function early termination)
+  const notifResults = await Promise.allSettled([
+    sendMatchCreatedNotification(offer.fromUid, user2DisplayName, transactionResult.matchId!),
+    sendMatchCreatedNotification(uid, user1DisplayName, transactionResult.matchId!),
+  ]);
+  notifResults.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.error(`[offerRespond] Notification ${i} failed:`, r.reason);
+    }
   });
 
   return {
     matchCreated: true,
-    matchId: matchRef.id,
-    activeMatchId: matchRef.id // Return ID for client state update
+    matchId: transactionResult.matchId,
+    activeMatchId: transactionResult.matchId // Return ID for client state update
   };
 }

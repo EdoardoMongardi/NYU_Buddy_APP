@@ -75,10 +75,26 @@ service cloud.firestore {
     // Phase 3: Locked down to participant-only access
     // All writes via Cloud Functions only
     match /matches/{matchId} {
-      allow read: if isMatchParticipant(resource.data);
+      allow read: if isMatchParticipant(resource.data) ||
+        // Allow "Did you meet?" confirmation queries (array-contains on pendingConfirmationUids).
+        // Users in pendingConfirmationUids are always also user1Uid/user2Uid (subset),
+        // so this doesn't leak data to non-participants.
+        (isAuthenticated() && request.auth.uid in resource.data.pendingConfirmationUids);
       allow create: if false; // Created by functions
       allow update: if false; // Phase 3: All updates via Cloud Functions
       allow delete: if false;
+
+      // Chat messages subcollection
+      // Reads: participants only (verified via get() on parent match doc)
+      // Writes: Cloud Functions only (enforces validation, limits, active-match checks)
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() &&
+          (request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user1Uid ||
+           request.auth.uid == get(/databases/$(database)/documents/matches/$(matchId)).data.user2Uid);
+        allow create: if false;  // All writes via Cloud Functions
+        allow update: if false;
+        allow delete: if false;
+      }
     }
 
     // Places collection
@@ -120,6 +136,22 @@ service cloud.firestore {
     // Cloud Functions Admin SDK bypasses these rules
     match /sessionHistory/{uid}/sessions/{sessionId} {
       allow read, write: if false; // Explicit deny for client SDK
+    }
+
+    // U23: Idempotency collection
+    // Users can read their own idempotency records (for debugging)
+    // All writes handled by Cloud Functions
+    match /idempotency/{idempotencyId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow write: if false; // Cloud Functions only
+    }
+
+    // U22: Active Matches By Pair Guard Collection
+    // Enforces "at most one active match per user pair" atomically
+    // This is an internal coordination mechanism - no client access needed
+    match /activeMatchesByPair/{pairKey} {
+      allow read: if false; // Cloud Functions only (no client reads needed)
+      allow write: if false; // Cloud Functions only
     }
   }
 }

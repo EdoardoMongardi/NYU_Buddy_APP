@@ -602,24 +602,39 @@ See: DataModel_AsIs.md#151-phantom-fields-read-but-never-written for details on 
 
 ## 11. Known Limitations & Edge Cases
 
-### 11.1 Race Conditions
+### 11.1 ~~Race Conditions~~ ✅ RESOLVED (U22 - 2026-02-09)
 
-**Stale Offer Accept:**
-- Mitigated by availability checks in `offerRespond`
-- Cleanup logic cancels other offers post-match
-- Potential edge case if both users accept each other's offers simultaneously
+**Pre-Fix Issue:**
+Critical race conditions in match creation:
+1. **Concurrent Opposite Accepts:** Both users accepting each other's offers simultaneously created duplicate matches
+2. **Simultaneous Mutual Invites:** First-create-wins logic had edge cases
+3. **User-Level Duplication:** User A could match with both B and C at the same time
+4. **No Guard Release:** Completed/cancelled matches blocked future rematches permanently
 
-**Simultaneous Mutual Invites:**
-- First-create-wins in `offerCreate`
-- Second invite detects existing reverse offer
+**Resolution:**
+- **Atomic Match Creation:** `functions/src/matches/createMatchAtomic.ts` (NEW)
+- **Pair-Level Guard:** `activeMatchesByPair` collection with `pairKey = ${minUid}_${maxUid}`
+- **User-Level Mutual Exclusion:** Inside-transaction checks prevent duplicate matches
+- **Guard Lifecycle:** Automatic release on completion (updateStatus.ts) and cancellation (cancel.ts)
+- **All Paths Migrated:** offers/respond.ts, offers/create.ts, suggestions/respond.ts
+- **Production Verified:** All 5 verification tests passed
 
-### 11.2 Block During Active Match
+**Details:** See ISSUES_STATUS.md issue #18 and U22_VERIFICATION_SUMMARY.md for complete implementation documentation.
 
-**Issue:** Blocking does NOT auto-cancel existing matches.
+### 11.2 ~~Block During Active Match~~ ✅ RESOLVED (2026-02-09)
 
-**Behavior:**
- - **Match Page Block:** Auto-cancels match (Frontend calls `matchCancel` with reason `blocked`).
- - **Standalone Block:** If implemented elsewhere (e.g. profile), requires manual cancel first or fails to stop match.
+**Pre-Fix Issue:** Block/Report was only available in the "Place Confirmed" phase (Step 2). During "Location Deciding" (Step 1), users had no block option — only Cancel Match.
+
+**Resolution:**
+- Added Report + Block button row to the Location Deciding phase (Step 1) in `src/app/(protected)/match/[matchId]/page.tsx`
+- Same UI pattern as Step 2: Report (Flag icon) + Block (Ban icon, red) in a Card with flex row
+- Block in any phase: creates block doc → calls `matchCancel({ reason: 'blocked' })` → redirects home
+- Zero reliability penalty for blocks
+- Step 1 and Step 2 are strictly mutually exclusive (`showLocationSelection = !match?.confirmedPlaceName`) — no double-render
+
+**Coverage:** Block/Report now available in ALL match phases (Location Deciding + Place Confirmed).
+
+**Details:** See ISSUES_STATUS.md issue U18 for complete implementation documentation.
 
 ### 11.3 Presence Expiry
 

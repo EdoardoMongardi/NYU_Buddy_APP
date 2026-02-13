@@ -80,12 +80,12 @@ export function useSuggestion() {
             distanceMeters: currentSuggestion?.distance,
           });
 
-          if (result.data.matchCreated) {
+          if (result.matchCreated) {
             // Immediate match (mutual interest)
             setSuggestion(null);
             return {
               matchCreated: true,
-              matchId: result.data.matchId,
+              matchId: result.matchId,
             };
           } else {
             // Offer sent, waiting for response
@@ -93,7 +93,7 @@ export function useSuggestion() {
             setSuggestion(null);
             return {
               matchCreated: false,
-              offerId: result.data.offerId,
+              offerId: result.offerId,
               offerSent: true,
             };
           }

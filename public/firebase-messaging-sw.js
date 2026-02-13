@@ -4,8 +4,9 @@
  */
 
 // Import Firebase scripts for service worker
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+// IMPORTANT: Keep this version in sync with package.json firebase dependency (currently v12.8.0)
+importScripts('https://www.gstatic.com/firebasejs/12.8.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.8.0/firebase-messaging-compat.js');
 
 // Firebase configuration (must match your Firebase project)
 // Note: These values are safe to expose in client-side code
@@ -25,16 +26,17 @@ firebase.initializeApp(firebaseConfig);
 // Get Firebase Messaging instance
 const messaging = firebase.messaging();
 
-// Handle background messages
+// Handle background messages (data-only messages — title/body are in payload.data)
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw] Background message received:', payload);
 
-  const notificationTitle = payload.notification?.title || 'NYU Buddy';
+  const data = payload.data || {};
+  const notificationTitle = data.title || 'NYU Buddy';
   const notificationOptions = {
-    body: payload.notification?.body || 'You have a new notification',
+    body: data.body || 'You have a new notification',
     icon: '/icon.png',
     badge: '/badge.png',
-    data: payload.data,
+    data: data,
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
