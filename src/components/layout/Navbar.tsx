@@ -31,11 +31,11 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+      <nav className="bg-white/90 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-50">
+        <div className="container mx-auto px-5">
+          <div className="flex items-center justify-between h-14">
             <Link href="/" className="flex items-center space-x-2">
-              <span className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="text-xl font-bold text-gray-900 tracking-tight">
                 NYU Buddy
               </span>
             </Link>
@@ -60,13 +60,13 @@ export default function Navbar() {
 
             {/* Mobile menu button */}
             <button
-              className="md:hidden p-2"
+              className="md:hidden p-2 touch-scale rounded-full"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
               {isMobileMenuOpen ? (
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5 text-gray-600" />
               ) : (
-                <Menu className="h-6 w-6" />
+                <Menu className="h-5 w-5 text-gray-600" />
               )}
             </button>
           </div>
@@ -75,12 +75,13 @@ export default function Navbar() {
         {/* Mobile menu */}
         {isMobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-gray-200 bg-white"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="md:hidden border-t border-gray-100 bg-white/95 backdrop-blur-xl"
           >
-            <div className="container mx-auto px-4 py-4 space-y-4">
+            <div className="container mx-auto px-5 py-4 space-y-4">
               {userProfile && (
                 <div className="flex items-center space-x-2 text-gray-600">
                   <User className="h-4 w-4" />

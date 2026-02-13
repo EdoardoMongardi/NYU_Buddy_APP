@@ -48,21 +48,21 @@ export default function ProtectedLayout({
 
   if (loading || isChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-50 to-purple-100">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50/80">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-violet-600 mx-auto" />
-          <p className="mt-2 text-gray-600">Loading...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500 mx-auto" />
+          <p className="mt-2 text-gray-400 text-sm">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-50 to-purple-100">
+    <div className="min-h-screen bg-gray-50/80">
       <Navbar />
       <NotificationPrompt />
       <InstallBanner />
-      <main className="container mx-auto px-4 py-6">{children}</main>
+      <main className="container mx-auto px-5 pt-4 pb-8">{children}</main>
     </div>
   );
 }

@@ -173,14 +173,14 @@ export default function HomePage() {
       )}
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex justify-between items-start"
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="flex justify-between items-center"
       >
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Find a Buddy</h1>
-          <p className="text-gray-600">
+          <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Find a Buddy</h1>
+          <p className="text-[15px] text-gray-400 mt-0.5">
             Connect with nearby NYU students
           </p>
         </div>
@@ -188,18 +188,18 @@ export default function HomePage() {
           variant="ghost"
           size="icon"
           onClick={() => router.push('/profile')}
-          className="rounded-full hover:bg-violet-100"
+          className="rounded-full hover:bg-gray-100 touch-scale h-11 w-11"
         >
-          <Settings className="w-6 h-6 text-gray-600" />
+          <Settings className="w-5 h-5 text-gray-400" />
         </Button>
       </motion.div>
 
       {!emailVerified ? (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center"
+          transition={{ duration: 0.35, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+          className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center"
         >
           <h3 className="font-semibold text-amber-800 mb-2">
             Verify Your Email
@@ -212,18 +212,18 @@ export default function HomePage() {
       ) : (
         <>
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ duration: 0.35, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
           >
             <AvailabilitySheet />
           </motion.div>
 
           {isAvailable && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
+              transition={{ duration: 0.3, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
             >
               <TabNavigation
                 activeTab={activeTab}
@@ -234,17 +234,18 @@ export default function HomePage() {
           )}
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ duration: 0.3, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
           >
             <AnimatePresence mode="wait">
               {activeTab === 'discover' ? (
                 <motion.div
                   key="discover"
-                  initial={{ opacity: 0, x: -20 }}
+                  initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
+                  exit={{ opacity: 0, x: 8 }}
+                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 >
                   {/* Show active invites if exist */}
                   {outgoingOffers.length > 0 && (
@@ -263,9 +264,10 @@ export default function HomePage() {
               ) : (
                 <motion.div
                   key="invites"
-                  initial={{ opacity: 0, x: 20 }}
+                  initial={{ opacity: 0, x: 8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
+                  exit={{ opacity: 0, x: -8 }}
+                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 >
                   <InvitesTab
                     offers={inboxOffers}

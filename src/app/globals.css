@@ -74,5 +74,20 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* iOS-optimized spring easing */
+@layer utilities {
+  .ease-ios {
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .touch-scale {
+    transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .touch-scale:active {
+    transform: scale(0.98);
   }
 }

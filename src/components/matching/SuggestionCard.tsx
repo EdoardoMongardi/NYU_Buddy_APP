@@ -71,7 +71,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // Not available state
   if (!isAvailable) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
           <div className="mx-auto mb-4 flex justify-center">
             <ProfileAvatar
@@ -80,10 +80,10 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
               size="lg"
             />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-[17px] font-semibold text-gray-900 mb-1.5">
             Set your availability
           </h3>
-          <p className="text-gray-500">
+          <p className="text-[14px] text-gray-400">
             Let others know you&apos;re free to find nearby buddies
           </p>
         </CardContent>
@@ -94,10 +94,10 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // Loading state (initial)
   if (loading && !suggestion) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-4" />
-          <p className="text-gray-500">Finding nearby buddies...</p>
+          <Loader2 className="w-7 h-7 animate-spin text-violet-500 mx-auto mb-4" />
+          <p className="text-[14px] text-gray-400">Finding nearby buddies...</p>
         </CardContent>
       </Card>
     );
@@ -106,9 +106,9 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // Error state
   if (error) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
-          <p className="text-red-500 mb-4">{error}</p>
+          <p className="text-red-500 text-[14px] mb-4">{error}</p>
           <Button onClick={() => fetchSuggestion('refresh')} variant="outline">
             <RefreshCw className="mr-2 h-4 w-4" />
             Try Again
@@ -121,15 +121,15 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // No one available state (or cycle end)
   if (!suggestion && searchMessage) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+      <Card className="border border-gray-100 shadow-sm bg-white rounded-2xl">
         <CardContent className="pt-6 text-center py-12">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-50 flex items-center justify-center">
-            <UserX className="w-8 h-8 text-violet-400" />
+          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-50 flex items-center justify-center">
+            <UserX className="w-7 h-7 text-gray-300" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-[17px] font-semibold text-gray-900 mb-1.5">
             {cycleInfo?.isCycleEnd ? "That's everyone for now" : "No one nearby"}
           </h3>
-          <p className="text-gray-500 mb-6">
+          <p className="text-[14px] text-gray-400 mb-6">
             {searchMessage}
           </p>
           <Button onClick={() => fetchSuggestion('refresh')} variant="outline">
@@ -148,47 +148,48 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     <AnimatePresence mode="wait">
       <motion.div
         key={suggestion.uid}
-        initial={{ opacity: 0, x: 50 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -50 }}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         className="relative"
       >
-        <Card className="border-0 shadow-xl bg-white overflow-hidden min-h-[400px] flex flex-col">
+        <Card className="border border-gray-100 shadow-sm bg-white overflow-hidden min-h-[400px] flex flex-col rounded-2xl">
           <CardContent className="p-0 flex-1 flex flex-col">
             {/* Header */}
-            <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white relative">
+            <div className="bg-gray-50 p-6 relative border-b border-gray-100">
               {cycleInfo && cycleInfo.total > 1 && (
-                <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5 text-xs text-white/90">
+                <div className="absolute top-4 right-4 bg-gray-200/60 rounded-full px-2.5 py-0.5 text-[11px] text-gray-500 font-medium">
                   {cycleInfo.current} / {cycleInfo.total}
                 </div>
               )}
 
-              <div className="flex items-center space-x-4 mb-4 mt-2">
+              <div className="flex items-center space-x-4 mb-4 mt-1">
                 <ProfileAvatar
                   photoURL={suggestion.photoURL}
                   displayName={suggestion.displayName}
                   size="lg"
-                  className="border-4 border-white/20"
+                  className="border-2 border-white shadow-sm"
                 />
                 <div>
-                  <h3 className="text-2xl font-bold">
+                  <h3 className="text-xl font-bold text-gray-900 tracking-tight">
                     {suggestion.displayName}
                   </h3>
-                  <div className="flex items-center space-x-2 text-white/90 mt-1">
-                    <div className="flex items-center text-xs bg-black/20 rounded px-1.5 py-0.5">
-                      <MapPin className="w-3 h-3 mr-1" />
+                  <div className="flex items-center space-x-2 mt-1.5">
+                    <div className="flex items-center text-[12px] text-gray-500 bg-white rounded-full px-2 py-0.5 shadow-sm">
+                      <MapPin className="w-3 h-3 mr-1 text-gray-400" />
                       <span>{suggestion.distance}m</span>
                     </div>
-                    <div className="flex items-center text-xs bg-black/20 rounded px-1.5 py-0.5">
-                      <Clock className="w-3 h-3 mr-1" />
+                    <div className="flex items-center text-[12px] text-gray-500 bg-white rounded-full px-2 py-0.5 shadow-sm">
+                      <Clock className="w-3 h-3 mr-1 text-gray-400" />
                       <span>{suggestion.durationMinutes}m</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2 text-sm font-medium">
-                <Coffee className="w-4 h-4" />
+              <div className="flex items-center space-x-2 bg-white rounded-xl px-3 py-2 text-[13px] font-medium text-gray-600 shadow-sm">
+                <Coffee className="w-4 h-4 text-violet-500" />
                 <span>Wants to {suggestion.activity}</span>
               </div>
             </div>
@@ -197,8 +198,8 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
             <div className="p-6 flex-1 flex flex-col">
               {/* Explanation */}
               {suggestion.explanation && (
-                <div className="mb-4 bg-violet-50 p-3 rounded-lg border border-violet-100">
-                  <p className="text-sm text-violet-700 italic text-center">
+                <div className="mb-4 bg-gray-50 p-3 rounded-xl">
+                  <p className="text-[13px] text-gray-500 italic text-center leading-relaxed">
                     &quot;{suggestion.explanation}&quot;
                   </p>
                 </div>
@@ -249,17 +250,17 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
                   <Button
                     variant="outline"
                     size="lg"
-                    className="flex-1 h-14 border-2 border-gray-100 hover:border-zinc-200 hover:bg-zinc-50 rounded-xl"
+                    className="flex-1 h-[52px] border border-gray-150 hover:bg-gray-50 rounded-2xl touch-scale"
                     onClick={handlePass}
                     disabled={isResponding}
                   >
-                    <X className="h-6 w-6 text-gray-400" />
+                    <X className="h-5 w-5 text-gray-400" />
                   </Button>
 
                   {canSendMore ? (
                     <Button
                       size="lg"
-                      className="flex-[2] h-14 bg-violet-600 hover:bg-violet-700 rounded-xl shadow-lg shadow-violet-200 transition-all text-base font-semibold"
+                      className="flex-[2] h-[52px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-sm transition-all text-[15px] font-semibold touch-scale"
                       onClick={handleInvite}
                       disabled={isResponding}
                     >
@@ -271,8 +272,8 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
                       Send Invite
                     </Button>
                   ) : (
-                    <div className="flex-[2] h-14 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-gray-100 px-4 text-center">
-                      <span className="text-xs font-medium text-gray-500">
+                    <div className="flex-[2] h-[52px] bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 px-4 text-center">
+                      <span className="text-xs font-medium text-gray-400">
                         Max 3 active invites
                       </span>
                     </div>
