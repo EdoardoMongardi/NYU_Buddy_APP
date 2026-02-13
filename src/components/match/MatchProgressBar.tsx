@@ -91,6 +91,7 @@ export function MatchProgressBar({
                 {/* "Complete" always visible as subtle link when not yet arrived */}
                 {!isArrived && (
                     <button
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={onCompleteClick}
                         disabled={isUpdating}
                         className="text-[11px] text-gray-400 hover:text-violet-500 font-medium
@@ -106,6 +107,7 @@ export function MatchProgressBar({
                         size="sm"
                         className="rounded-full text-xs font-semibold bg-green-600 hover:bg-green-700
                                    text-white shadow-sm h-7 px-3.5"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={onCompleteClick}
                         disabled={isUpdating}
                     >
@@ -121,6 +123,7 @@ export function MatchProgressBar({
                         size="sm"
                         className={`rounded-full text-xs font-semibold text-white shadow-sm
                                     h-7 px-3.5 ${config.next.bg}`}
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onStatusUpdate(config.next!.key)}
                         disabled={isUpdating}
                     >

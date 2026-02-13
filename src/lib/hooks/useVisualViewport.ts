@@ -50,10 +50,10 @@ export function useVisualViewport(): boolean {
         const startOpenTransition = (targetH: number, safeBtm: string) => {
             closePhase = 'off';
             closeGuard = false;
-            root.style.setProperty('--vvh-duration', '280ms');
+            root.style.setProperty('--vvh-duration', '270ms');
             root.style.setProperty('--vvh', `${targetH}px`);
             root.style.setProperty('--safe-bottom', safeBtm);
-            suppressVvhUntil = Date.now() + 320;
+            suppressVvhUntil = Date.now() + 310;
         };
 
         const endOpenTransition = () => {
