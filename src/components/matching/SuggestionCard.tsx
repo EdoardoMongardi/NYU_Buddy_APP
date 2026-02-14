@@ -37,6 +37,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
 
   const [isResponding, setIsResponding] = useState(false);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [isLoadingNext, setIsLoadingNext] = useState(false);
 
   // ── Cycle end interstitial ──
   const [showCycleEnd, setShowCycleEnd] = useState(false);
@@ -64,6 +65,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   useEffect(() => {
     if (!isAvailable) {
       setShowCycleEnd(false);
+      setIsLoadingNext(false);
       hasSwipedRef.current = false;
     }
   }, [isAvailable]);
@@ -90,17 +92,32 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
       setIsSwiping(true);
       hasSwipedRef.current = true;
 
-      // Animate card exit in swipe direction
-      await animate(x, dir * 400, {
+      // ── Parallel execution: animation + network request ──
+      const exitAnimation = animate(x, dir * 400, {
         duration: 0.2,
         ease: [0, 0, 0.2, 1],
       });
 
-      // Silently browse next (calls pass + fetch behind the scenes)
-      await passSuggestion();
+      const dataFetch = passSuggestion();
 
-      // Reset for next card
+      // Wait for animation to complete
+      await exitAnimation;
+
+      // Reset position immediately after animation
       x.set(0);
+
+      // If data hasn't returned yet, show subtle loading state
+      // (wait 150ms before showing to avoid flash for fast responses)
+      const loadingTimeout = setTimeout(() => {
+        setIsLoadingNext(true);
+      }, 150);
+
+      // Wait for data
+      await dataFetch;
+
+      // Clear loading state
+      clearTimeout(loadingTimeout);
+      setIsLoadingNext(false);
       setIsSwiping(false);
     } else {
       // Spring back to center
@@ -204,6 +221,23 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
           </Button>
         </CardContent>
       </Card>
+    );
+  }
+
+  // Loading next card after swipe (subtle placeholder)
+  if (isLoadingNext || (isSwiping && !suggestion)) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+      >
+        <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
+          <CardContent className="py-16 text-center">
+            <Loader2 className="w-5 h-5 animate-spin text-violet-400 mx-auto" />
+          </CardContent>
+        </Card>
+      </motion.div>
     );
   }
 
