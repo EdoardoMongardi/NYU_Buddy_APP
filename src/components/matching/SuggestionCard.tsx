@@ -43,8 +43,12 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   const hasSwipedRef = useRef(false);
   const prevIsNewCycleRef = useRef(false);
 
+  // ── Skip enter animation after swipe ──
+  // When true, the next card mounts instantly (no opacity/y animation).
+  // This stays true across renders but is read when a new key mounts.
+  const afterSwipeRef = useRef(false);
+
   // Detect cycle reset: only on transition from false → true
-  // This prevents re-triggering after "Browse Again" dismisses the interstitial
   useEffect(() => {
     const isNew = cycleInfo?.isNewCycle ?? false;
     if (isNew && !prevIsNewCycleRef.current && hasSwipedRef.current && suggestion) {
@@ -72,6 +76,13 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     }
   }, [isAvailable]);
 
+  // Reset afterSwipeRef after the new card has mounted
+  useEffect(() => {
+    if (afterSwipeRef.current) {
+      afterSwipeRef.current = false;
+    }
+  }, [suggestion?.uid]);
+
   // ── Swipe handlers (browse = navigation, not judgment) ──
   const handlePan = (_: PointerEvent, info: PanInfo) => {
     if (isResponding || isSwiping || loading) return;
@@ -84,7 +95,6 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     const absX = Math.abs(info.offset.x);
     const absVelocity = Math.abs(info.velocity.x);
 
-    // Threshold: dragged far enough OR flicked fast enough (with min offset)
     const shouldSwipe =
       absX > SWIPE_OFFSET_THRESHOLD ||
       (absVelocity > SWIPE_VELOCITY_THRESHOLD && absX > SWIPE_MIN_OFFSET);
@@ -93,6 +103,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
       const dir = info.offset.x > 0 ? 1 : -1;
       setIsSwiping(true);
       hasSwipedRef.current = true;
+      afterSwipeRef.current = true;
 
       // Animate card exit in swipe direction
       await animate(x, dir * 400, {
@@ -123,7 +134,6 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     setIsResponding(true);
     try {
       await sendInvite();
-      // Match redirection logic handled by HomePage match listener
     } catch {
       // Error handled by hook
     } finally {
@@ -139,7 +149,6 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
 
   // ── Static states (no swipe needed) ──
 
-  // Not available state
   if (!isAvailable) {
     return (
       <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
@@ -162,7 +171,6 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     );
   }
 
-  // Loading state (initial)
   if (loading && !suggestion) {
     return (
       <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
@@ -174,7 +182,6 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     );
   }
 
-  // Error state
   if (error) {
     return (
       <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
@@ -189,7 +196,6 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     );
   }
 
-  // No one available (zero candidates)
   if (!suggestion && searchMessage) {
     return (
       <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
@@ -251,14 +257,19 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     );
   }
 
+  // ── Determine enter animation ──
+  // After a swipe, skip the enter animation so the next card appears instantly.
+  // On first load (or navigating to this tab), show the nice entrance.
+  const skipAnimation = afterSwipeRef.current;
+
   // ── Main swipeable suggestion card ──
   return (
     <motion.div
       key={suggestion.uid}
-      initial={{ opacity: 0, y: 12 }}
+      initial={skipAnimation ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      style={{ x, rotate, touchAction: 'pan-y' }}
+      transition={skipAnimation ? { duration: 0 } : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      style={{ x, rotate, touchAction: 'none' }}
       onPan={handlePan}
       onPanEnd={handlePanEnd}
       className="relative"

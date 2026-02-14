@@ -27,7 +27,7 @@ export function ActiveInvitesRow({ offers, onCancel }: ActiveInvitesRowProps) {
             </div>
 
             {/* Horizontal row — each card takes equal width */}
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 items-start">
                 <AnimatePresence initial={false}>
                     {offers.map((offer) => (
                         <CollapsibleInviteCard

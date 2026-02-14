@@ -26,27 +26,12 @@ export default function HomePage() {
   const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
   const { pendingMatches } = usePendingConfirmations();
 
-  // ── Contextual subtitle (only shown before availability is set) ──
-  const [contextSubtitle, setContextSubtitle] = useState('Connect with nearby NYU students');
-
-  useEffect(() => {
-    const h = new Date().getHours();
-    setContextSubtitle(
-      h < 11 ? 'Start your day with a study buddy'
-        : h < 14 ? 'Who\u2019s around for lunch?'
-        : h < 17 ? 'Find your afternoon buddy'
-        : h < 21 ? 'Wind down with someone nearby'
-        : 'Find a late-night study partner'
-    );
-  }, []);
-
   // Suppression flag: If true, we are currently accepting an offer manually,
   // so we should suppress the banner (and let InvitesTab redirect).
   const isAcceptingRef = useRef(false);
 
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
-      // Clear the param
       router.replace('/');
 
       const reason = searchParams.get('reason');
@@ -77,10 +62,8 @@ export default function HomePage() {
 
   const [activeTab, setActiveTab] = useState<'discover' | 'invites'>('discover');
 
-  // Block features if email not verified
   const emailVerified = user?.emailVerified;
 
-  // Fetch offers when available
   useEffect(() => {
     if (isAvailable && emailVerified) {
       fetchInbox();
@@ -88,22 +71,19 @@ export default function HomePage() {
     }
   }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
 
-  // Refresh inbox periodically
   useEffect(() => {
     if (!isAvailable || !emailVerified) return;
 
     const interval = setInterval(() => {
       fetchInbox();
       fetchOutgoing();
-    }, 30000); // Every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
 
   // Redirect if match detected via Presence (Canonical)
   useEffect(() => {
-    // If we are actively accepting an invite, suppress the presence listener
-    // to avoid the banner flashing before redirect.
     if (isAcceptingRef.current) return;
 
     if (presence?.matchId && presence.status === 'matched') {
@@ -115,7 +95,7 @@ export default function HomePage() {
 
   // Fallback: Redirect if offer is accepted (Legacy/Backup)
   useEffect(() => {
-    if (showMatchOverlay) return; // Prioritize overlay
+    if (showMatchOverlay) return;
     if (isAcceptingRef.current) return;
     if (!presence?.matchId || presence.status !== 'matched') return;
 
@@ -151,7 +131,10 @@ export default function HomePage() {
   };
 
   return (
-    <div className="max-w-md mx-auto h-full overflow-hidden flex flex-col">
+    <div
+      className="max-w-md mx-auto h-full overflow-hidden flex flex-col"
+      style={{ overscrollBehavior: 'none', touchAction: 'manipulation' }}
+    >
       {showMatchOverlay && user && (
         <MatchOverlay
           matchId={showMatchOverlay}
@@ -162,7 +145,6 @@ export default function HomePage() {
         />
       )}
 
-      {/* "Did you meet?" popup — only when no active match overlay */}
       {!showMatchOverlay && pendingMatches.length > 0 && (
         <DidYouMeetDialog
           open={true}
@@ -170,22 +152,17 @@ export default function HomePage() {
           otherUserName={pendingMatches[0].otherDisplayName}
           otherUserPhotoURL={pendingMatches[0].otherPhotoURL}
           activity={pendingMatches[0].activity}
-          onComplete={() => {/* Hook auto-refreshes via onSnapshot */}}
+          onComplete={() => {}}
         />
       )}
 
-      {/* Header — only shown before availability is set */}
-      {!isAvailable && (
-        <div className="shrink-0 pb-2">
-          <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
-          <p className="text-[13px] text-gray-400 mt-0.5">
-            {contextSubtitle}
-          </p>
-        </div>
-      )}
+      {/* "Find a Buddy" — always visible between logo and availability */}
+      <h1 className="text-[22px] font-bold text-gray-800 tracking-tight shrink-0 pt-1 pb-1.5">
+        Find a Buddy
+      </h1>
 
       {!emailVerified ? (
-        <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mt-2">
+        <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center">
           <h3 className="font-semibold text-amber-800 mb-2">
             Verify Your Email
           </h3>
@@ -201,7 +178,7 @@ export default function HomePage() {
           </div>
 
           {isAvailable && (
-            <div className="shrink-0 mt-2">
+            <div className="shrink-0 mt-1.5">
               <TabNavigation
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
@@ -210,8 +187,8 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Content area — fills remaining space, no scroll */}
-          <div className="flex-1 overflow-hidden mt-2">
+          {/* Content area — fills remaining space, no gap */}
+          <div className="flex-1 overflow-hidden min-h-0">
             <AnimatePresence mode="popLayout" initial={false}>
               {activeTab === 'discover' ? (
                 <motion.div
@@ -222,7 +199,6 @@ export default function HomePage() {
                   transition={{ duration: 0.15 }}
                   className="h-full"
                 >
-                  {/* Active invites if exist */}
                   {outgoingOffers.length > 0 && (
                     <ActiveInvitesRow
                       offers={outgoingOffers}
@@ -230,7 +206,6 @@ export default function HomePage() {
                     />
                   )}
 
-                  {/* Suggestion card */}
                   <SuggestionCard
                     isAvailable={isAvailable}
                     canSendMore={canSendMore}

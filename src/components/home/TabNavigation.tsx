@@ -15,7 +15,7 @@ export default function TabNavigation({
   inviteCount,
 }: TabNavigationProps) {
   return (
-    <div className="flex bg-gray-200/50 rounded-2xl p-1 mb-6 shadow-track-inset">
+    <div className="flex bg-gray-200/50 rounded-2xl p-1 shadow-track-inset">
       <button
         onClick={() => onTabChange('discover')}
         className={`flex-1 relative flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[14px] font-medium transition-colors touch-scale ${

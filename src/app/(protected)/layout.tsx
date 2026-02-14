@@ -19,25 +19,37 @@ export default function ProtectedLayout({
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
 
+  // Prevent body-level scroll on iOS Safari browser mode.
+  // Fixed-position layout alone isn't enough; iOS Safari can still
+  // allow overscroll/rubber-banding on the body element.
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    html.style.overflow = 'hidden';
+    html.style.height = '100%';
+    body.style.overflow = 'hidden';
+    body.style.height = '100%';
+    return () => {
+      html.style.overflow = '';
+      html.style.height = '';
+      body.style.overflow = '';
+      body.style.height = '';
+    };
+  }, []);
+
   useEffect(() => {
     if (loading) return;
 
-    // Not logged in -> redirect to login
     if (!user) {
       router.replace('/login');
       return;
     }
 
-    // Email not verified -> stay on current page but show verification message
-    // We allow navigation to see verification status
-
-    // No profile document OR profile not completed -> redirect to onboarding (unless already there)
     if ((!userProfile || !userProfile.profileCompleted) && pathname !== '/onboarding') {
       router.replace('/onboarding');
       return;
     }
 
-    // Profile completed but on onboarding page -> redirect to home
     if (userProfile?.profileCompleted && pathname === '/onboarding') {
       router.replace('/');
       return;
@@ -58,7 +70,10 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div className="fixed inset-0 bg-[#f2f2f7] flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 bg-[#f2f2f7] flex flex-col overflow-hidden"
+      style={{ overscrollBehavior: 'none' }}
+    >
       {/* Subtle top gradient for visual gravity — purely decorative */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-72 z-0"
@@ -72,7 +87,9 @@ export default function ProtectedLayout({
         <NotificationPrompt />
         <InstallBanner />
       </div>
-      <main className="flex-1 overflow-hidden relative z-10 px-5 pt-2 pb-[env(safe-area-inset-bottom)]">{children}</main>
+      {/* overflow-auto allows child pages (profile, etc.) to scroll.
+          The home page uses its own overflow-hidden to lock scrolling. */}
+      <main className="flex-1 min-h-0 overflow-auto relative z-10 px-5 pt-2 pb-[env(safe-area-inset-bottom)]">{children}</main>
     </div>
   );
 }
