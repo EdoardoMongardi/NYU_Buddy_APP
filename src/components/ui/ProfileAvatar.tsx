@@ -146,7 +146,7 @@ export function ProfileAvatar({
         <>
             <div
                 className={cn(
-                    'relative rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-purple-600',
+                    'relative rounded-full overflow-hidden bg-gray-200',
                     sizeClasses[size],
                     editable && 'cursor-pointer',
                     className

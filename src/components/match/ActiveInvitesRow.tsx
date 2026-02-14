@@ -16,14 +16,18 @@ export function ActiveInvitesRow({ offers, onCancel }: ActiveInvitesRowProps) {
     if (!offers || offers.length === 0) return null;
 
     return (
-        <div className="flex flex-col gap-2 w-full mb-4">
-            <div className="flex items-center justify-between px-1">
-                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    Active Invites ({offers.length}/3)
+        <div className="w-full mb-1.5">
+            <div className="flex items-center justify-between px-0.5 mb-1">
+                <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    Active Invites
                 </h4>
+                <span className="text-[10px] font-medium text-gray-300">
+                    {offers.length}/3
+                </span>
             </div>
 
-            <div className="flex flex-col gap-2">
+            {/* Horizontal row — each card takes equal width */}
+            <div className="flex gap-1.5 items-start">
                 <AnimatePresence initial={false}>
                     {offers.map((offer) => (
                         <CollapsibleInviteCard

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, MapPin, Coffee, Loader2, RefreshCw, UserX, Clock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, useMotionValue, useTransform, animate, PanInfo } from 'framer-motion';
+import { Send, MapPin, Coffee, Loader2, RefreshCw, UserX, Clock, Footprints } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,16 +11,159 @@ import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 
 import { useCycleSuggestions } from '@/lib/hooks/useCycleSuggestions';
 import { useAuth } from '@/lib/hooks/useAuth';
+import type { CycleSuggestion } from '@/lib/firebase/functions';
 
 interface SuggestionCardProps {
   isAvailable: boolean;
   canSendMore: boolean;
+  isPWA?: boolean;
 }
 
-export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionCardProps) {
+// ── Swipe thresholds ──
+const SWIPE_OFFSET_THRESHOLD_BROWSER = 90;
+const SWIPE_OFFSET_THRESHOLD_PWA = 55;
+const SWIPE_VELOCITY_THRESHOLD = 350;
+const SWIPE_MIN_OFFSET = 15;
+
+/* ─────────────────────────────────────────────────
+ *  Card content renderer
+ * ───────────────────────────────────────────────── */
+function CardBody({
+  s,
+  commonInterests,
+  nonCommonInterests,
+  walkMinutes,
+  cycleInfo,
+  canSendMore,
+  onInvite,
+  isResponding,
+  isSwiping,
+  isPWA,
+}: {
+  s: CycleSuggestion;
+  commonInterests: string[];
+  nonCommonInterests: string[];
+  walkMinutes: number;
+  cycleInfo: { current: number; total: number } | null;
+  canSendMore: boolean;
+  onInvite?: () => void;
+  isResponding: boolean;
+  isSwiping: boolean;
+  isPWA: boolean;
+}) {
+  return (
+    <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden flex flex-col rounded-2xl">
+      <CardContent className="p-0 flex flex-col">
+        {/* ── Header ── */}
+        <div className={`bg-gray-50/80 px-3.5 relative border-b border-gray-100/80 ${isPWA ? 'py-3' : 'py-2.5'}`}>
+          {cycleInfo && cycleInfo.total > 1 && (
+            <div className={`absolute top-2 right-2.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              cycleInfo.current === cycleInfo.total
+                ? 'bg-amber-100/60 text-amber-600'
+                : 'bg-gray-200/60 text-gray-500'
+            }`}>
+              {cycleInfo.current}/{cycleInfo.total}
+              {cycleInfo.current === cycleInfo.total && ' · Last'}
+            </div>
+          )}
+          <div className="flex items-center space-x-3">
+            <ProfileAvatar
+              photoURL={s.photoURL}
+              displayName={s.displayName}
+              size="md"
+              className="border-[3px] border-white shadow-md ring-2 ring-violet-100/60"
+            />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-[17px] font-bold text-gray-800 tracking-tight truncate">
+                {s.displayName}
+              </h3>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Coffee className="w-3 h-3 text-violet-500 flex-shrink-0" />
+                <span className="text-[11px] text-gray-500 font-medium truncate">Wants to {s.activity}</span>
+              </div>
+              <div className="flex items-center flex-wrap gap-1 mt-1">
+                <div className="flex items-center text-[10px] text-gray-500 bg-white/80 rounded-full px-1.5 py-0.5 border border-gray-100/60">
+                  <MapPin className="w-2.5 h-2.5 mr-0.5 text-violet-400" />
+                  <span>{s.distance}m</span>
+                </div>
+                <div className="flex items-center text-[10px] text-gray-500 bg-white/80 rounded-full px-1.5 py-0.5 border border-gray-100/60">
+                  <Footprints className="w-2.5 h-2.5 mr-0.5 text-gray-400" />
+                  <span>~{walkMinutes}min</span>
+                </div>
+                <div className="flex items-center text-[10px] text-gray-500 bg-white/80 rounded-full px-1.5 py-0.5 border border-gray-100/60">
+                  <Clock className="w-2.5 h-2.5 mr-0.5 text-gray-400" />
+                  <span>{s.durationMinutes}m</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Body ── */}
+        <div className={`px-4 flex flex-col ${isPWA ? 'py-3' : 'py-2.5'}`}>
+          {s.explanation && (
+            <div className="mb-2 bg-violet-50/30 py-1.5 px-3 rounded-xl border border-violet-100/30">
+              <p className="text-[11px] text-gray-600 italic text-center leading-relaxed">
+                &ldquo;{s.explanation}&rdquo;
+              </p>
+            </div>
+          )}
+          {commonInterests.length > 0 && (
+            <div className="mb-1.5">
+              <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-0.5">You both like</p>
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                {commonInterests.length > 3 && (
+                  <Badge variant="secondary" className="bg-violet-50 text-violet-400 border border-violet-100/40 px-1.5 py-0 text-[11px] shrink-0">+{commonInterests.length - 3}</Badge>
+                )}
+                {commonInterests.slice(0, 3).map((interest) => (
+                  <Badge key={interest} variant="secondary" className="bg-violet-50 text-violet-600 border border-violet-100/60 px-2 py-0 text-[11px] shrink-0 whitespace-nowrap">{interest}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {nonCommonInterests.length > 0 && (
+            <div className="mb-1.5">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Interests</p>
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                {nonCommonInterests.length > 3 && (
+                  <Badge variant="outline" className="text-gray-400 border-dashed px-1.5 py-0 text-[11px] shrink-0">+{nonCommonInterests.length - 3}</Badge>
+                )}
+                {nonCommonInterests.slice(0, 3).map((interest) => (
+                  <Badge key={interest} variant="outline" className="text-gray-600 border-gray-200/80 text-[11px] px-2 py-0 shrink-0 whitespace-nowrap">{interest}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="pt-2 border-t border-gray-100/60">
+            {onInvite ? (
+              canSendMore ? (
+                <Button size="lg" className="w-full h-[44px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-[0_2px_12px_rgba(124,58,237,0.25)] transition-all text-[15px] font-semibold touch-scale" onClick={onInvite} disabled={isResponding || isSwiping}>
+                  {isResponding ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
+                  Send Invite
+                </Button>
+              ) : (
+                <div className="w-full h-[44px] bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 px-4 text-center">
+                  <span className="text-xs font-medium text-gray-400">Max 3 active invites</span>
+                </div>
+              )
+            ) : (
+              <div className="w-full h-[44px] bg-violet-50/40 rounded-2xl flex items-center justify-center border border-violet-100/40">
+                <Send className="h-4 w-4 text-violet-300 mr-2" />
+                <span className="text-[13px] font-medium text-violet-400">Send Invite</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false }: SuggestionCardProps) {
   const { userProfile } = useAuth();
   const {
     suggestion,
+    buffer,
     cycleInfo,
     loading,
     error,
@@ -31,6 +174,90 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   } = useCycleSuggestions();
 
   const [isResponding, setIsResponding] = useState(false);
+  const [isSwiping, setIsSwiping] = useState(false);
+
+  // ── Cycle end interstitial ──
+  const [showCycleEnd, setShowCycleEnd] = useState(false);
+  const [browseAgainLoading, setBrowseAgainLoading] = useState(false);
+  const hasSwipedRef = useRef(false);
+  const prevIsNewCycleRef = useRef(false);
+
+  // Promise for the background passSuggestion call fired when last card is swiped.
+  // handleBrowseAgain awaits this so it never reveals a stale card.
+  const bgPassPromiseRef = useRef<Promise<void> | null>(null);
+
+  // ── Skip enter animation after swipe ──
+  const afterSwipeRef = useRef(false);
+
+  // ── Track maximum drag distance during a pan gesture ──
+  const maxDragRef = useRef(0);
+  const dragDirRef = useRef(0);
+
+  // ── True initial touch position ──
+  // In iOS PWA standalone mode, the system gesture recognizer delays initial
+  // touch delivery to the web app by ~50-150ms while deciding if it's a
+  // system gesture (back/forward nav). Framer Motion's onPan only starts
+  // tracking from when it receives the first pointer event — AFTER this delay.
+  // So info.offset.x is systematically smaller than the real finger displacement.
+  // We capture the true start via onPointerDown (fires before FM's pan detection)
+  // and compute actual displacement in onPanEnd using raw pointer coordinates.
+  const pointerStartXRef = useRef(0);
+
+  // ── Ref for the card stack container ──
+  // Used to register a non-passive touchmove listener that calls preventDefault().
+  // CSS touch-action: none isn't 100% reliable in iOS PWA standalone mode.
+  // Actively preventing default on touchmove is the bulletproof way to stop
+  // iOS from stealing the touch for system gesture handling mid-drag.
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const swipeThreshold = isPWA ? SWIPE_OFFSET_THRESHOLD_PWA : SWIPE_OFFSET_THRESHOLD_BROWSER;
+
+  // ── Prevent iOS from stealing touches ──
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handler = (e: TouchEvent) => {
+      // Prevent default to claim the touch from iOS system gesture handling.
+      // This doesn't affect taps (touchstart → touchend without touchmove).
+      e.preventDefault();
+    };
+
+    el.addEventListener('touchmove', handler, { passive: false });
+    return () => el.removeEventListener('touchmove', handler);
+  // Re-attach when suggestion changes because the container re-renders
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestion?.uid]);
+
+  // Detect cycle reset: only on transition from false → true AND user has swiped
+  useEffect(() => {
+    const isNew = cycleInfo?.isNewCycle ?? false;
+    if (isNew && !prevIsNewCycleRef.current && hasSwipedRef.current && suggestion) {
+      setShowCycleEnd(true);
+    }
+    prevIsNewCycleRef.current = isNew;
+  }, [cycleInfo, suggestion]);
+
+  // Preload next suggestion's photo
+  useEffect(() => {
+    if (buffer.length > 0 && buffer[0].photoURL) {
+      const img = new window.Image();
+      img.src = buffer[0].photoURL;
+    }
+  }, [buffer]);
+
+  // ── Swipe motion values ──
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-250, 0, 250], [-3, 0, 3]);
+
+  const bgScale = useTransform(x, (v) => {
+    const absV = Math.min(Math.abs(v), 250);
+    return 0.97 + (absV / 250) * 0.03;
+  });
+  const bgOpacity = useTransform(x, (v) => {
+    const absV = Math.min(Math.abs(v), 250);
+    return 0.5 + (absV / 250) * 0.5;
+  });
 
   // Initial fetch when available
   useEffect(() => {
@@ -39,22 +266,125 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     }
   }, [isAvailable, suggestion, loading, searchMessage, fetchSuggestion]);
 
-  const handlePass = async () => {
-    if (!suggestion) return;
-    setIsResponding(true);
-    try {
-      await passSuggestion();
-    } finally {
-      setIsResponding(false);
+  // Reset cycle-end state when availability changes
+  useEffect(() => {
+    if (!isAvailable) {
+      setShowCycleEnd(false);
+      hasSwipedRef.current = false;
+      bgPassPromiseRef.current = null;
+    }
+  }, [isAvailable]);
+
+  // Reset afterSwipeRef after the new card has mounted
+  useEffect(() => {
+    if (afterSwipeRef.current) {
+      afterSwipeRef.current = false;
+    }
+  }, [suggestion?.uid]);
+
+  const isLastCard = cycleInfo
+    ? cycleInfo.current >= cycleInfo.total && buffer.length === 0
+    : false;
+
+  const remainingCount = buffer.length;
+  const nextSuggestion = buffer.length > 0 ? buffer[0] : null;
+
+  // ── Capture true start position before iOS gesture delay ──
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStartXRef.current = e.clientX;
+  };
+
+  // ── Pan handlers ──
+  const handlePan = (_: PointerEvent, info: PanInfo) => {
+    if (isResponding || isSwiping) return;
+    x.set(info.offset.x);
+
+    const absOffset = Math.abs(info.offset.x);
+    if (absOffset > maxDragRef.current) {
+      maxDragRef.current = absOffset;
+      dragDirRef.current = info.offset.x > 0 ? 1 : -1;
     }
   };
 
+  const handlePanEnd = async (event: PointerEvent, info: PanInfo) => {
+    const maxDrag = maxDragRef.current;
+    const dominantDir = dragDirRef.current;
+    maxDragRef.current = 0;
+    dragDirRef.current = 0;
+
+    if (isResponding || isSwiping) return;
+
+    const absX = Math.abs(info.offset.x);
+    const absVelocity = Math.abs(info.velocity.x);
+
+    // ── True displacement from raw pointer coordinates ──
+    // This captures the FULL finger movement including the initial portion
+    // that iOS's gesture recognizer consumed before releasing to the web app.
+    // In browser mode, this equals info.offset.x. In PWA mode, this can be
+    // 10-25px larger — the difference that causes the bounce-back problem.
+    const trueDisplacement = Math.abs(event.clientX - pointerStartXRef.current);
+
+    // Use the best available measurement: true displacement, max drag peak, or FM offset
+    const effectiveOffset = Math.max(trueDisplacement, maxDrag, absX);
+
+    const shouldSwipe =
+      effectiveOffset > swipeThreshold ||
+      (absVelocity > SWIPE_VELOCITY_THRESHOLD && effectiveOffset > SWIPE_MIN_OFFSET);
+
+    if (shouldSwipe) {
+      // Direction: prefer FM offset if significant, fall back to true displacement direction
+      const trueDir = (event.clientX - pointerStartXRef.current) > 0 ? 1 : -1;
+      const dir = absX > 5 ? (info.offset.x > 0 ? 1 : -1) : (trueDisplacement > 5 ? trueDir : dominantDir || 1);
+
+      setIsSwiping(true);
+      hasSwipedRef.current = true;
+      afterSwipeRef.current = true;
+
+      await animate(x, dir * 500, {
+        duration: 0.28,
+        ease: [0, 0, 0.2, 1],
+      });
+
+      x.set(0);
+
+      if (isLastCard) {
+        setShowCycleEnd(true);
+        bgPassPromiseRef.current = passSuggestion().then(() => {
+          bgPassPromiseRef.current = null;
+        });
+        setIsSwiping(false);
+      } else {
+        await passSuggestion();
+        setIsSwiping(false);
+      }
+    } else {
+      animate(x, 0, {
+        type: 'spring',
+        bounce: 0.2,
+        duration: 0.35,
+      });
+    }
+  };
+
+  // ── Browse Again: await background fetch before dismissing ──
+  const handleBrowseAgain = async () => {
+    // If the background passSuggestion hasn't completed yet, wait for it.
+    // This prevents the stale last-card from flashing before the new first card.
+    if (bgPassPromiseRef.current) {
+      setBrowseAgainLoading(true);
+      await bgPassPromiseRef.current;
+      setBrowseAgainLoading(false);
+    }
+    setShowCycleEnd(false);
+    hasSwipedRef.current = false;
+    prevIsNewCycleRef.current = true;
+  };
+
   const handleInvite = async () => {
-    if (!suggestion) return;
+    if (!suggestion || isResponding) return;
     setIsResponding(true);
     try {
       await sendInvite();
-      // Match redirection logic handled by HomePage match listener
     } catch {
       // Error handled by hook
     } finally {
@@ -62,79 +392,77 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     }
   };
 
-  // Find common interests
+  // ── Compute interests ──
   const commonInterests =
     suggestion && userProfile
       ? suggestion.interests.filter((i) => userProfile.interests.includes(i))
       : [];
+  const nonCommonInterests =
+    suggestion
+      ? suggestion.interests.filter((i) => !commonInterests.includes(i))
+      : [];
+  const walkMinutes = suggestion ? Math.max(1, Math.ceil(suggestion.distance / 80)) : 0;
 
-  // Not available state
+  const nextCommonInterests =
+    nextSuggestion && userProfile
+      ? nextSuggestion.interests.filter((i) => userProfile.interests.includes(i))
+      : [];
+  const nextNonCommonInterests =
+    nextSuggestion
+      ? nextSuggestion.interests.filter((i) => !nextCommonInterests.includes(i))
+      : [];
+  const nextWalkMinutes = nextSuggestion ? Math.max(1, Math.ceil(nextSuggestion.distance / 80)) : 0;
+
+  // ── Render: static states ──
   if (!isAvailable) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
-        <CardContent className="pt-6 text-center py-12">
-          <div className="mx-auto mb-4 flex justify-center">
-            <ProfileAvatar
-              photoURL={userProfile?.photoURL}
-              displayName={userProfile?.displayName}
-              size="lg"
-            />
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
+        <CardContent className="pt-6 text-center py-8">
+          <div className="mx-auto mb-3 flex justify-center">
+            <ProfileAvatar photoURL={userProfile?.photoURL} displayName={userProfile?.displayName} size="md" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Set your availability
-          </h3>
-          <p className="text-gray-500">
-            Let others know you&apos;re free to find nearby buddies
-          </p>
+          <h3 className="text-[16px] font-semibold text-gray-800 mb-1">Set your availability</h3>
+          <p className="text-[13px] text-gray-400">Let others know you&apos;re free to find nearby buddies</p>
         </CardContent>
       </Card>
     );
   }
 
-  // Loading state (initial)
   if (loading && !suggestion) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
-        <CardContent className="pt-6 text-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-4" />
-          <p className="text-gray-500">Finding nearby buddies...</p>
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
+        <CardContent className="pt-6 text-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-violet-500 mx-auto mb-3" />
+          <p className="text-[13px] text-gray-400">Finding nearby buddies...</p>
         </CardContent>
       </Card>
     );
   }
 
-  // Error state
   if (error) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
-        <CardContent className="pt-6 text-center py-12">
-          <p className="text-red-500 mb-4">{error}</p>
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
+        <CardContent className="pt-6 text-center py-8">
+          <p className="text-red-500 text-[13px] mb-3">{error}</p>
           <Button onClick={() => fetchSuggestion('refresh')} variant="outline">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Try Again
+            <RefreshCw className="mr-2 h-4 w-4" /> Try Again
           </Button>
         </CardContent>
       </Card>
     );
   }
 
-  // No one available state (or cycle end)
   if (!suggestion && searchMessage) {
     return (
-      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
-        <CardContent className="pt-6 text-center py-12">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-50 flex items-center justify-center">
-            <UserX className="w-8 h-8 text-violet-400" />
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
+        <CardContent className="pt-5 text-center py-8">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100/60 flex items-center justify-center">
+            <UserX className="w-6 h-6 text-gray-300" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {cycleInfo?.isCycleEnd ? "That's everyone for now" : "No one nearby"}
-          </h3>
-          <p className="text-gray-500 mb-6">
-            {searchMessage}
-          </p>
-          <Button onClick={() => fetchSuggestion('refresh')} variant="outline">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh List
+          <h3 className="text-[16px] font-semibold text-gray-800 mb-1">No one nearby</h3>
+          <p className="text-[13px] text-gray-400 mb-4">{searchMessage}</p>
+          <Button onClick={() => fetchSuggestion('refresh')} variant="outline" size="sm" className="rounded-xl text-[13px]">
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh List
           </Button>
         </CardContent>
       </Card>
@@ -143,146 +471,112 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
 
   if (!suggestion) return null;
 
-  // Suggestion card
-  return (
-    <AnimatePresence mode="wait">
+  // ── Cycle-end interstitial ──
+  if (showCycleEnd) {
+    return (
       <motion.div
-        key={suggestion.uid}
-        initial={{ opacity: 0, x: 50 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -50 }}
-        className="relative"
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Card className="border-0 shadow-xl bg-white overflow-hidden min-h-[400px] flex flex-col">
-          <CardContent className="p-0 flex-1 flex flex-col">
-            {/* Header */}
-            <div className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 text-white relative">
-              {cycleInfo && cycleInfo.total > 1 && (
-                <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5 text-xs text-white/90">
-                  {cycleInfo.current} / {cycleInfo.total}
-                </div>
-              )}
-
-              <div className="flex items-center space-x-4 mb-4 mt-2">
-                <ProfileAvatar
-                  photoURL={suggestion.photoURL}
-                  displayName={suggestion.displayName}
-                  size="lg"
-                  className="border-4 border-white/20"
-                />
-                <div>
-                  <h3 className="text-2xl font-bold">
-                    {suggestion.displayName}
-                  </h3>
-                  <div className="flex items-center space-x-2 text-white/90 mt-1">
-                    <div className="flex items-center text-xs bg-black/20 rounded px-1.5 py-0.5">
-                      <MapPin className="w-3 h-3 mr-1" />
-                      <span>{suggestion.distance}m</span>
-                    </div>
-                    <div className="flex items-center text-xs bg-black/20 rounded px-1.5 py-0.5">
-                      <Clock className="w-3 h-3 mr-1" />
-                      <span>{suggestion.durationMinutes}m</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2 text-sm font-medium">
-                <Coffee className="w-4 h-4" />
-                <span>Wants to {suggestion.activity}</span>
-              </div>
+        <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
+          <CardContent className="py-10 text-center">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-violet-50 flex items-center justify-center">
+              <RefreshCw className="w-6 h-6 text-violet-400" />
             </div>
-
-            {/* Body */}
-            <div className="p-6 flex-1 flex flex-col">
-              {/* Explanation */}
-              {suggestion.explanation && (
-                <div className="mb-4 bg-violet-50 p-3 rounded-lg border border-violet-100">
-                  <p className="text-sm text-violet-700 italic text-center">
-                    &quot;{suggestion.explanation}&quot;
-                  </p>
-                </div>
+            <h3 className="text-[17px] font-semibold text-gray-800 mb-2">That&apos;s everyone nearby</h3>
+            <p className="text-[13px] text-gray-400 mb-6 px-4 leading-relaxed">
+              {cycleInfo?.total === 1 ? '1 person is available right now.' : `${cycleInfo?.total || 0} people are available right now.`}
+              {' '}New buddies will appear when they set availability.
+            </p>
+            <Button
+              onClick={handleBrowseAgain}
+              variant="outline"
+              size="sm"
+              className="rounded-xl text-[13px] touch-scale"
+              disabled={browseAgainLoading}
+            >
+              {browseAgainLoading ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               )}
-
-              {/* Common Interests */}
-              {commonInterests.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    You both like
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {commonInterests.map((interest) => (
-                      <Badge
-                        key={interest}
-                        variant="secondary"
-                        className="bg-green-100 text-green-700 hover:bg-green-200 border-none px-2 py-1"
-                      >
-                        {interest}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* All Interests */}
-              <div className="mb-6 flex-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Interests
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {suggestion.interests.slice(0, 5).map((interest) => (
-                    <Badge key={interest} variant="outline" className="text-zinc-600 border-zinc-200">
-                      {interest}
-                    </Badge>
-                  ))}
-                  {suggestion.interests.length > 5 && (
-                    <Badge variant="outline" className="text-zinc-500 border-dashed">
-                      +{suggestion.interests.length - 5}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-auto space-y-3">
-                <div className="flex space-x-3">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="flex-1 h-14 border-2 border-gray-100 hover:border-zinc-200 hover:bg-zinc-50 rounded-xl"
-                    onClick={handlePass}
-                    disabled={isResponding}
-                  >
-                    <X className="h-6 w-6 text-gray-400" />
-                  </Button>
-
-                  {canSendMore ? (
-                    <Button
-                      size="lg"
-                      className="flex-[2] h-14 bg-violet-600 hover:bg-violet-700 rounded-xl shadow-lg shadow-violet-200 transition-all text-base font-semibold"
-                      onClick={handleInvite}
-                      disabled={isResponding}
-                    >
-                      {isResponding ? (
-                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      ) : (
-                        <Send className="h-5 w-5 mr-2" />
-                      )}
-                      Send Invite
-                    </Button>
-                  ) : (
-                    <div className="flex-[2] h-14 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-gray-100 px-4 text-center">
-                      <span className="text-xs font-medium text-gray-500">
-                        Max 3 active invites
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+              {browseAgainLoading ? 'Loading...' : 'Browse Again'}
+            </Button>
           </CardContent>
         </Card>
       </motion.div>
-    </AnimatePresence>
+    );
+  }
+
+  const skipAnimation = afterSwipeRef.current;
+  const stackLayers = remainingCount >= 2 ? 2 : remainingCount === 1 ? 1 : 0;
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {stackLayers >= 2 && (
+        <div className="absolute top-[3px] bottom-[3px] left-1.5 right-0 rounded-2xl bg-gray-100/60 border border-gray-200/30" />
+      )}
+      {stackLayers >= 1 && (
+        <div className="absolute top-[1.5px] bottom-[1.5px] left-1.5 right-[2px] rounded-2xl bg-gray-50/70 border border-gray-200/40" />
+      )}
+
+      <motion.div
+        className="absolute top-0 bottom-0 left-1.5 right-1 rounded-2xl overflow-hidden"
+        style={{ scale: bgScale, opacity: bgOpacity }}
+      >
+        {nextSuggestion ? (
+          <CardBody
+            s={nextSuggestion}
+            commonInterests={nextCommonInterests}
+            nonCommonInterests={nextNonCommonInterests}
+            walkMinutes={nextWalkMinutes}
+            cycleInfo={cycleInfo ? { ...cycleInfo, current: cycleInfo.current + 1 } : null}
+            canSendMore={canSendMore}
+            isResponding={false}
+            isSwiping={false}
+            isPWA={isPWA}
+          />
+        ) : isLastCard ? (
+          <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden rounded-2xl">
+            <CardContent className="py-10 flex items-center justify-center">
+              <div className="text-center px-6">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-violet-50 flex items-center justify-center">
+                  <RefreshCw className="w-5 h-5 text-violet-400" />
+                </div>
+                <p className="text-[14px] font-semibold text-gray-700">That&apos;s everyone nearby</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="h-full bg-white rounded-2xl border border-gray-200/40" />
+        )}
+      </motion.div>
+
+      <motion.div
+        key={suggestion.uid}
+        initial={skipAnimation ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={skipAnimation ? { duration: 0 } : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        style={{ x, rotate, touchAction: 'none' }}
+        onPointerDown={handlePointerDown}
+        onPan={handlePan}
+        onPanEnd={handlePanEnd}
+        className="relative z-10 mx-1.5"
+      >
+        <CardBody
+          s={suggestion}
+          commonInterests={commonInterests}
+          nonCommonInterests={nonCommonInterests}
+          walkMinutes={walkMinutes}
+          cycleInfo={cycleInfo}
+          canSendMore={canSendMore}
+          onInvite={handleInvite}
+          isResponding={isResponding}
+          isSwiping={isSwiping}
+          isPWA={isPWA}
+        />
+      </motion.div>
+    </div>
   );
 }

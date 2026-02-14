@@ -74,5 +74,40 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* iOS-optimized spring easing */
+@layer utilities {
+  .ease-ios {
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .touch-scale {
+    transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .touch-scale:active {
+    transform: scale(0.98);
+  }
+}
+
+/* ── Surface depth system ── */
+@layer utilities {
+  /* Card surface: subtle layered shadow for floating cards */
+  .shadow-card {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.03),
+      0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+  /* Elevated surface: segmented controls, active pills */
+  .shadow-elevated {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  /* Subtle inset track for segmented controls */
+  .shadow-track-inset {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { OutgoingOffer } from '@/lib/firebase/functions';
 import Image from 'next/image';
 
@@ -45,10 +45,8 @@ export function CollapsibleInviteCard({
         return () => clearInterval(interval);
     }, [offer.expiresAt, isExpanded, onExpand, offer.expiresInSeconds]);
 
-    // Initial auto-expand
+    // Initial auto-expand for fresh invites
     useEffect(() => {
-        // Only auto-expand if it's very fresh (< 5s old)
-        // We can check createdAt if we had it, but for now check if full duration is mostly intact
         if (offer.expiresInSeconds > 590) { // Assuming 10m TTL
             onExpand();
             const timer = setTimeout(onCollapse, 3000);
@@ -65,37 +63,27 @@ export function CollapsibleInviteCard({
 
     if (hasExpired) {
         return (
-            <motion.div
-                layout
-                initial={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-[60px] bg-red-50 border border-red-100 rounded-xl flex items-center px-4"
-            >
-                <span className="text-red-500 font-medium text-sm flex items-center gap-2">
-                    <AlertCircle size={16} />
+            <div className="flex-1 bg-red-50/60 border border-red-100/60 rounded-2xl flex items-center justify-center px-2 py-2.5">
+                <span className="text-red-400 font-medium text-[11px] flex items-center gap-1">
+                    <AlertCircle size={12} />
                     Expired
                 </span>
-            </motion.div>
+            </div>
         );
     }
 
     return (
-        <motion.div
-            layout
-            style={{ borderRadius: 12 }}
-            className={`relative overflow-hidden transition-colors ${isExpiring ? 'bg-orange-50 border-orange-200' : 'bg-white border-zinc-100'
-                } border shadow-sm`}
-            animate={{
-                width: isExpanded ? '100%' : 'auto',
-                height: isExpanded ? 'auto' : 60,
-            }}
+        <div
+            className={`flex-1 relative overflow-hidden cursor-pointer rounded-2xl transition-colors ${
+                isExpanded
+                    ? isExpiring ? 'bg-orange-50/60 border-orange-200/60' : 'bg-violet-50/30 border-violet-200/60'
+                    : isExpiring ? 'bg-orange-50/60 border-orange-200/60' : 'bg-white border-gray-200/60'
+            } border shadow-card`}
+            onClick={() => isExpanded ? onCollapse() : onExpand()}
         >
-            {/* Header / Collapsed view */}
-            <div
-                className="flex items-center p-3 gap-3 cursor-pointer"
-                onClick={() => isExpanded ? onCollapse() : onExpand()}
-            >
-                <div className="relative w-9 h-9 flex-shrink-0">
+            {/* Header — always visible */}
+            <div className="flex items-center px-2.5 py-2 gap-2 min-w-0">
+                <div className="relative w-6 h-6 flex-shrink-0">
                     <Image
                         src={offer.toPhotoURL || '/placeholder-user.jpg'}
                         alt={offer.toDisplayName}
@@ -105,80 +93,68 @@ export function CollapsibleInviteCard({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold truncate text-zinc-900">
-                        {offer.toDisplayName}
+                    <h3 className="text-[11px] font-semibold truncate text-gray-800 leading-tight">
+                        {offer.toDisplayName.split(' ')[0]}
                     </h3>
-                    <div className="flex items-center gap-1.5">
-                        {!isExpanded && (
-                            // Simple radar dots animation for sending/waiting
-                            <div className="flex gap-0.5 mt-1">
+                    <div className="flex items-center gap-1">
+                        {!isExpanded ? (
+                            <div className="flex gap-[2px]">
                                 {[0, 1, 2].map(i => (
                                     <motion.div
                                         key={i}
-                                        className="w-1 h-1 bg-violet-400 rounded-full"
-                                        animate={{ opacity: [0.3, 1, 0.3] }}
+                                        className="w-[2.5px] h-[2.5px] bg-violet-400 rounded-full"
+                                        animate={{ opacity: [0.2, 1, 0.2] }}
                                         transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
                                     />
                                 ))}
                             </div>
-                        )}
-                        {isExpanded && (
-                            <span className={`text-xs font-medium ${isExpiring ? 'text-orange-600' : 'text-zinc-500'}`}>
-                                {isExpiring ? 'Expires in ' : 'Waiting... '}{formatTime(timeLeft)}
+                        ) : (
+                            <span className={`text-[10px] font-medium leading-tight ${isExpiring ? 'text-orange-600' : 'text-gray-400'}`}>
+                                {formatTime(timeLeft)}
                             </span>
                         )}
                     </div>
                 </div>
 
-                {/* Action Button (only visible when expanded) */}
-                <AnimatePresence>
-                    {isExpanded && (
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onCancel();
-                            }}
-                            className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-full text-zinc-500 transition-colors"
-                        >
-                            <X size={16} />
-                        </motion.button>
-                    )}
-                </AnimatePresence>
+                {!isExpanded && (
+                    <span className={`text-[10px] font-medium tabular-nums flex-shrink-0 ${isExpiring ? 'text-orange-600' : 'text-gray-400'}`}>
+                        {formatTime(timeLeft)}
+                    </span>
+                )}
             </div>
 
-            {/* Expanded Actions / Details */}
+            {/* Cancel button — individual per card, shown when expanded */}
             <AnimatePresence>
                 {isExpanded && (
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="px-3 pb-3 pt-0"
+                        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden"
                     >
-                        <div className="flex gap-2">
+                        <div className="px-2 pb-2 pt-0">
                             <button
                                 onClick={(e) => { e.stopPropagation(); onCancel(); }}
-                                className="w-full py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-medium rounded-lg transition-colors"
+                                className="w-full py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-500 text-[11px] font-medium rounded-lg border border-gray-100 transition-colors touch-scale"
                             >
-                                Cancel Invite
+                                Cancel
                             </button>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Progress bar at bottom */}
-            <div className="absolute bottom-0 left-0 h-0.5 bg-zinc-100 w-full">
-                <motion.div
-                    className={`h-full ${isExpiring ? 'bg-orange-500' : 'bg-violet-500'}`}
-                    initial={{ width: '100%' }}
-                    animate={{ width: '0%' }}
-                    transition={{ duration: offer.expiresInSeconds, ease: "linear" }}
+            {/* Progress bar at bottom — driven by timeLeft for accuracy across all cards */}
+            <div className="absolute bottom-0 left-0 h-[1.5px] bg-gray-100/60 w-full">
+                <div
+                    className={`h-full rounded-full ${isExpiring ? 'bg-orange-400' : 'bg-violet-400'}`}
+                    style={{
+                        width: `${Math.max(0, (timeLeft / 600) * 100)}%`,
+                        transition: 'width 1s linear',
+                    }}
                 />
             </div>
-        </motion.div>
+        </div>
     );
 }

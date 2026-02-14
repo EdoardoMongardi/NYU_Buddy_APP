@@ -42,7 +42,7 @@ const DURATIONS = [
   { value: '120', label: '2 hours' },
 ];
 
-export default function AvailabilitySheet() {
+export default function AvailabilitySheet({ isPWA = false }: { isPWA?: boolean }) {
   const {
     presence,
     isAvailable,
@@ -149,21 +149,22 @@ export default function AvailabilitySheet() {
   if (isAvailable && presence) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className={`bg-emerald-50/20 rounded-2xl px-4 border border-emerald-100/60 shadow-card border-l-[3px] border-l-emerald-400 ${isPWA ? 'py-3.5' : 'py-3'}`}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-            <span className="font-semibold">You&apos;re Available</span>
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="font-semibold text-gray-800 text-[14px]">You&apos;re Available</span>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleEndAvailability}
             disabled={isSubmitting}
-            className="text-white hover:bg-white/20"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 touch-scale h-9 w-9 p-0 rounded-full"
           >
             {isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -173,14 +174,14 @@ export default function AvailabilitySheet() {
           </Button>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center space-x-2">
-            <Coffee className="h-4 w-4" />
+        <div className="flex items-center gap-3.5 text-[13px] text-gray-500">
+          <div className="flex items-center gap-1.5">
+            <Coffee className="h-3.5 w-3.5 text-emerald-500" />
             <span>{presence.activity}</span>
           </div>
-          <div className="flex items-center space-x-2">
-            <Clock className="h-4 w-4" />
-            <span>{timeRemaining} min remaining</span>
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-gray-400" />
+            <span>{timeRemaining}m left</span>
           </div>
         </div>
       </motion.div>
@@ -192,7 +193,7 @@ export default function AvailabilitySheet() {
       <SheetTrigger asChild>
         <Button
           size="lg"
-          className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 h-14 text-lg"
+          className={`w-full bg-violet-600 hover:bg-violet-700 text-[15px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)] ${isPWA ? 'h-[46px]' : 'h-[44px]'}`}
         >
           <MapPin className="mr-2 h-5 w-5" />
           Set Availability
@@ -216,9 +217,9 @@ export default function AvailabilitySheet() {
                 <Badge
                   key={act}
                   variant={activity === act ? 'default' : 'outline'}
-                  className={`cursor-pointer text-base px-4 py-2 transition-all ${activity === act
-                    ? 'bg-violet-600 hover:bg-violet-700'
-                    : 'hover:bg-violet-100'
+                  className={`cursor-pointer text-[15px] px-4 py-2 rounded-full transition-all touch-scale ${activity === act
+                    ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                    : 'hover:bg-gray-100 text-gray-700 border-gray-200'
                     }`}
                   onClick={() => setActivity(act)}
                 >
@@ -246,7 +247,7 @@ export default function AvailabilitySheet() {
           </div>
 
           {/* Location Info */}
-          <div className="bg-violet-50 rounded-lg p-4 text-sm text-violet-800">
+          <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-500">
             <div className="flex items-start space-x-2">
               <MapPin className="h-4 w-4 mt-0.5" />
               <span>
@@ -265,7 +266,7 @@ export default function AvailabilitySheet() {
           <Button
             onClick={handleSetAvailability}
             disabled={!activity || isSubmitting}
-            className="w-full bg-gradient-to-r from-violet-600 to-purple-600 h-12"
+            className="w-full bg-violet-600 hover:bg-violet-700 h-12 rounded-xl font-semibold touch-scale"
           >
             {isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />

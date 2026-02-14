@@ -3,23 +3,16 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { LogOut, User, Menu, X, AlertCircle } from 'lucide-react';
+import { Settings, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function Navbar() {
-  const { user, userProfile, signOut, sendVerificationEmail } = useAuth();
+  const { user, sendVerificationEmail } = useAuth();
   const router = useRouter();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
-  };
 
   const handleResendVerification = async () => {
     await sendVerificationEmail();
@@ -31,73 +24,26 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+      <nav className="bg-white/80 backdrop-blur-xl border-b border-gray-200/40 sticky top-0 z-50">
+        <div className="container mx-auto px-5">
+          <div className="flex items-center justify-between h-14">
             <Link href="/" className="flex items-center space-x-2">
-              <span className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="text-xl font-bold text-gray-900 tracking-tight">
                 NYU Buddy
               </span>
             </Link>
 
-            {/* Desktop menu */}
-            <div className="hidden md:flex items-center space-x-4">
-              {userProfile && (
-                <span className="text-sm text-gray-600">
-                  Hi, {userProfile.displayName || user?.email}
-                </span>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSignOut}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-
-            {/* Mobile menu button */}
-            <button
-              className="md:hidden p-2"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            {/* Settings button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push('/profile')}
+              className="rounded-full hover:bg-gray-100 touch-scale h-10 w-10"
             >
-              {isMobileMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
-            </button>
+              <Settings className="w-5 h-5 text-gray-400" />
+            </Button>
           </div>
         </div>
-
-        {/* Mobile menu */}
-        {isMobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-gray-200 bg-white"
-          >
-            <div className="container mx-auto px-4 py-4 space-y-4">
-              {userProfile && (
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <User className="h-4 w-4" />
-                  <span>{userProfile.displayName || user?.email}</span>
-                </div>
-              )}
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={handleSignOut}
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          </motion.div>
-        )}
       </nav>
 
       {/* Email verification banner */}
