@@ -28,15 +28,11 @@ export default function HomePage() {
   const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
   const { pendingMatches } = usePendingConfirmations();
 
-  // ── Contextual greeting (purely cosmetic, no business logic) ──
-  const [greeting, setGreeting] = useState('');
+  // ── Contextual subtitle (only shown before availability is set) ──
   const [contextSubtitle, setContextSubtitle] = useState('Connect with nearby NYU students');
 
   useEffect(() => {
     const h = new Date().getHours();
-    setGreeting(
-      h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Hey there'
-    );
     setContextSubtitle(
       h < 11 ? 'Start your day with a study buddy'
         : h < 14 ? 'Who\u2019s around for lunch?'
@@ -45,8 +41,6 @@ export default function HomePage() {
         : 'Find a late-night study partner'
     );
   }, []);
-
-  const firstName = userProfile?.displayName?.split(' ')[0];
 
   // Suppression flag: If true, we are currently accepting an offer manually,
   // so we should suppress the banner (and let InvitesTab redirect).
@@ -169,7 +163,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="max-w-md mx-auto space-y-4">
+    <div className="max-w-md mx-auto flex flex-col flex-1 min-h-0">
       {showMatchOverlay && user && (
         <MatchOverlay
           matchId={showMatchOverlay}
@@ -196,24 +190,21 @@ export default function HomePage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="flex justify-between items-start"
+        className="flex justify-between items-center shrink-0"
       >
         <div>
-          {greeting && (
-            <p className="text-[13px] font-medium text-violet-500/70 mb-0.5">
-              {greeting}{firstName ? `, ${firstName}` : ''}
+          <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
+          {!isAvailable && (
+            <p className="text-[13px] text-gray-400 mt-0.5">
+              {contextSubtitle}
             </p>
           )}
-          <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
-          <p className="text-[15px] text-gray-400 mt-0.5">
-            {contextSubtitle}
-          </p>
         </div>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.push('/profile')}
-          className="rounded-full hover:bg-gray-100 touch-scale h-11 w-11 mt-1"
+          className="rounded-full hover:bg-gray-100 touch-scale h-10 w-10"
         >
           <Settings className="w-5 h-5 text-gray-400" />
         </Button>
@@ -224,7 +215,7 @@ export default function HomePage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-          className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center"
+          className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mt-3"
         >
           <h3 className="font-semibold text-amber-800 mb-2">
             Verify Your Email
@@ -240,6 +231,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
+            className="shrink-0 mt-3"
           >
             <AvailabilitySheet />
           </motion.div>
@@ -249,6 +241,7 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="shrink-0 mt-3"
             >
               <TabNavigation
                 activeTab={activeTab}
@@ -262,6 +255,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
+            className="flex-1 min-h-0 mt-3"
           >
             <AnimatePresence mode="wait">
               {activeTab === 'discover' ? (
@@ -271,20 +265,25 @@ export default function HomePage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 8 }}
                   transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  className="h-full flex flex-col"
                 >
                   {/* Show active invites if exist */}
                   {outgoingOffers.length > 0 && (
-                    <ActiveInvitesRow
-                      offers={outgoingOffers}
-                      onCancel={handleCancelOffer}
-                    />
+                    <div className="shrink-0">
+                      <ActiveInvitesRow
+                        offers={outgoingOffers}
+                        onCancel={handleCancelOffer}
+                      />
+                    </div>
                   )}
 
-                  {/* Always show suggestion card (unless functionality changes) */}
-                  <SuggestionCard
-                    isAvailable={isAvailable}
-                    canSendMore={canSendMore}
-                  />
+                  {/* Suggestion card fills remaining space */}
+                  <div className="flex-1 min-h-0">
+                    <SuggestionCard
+                      isAvailable={isAvailable}
+                      canSendMore={canSendMore}
+                    />
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div

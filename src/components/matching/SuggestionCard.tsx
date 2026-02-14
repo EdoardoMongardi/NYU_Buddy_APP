@@ -41,12 +41,16 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // ── Cycle end interstitial ──
   const [showCycleEnd, setShowCycleEnd] = useState(false);
   const hasSwipedRef = useRef(false);
+  const prevIsNewCycleRef = useRef(false);
 
-  // Detect cycle reset after user has browsed at least once
+  // Detect cycle reset: only on transition from false → true
+  // This prevents re-triggering after "Browse Again" dismisses the interstitial
   useEffect(() => {
-    if (cycleInfo?.isNewCycle && hasSwipedRef.current && suggestion) {
+    const isNew = cycleInfo?.isNewCycle ?? false;
+    if (isNew && !prevIsNewCycleRef.current && hasSwipedRef.current && suggestion) {
       setShowCycleEnd(true);
     }
+    prevIsNewCycleRef.current = isNew;
   }, [cycleInfo, suggestion]);
 
   // ── Swipe motion values ──

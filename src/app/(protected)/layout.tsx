@@ -58,7 +58,7 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#f2f2f7] relative">
+    <div className="h-[100dvh] bg-[#f2f2f7] relative flex flex-col overflow-hidden">
       {/* Subtle top gradient for visual gravity — purely decorative */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-72"
@@ -70,7 +70,7 @@ export default function ProtectedLayout({
       <Navbar />
       <NotificationPrompt />
       <InstallBanner />
-      <main className="container mx-auto px-5 pt-4 pb-8 relative">{children}</main>
+      <main className="container mx-auto px-5 pt-3 pb-[env(safe-area-inset-bottom)] relative flex-1 min-h-0 flex flex-col">{children}</main>
     </div>
   );
 }
