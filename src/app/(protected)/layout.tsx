@@ -6,8 +6,6 @@ import { Loader2 } from 'lucide-react';
 
 import { useAuth } from '@/lib/hooks/useAuth';
 import Navbar from '@/components/layout/Navbar';
-import NotificationPrompt from '@/components/notifications/NotificationPrompt';
-import InstallBanner from '@/components/installation/InstallBanner';
 
 export default function ProtectedLayout({
   children,
@@ -84,8 +82,6 @@ export default function ProtectedLayout({
       />
       <div className="shrink-0 relative z-10">
         <Navbar />
-        <NotificationPrompt />
-        <InstallBanner />
       </div>
       {/* overflow-auto allows child pages (profile, etc.) to scroll.
           The home page uses its own overflow-hidden to lock scrolling. */}

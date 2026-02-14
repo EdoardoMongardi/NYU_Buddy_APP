@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Bell, Download, X } from 'lucide-react';
 
 import AvailabilitySheet from '@/components/availability/AvailabilitySheet';
 import SuggestionCard from '@/components/matching/SuggestionCard';
@@ -16,6 +17,12 @@ import { useToast } from '@/hooks/use-toast';
 import MatchOverlay from '@/components/match/MatchOverlay';
 import { DidYouMeetDialog } from '@/components/match/DidYouMeetDialog';
 import { usePendingConfirmations } from '@/lib/hooks/usePendingConfirmations';
+import { useNotifications } from '@/lib/hooks/useNotifications';
+import { useInstallation } from '@/lib/hooks/useInstallation';
+import IOSInstallGuide from '@/components/installation/IOSInstallGuide';
+import AndroidInstallGuide from '@/components/installation/AndroidInstallGuide';
+import IOSSafariPrompt from '@/components/installation/IOSSafariPrompt';
+import { getIOSBrowserName } from '@/lib/utils/platform';
 
 export default function HomePage() {
   const router = useRouter();
@@ -26,66 +33,90 @@ export default function HomePage() {
   const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
   const { pendingMatches } = usePendingConfirmations();
 
-  // Suppression flag: If true, we are currently accepting an offer manually,
-  // so we should suppress the banner (and let InvitesTab redirect).
+  // ── Notification bubble ──
+  const { isSupported: notifSupported, permissionStatus, requestPermission } = useNotifications();
+  const [notifDismissed, setNotifDismissed] = useState(true);
+  const [notifRequesting, setNotifRequesting] = useState(false);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem('notificationPromptDismissed') === 'true';
+    setNotifDismissed(dismissed);
+  }, []);
+
+  const showNotifBubble = notifSupported && permissionStatus !== 'granted' && !notifDismissed;
+
+  const handleEnableNotifications = async () => {
+    setNotifRequesting(true);
+    await requestPermission();
+    setNotifRequesting(false);
+  };
+
+  const dismissNotif = () => {
+    setNotifDismissed(true);
+    localStorage.setItem('notificationPromptDismissed', 'true');
+  };
+
+  // ── Install bubble ──
+  const {
+    platform,
+    shouldShowBanner: showInstallBubble,
+    isInstallPromptAvailable,
+    dismissFor24Hours,
+    triggerInstallPrompt,
+  } = useInstallation();
+
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const [showAndroidGuide, setShowAndroidGuide] = useState(false);
+  const [showIOSSafariPrompt, setShowIOSSafariPrompt] = useState(false);
+
+  const handleInstall = async () => {
+    if (platform.isIOSSafari) { setShowIOSGuide(true); return; }
+    if (platform.isIOS && !platform.isIOSSafari) { setShowIOSSafariPrompt(true); return; }
+    if (platform.isAndroid && isInstallPromptAvailable) {
+      const accepted = await triggerInstallPrompt();
+      if (!accepted) setShowAndroidGuide(true);
+      return;
+    }
+    if (platform.isAndroid) { setShowAndroidGuide(true); return; }
+  };
+
+  // ── Standard page logic ──
   const isAcceptingRef = useRef(false);
 
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
       router.replace('/');
-
       const reason = searchParams.get('reason');
       const isBlocked = reason === 'blocked';
-
       toast({
         title: isBlocked ? "Match Ended" : "Meetup Cancelled",
-        description: isBlocked
-          ? "The other user is no longer available."
-          : "The meetup was cancelled.",
+        description: isBlocked ? "The other user is no longer available." : "The meetup was cancelled.",
         variant: "destructive",
       });
     }
   }, [searchParams, toast, router]);
 
   const {
-    inboxOffers,
-    inboxCount,
-    inboxLoading,
-    inboxError,
-    fetchInbox,
-    respondToOffer,
-    outgoingOffers,
-    canSendMore,
-    fetchOutgoing,
-    cancelOutgoingOffer,
+    inboxOffers, inboxCount, inboxLoading, inboxError,
+    fetchInbox, respondToOffer,
+    outgoingOffers, canSendMore, fetchOutgoing, cancelOutgoingOffer,
   } = useOffers();
 
   const [activeTab, setActiveTab] = useState<'discover' | 'invites'>('discover');
-
   const emailVerified = user?.emailVerified;
 
   useEffect(() => {
-    if (isAvailable && emailVerified) {
-      fetchInbox();
-      fetchOutgoing();
-    }
+    if (isAvailable && emailVerified) { fetchInbox(); fetchOutgoing(); }
   }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
 
   useEffect(() => {
     if (!isAvailable || !emailVerified) return;
-
-    const interval = setInterval(() => {
-      fetchInbox();
-      fetchOutgoing();
-    }, 30000);
-
+    const interval = setInterval(() => { fetchInbox(); fetchOutgoing(); }, 30000);
     return () => clearInterval(interval);
   }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
 
-  // Redirect if match detected via Presence (Canonical)
   useEffect(() => {
     if (isAcceptingRef.current) return;
-
     if (presence?.matchId && presence.status === 'matched') {
       setShowMatchOverlay(presence.matchId);
     } else if (showMatchOverlay && (!presence || presence.status !== 'matched')) {
@@ -93,42 +124,18 @@ export default function HomePage() {
     }
   }, [presence, showMatchOverlay]);
 
-  // Fallback: Redirect if offer is accepted (Legacy/Backup)
   useEffect(() => {
     if (showMatchOverlay) return;
     if (isAcceptingRef.current) return;
     if (!presence?.matchId || presence.status !== 'matched') return;
-
     const acceptedOffer = outgoingOffers.find(o => o.status === 'accepted' && o.matchId);
-    if (acceptedOffer) {
-      setShowMatchOverlay(acceptedOffer.matchId || null);
-    }
+    if (acceptedOffer) setShowMatchOverlay(acceptedOffer.matchId || null);
   }, [outgoingOffers, showMatchOverlay, presence]);
 
-  const handleMatchOverlayComplete = () => {
-    if (showMatchOverlay) {
-      router.push(`/match/${showMatchOverlay}`);
-    }
-  };
-
-  const handleAcceptOffer = async (offerId: string) => {
-    isAcceptingRef.current = true;
-    try {
-      const result = await respondToOffer(offerId, 'accept');
-      return result;
-    } catch (error) {
-      isAcceptingRef.current = false;
-      throw error;
-    }
-  };
-
-  const handleDeclineOffer = async (offerId: string) => {
-    await respondToOffer(offerId, 'decline');
-  };
-
-  const handleCancelOffer = async (offerId: string) => {
-    await cancelOutgoingOffer(offerId);
-  };
+  const handleMatchOverlayComplete = () => { if (showMatchOverlay) router.push(`/match/${showMatchOverlay}`); };
+  const handleAcceptOffer = async (offerId: string) => { isAcceptingRef.current = true; try { return await respondToOffer(offerId, 'accept'); } catch (error) { isAcceptingRef.current = false; throw error; } };
+  const handleDeclineOffer = async (offerId: string) => { await respondToOffer(offerId, 'decline'); };
+  const handleCancelOffer = async (offerId: string) => { await cancelOutgoingOffer(offerId); };
 
   return (
     <div
@@ -136,40 +143,65 @@ export default function HomePage() {
       style={{ overscrollBehavior: 'none', touchAction: 'manipulation' }}
     >
       {showMatchOverlay && user && (
-        <MatchOverlay
-          matchId={showMatchOverlay}
-          currentUserId={user.uid}
-          currentUserPhoto={userProfile?.photoURL}
-          onComplete={handleMatchOverlayComplete}
-          isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)}
-        />
+        <MatchOverlay matchId={showMatchOverlay} currentUserId={user.uid} currentUserPhoto={userProfile?.photoURL} onComplete={handleMatchOverlayComplete} isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)} />
       )}
-
       {!showMatchOverlay && pendingMatches.length > 0 && (
-        <DidYouMeetDialog
-          open={true}
-          matchId={pendingMatches[0].matchId}
-          otherUserName={pendingMatches[0].otherDisplayName}
-          otherUserPhotoURL={pendingMatches[0].otherPhotoURL}
-          activity={pendingMatches[0].activity}
-          onComplete={() => {}}
-        />
+        <DidYouMeetDialog open={true} matchId={pendingMatches[0].matchId} otherUserName={pendingMatches[0].otherDisplayName} otherUserPhotoURL={pendingMatches[0].otherPhotoURL} activity={pendingMatches[0].activity} onComplete={() => {}} />
       )}
 
-      {/* "Find a Buddy" — always visible between logo and availability */}
-      <h1 className="text-[22px] font-bold text-gray-800 tracking-tight shrink-0 pt-1 pb-1.5">
-        Find a Buddy
-      </h1>
+      {/* Title row — "Find a Buddy" + notification/install bubble */}
+      <div className="flex items-center justify-between shrink-0 pt-1 pb-1.5">
+        <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
+
+        {/* Notification bubble — only one of these shows at a time (mutually exclusive on iOS) */}
+        <AnimatePresence mode="wait">
+          {showNotifBubble && (
+            <motion.div
+              key="notif"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-2.5 pr-1.5 py-1 border border-violet-100/60"
+            >
+              <Bell className="w-3 h-3 flex-shrink-0" />
+              <button
+                onClick={handleEnableNotifications}
+                disabled={notifRequesting}
+                className="text-[11px] font-medium whitespace-nowrap"
+              >
+                {notifRequesting ? 'Enabling...' : 'Notifications'}
+              </button>
+              <button onClick={dismissNotif} className="p-0.5 hover:bg-violet-100 rounded-full">
+                <X className="w-3 h-3 text-violet-400" />
+              </button>
+            </motion.div>
+          )}
+          {!showNotifBubble && showInstallBubble && (
+            <motion.div
+              key="install"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-2.5 pr-1.5 py-1 border border-violet-100/60"
+            >
+              <Download className="w-3 h-3 flex-shrink-0" />
+              <button onClick={handleInstall} className="text-[11px] font-medium whitespace-nowrap">
+                Install
+              </button>
+              <button onClick={dismissFor24Hours} className="p-0.5 hover:bg-violet-100 rounded-full">
+                <X className="w-3 h-3 text-violet-400" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {!emailVerified ? (
         <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center">
-          <h3 className="font-semibold text-amber-800 mb-2">
-            Verify Your Email
-          </h3>
-          <p className="text-amber-700 text-sm">
-            Please verify your NYU email address to access all features.
-            Check your inbox for the verification link.
-          </p>
+          <h3 className="font-semibold text-amber-800 mb-2">Verify Your Email</h3>
+          <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features. Check your inbox for the verification link.</p>
         </div>
       ) : (
         <>
@@ -179,15 +211,10 @@ export default function HomePage() {
 
           {isAvailable && (
             <div className="shrink-0 mt-1.5">
-              <TabNavigation
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                inviteCount={inboxCount}
-              />
+              <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} inviteCount={inboxCount} />
             </div>
           )}
 
-          {/* Content area — fills remaining space, no gap */}
           <div className="flex-1 overflow-hidden min-h-0">
             <AnimatePresence mode="popLayout" initial={false}>
               {activeTab === 'discover' ? (
@@ -200,16 +227,9 @@ export default function HomePage() {
                   className="h-full"
                 >
                   {outgoingOffers.length > 0 && (
-                    <ActiveInvitesRow
-                      offers={outgoingOffers}
-                      onCancel={handleCancelOffer}
-                    />
+                    <ActiveInvitesRow offers={outgoingOffers} onCancel={handleCancelOffer} />
                   )}
-
-                  <SuggestionCard
-                    isAvailable={isAvailable}
-                    canSendMore={canSendMore}
-                  />
+                  <SuggestionCard isAvailable={isAvailable} canSendMore={canSendMore} />
                 </motion.div>
               ) : (
                 <motion.div
@@ -219,23 +239,18 @@ export default function HomePage() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <InvitesTab
-                    offers={inboxOffers}
-                    loading={inboxLoading}
-                    error={inboxError}
-                    onRefresh={fetchInbox}
-                    onAccept={handleAcceptOffer}
-                    onDecline={handleDeclineOffer}
-                    isAvailable={isAvailable}
-                    userPhotoURL={userProfile?.photoURL}
-                    userDisplayName={userProfile?.displayName}
-                  />
+                  <InvitesTab offers={inboxOffers} loading={inboxLoading} error={inboxError} onRefresh={fetchInbox} onAccept={handleAcceptOffer} onDecline={handleDeclineOffer} isAvailable={isAvailable} userPhotoURL={userProfile?.photoURL} userDisplayName={userProfile?.displayName} />
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
         </>
       )}
+
+      {/* Install guide modals */}
+      <IOSInstallGuide isOpen={showIOSGuide} onClose={() => setShowIOSGuide(false)} />
+      <AndroidInstallGuide isOpen={showAndroidGuide} onClose={() => setShowAndroidGuide(false)} />
+      <IOSSafariPrompt isOpen={showIOSSafariPrompt} onClose={() => setShowIOSSafariPrompt(false)} browserName={getIOSBrowserName(platform)} />
     </div>
   );
 }

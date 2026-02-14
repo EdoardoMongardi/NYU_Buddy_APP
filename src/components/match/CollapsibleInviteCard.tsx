@@ -145,13 +145,14 @@ export function CollapsibleInviteCard({
                 )}
             </AnimatePresence>
 
-            {/* Progress bar at bottom */}
+            {/* Progress bar at bottom — driven by timeLeft for accuracy across all cards */}
             <div className="absolute bottom-0 left-0 h-[1.5px] bg-gray-100/60 w-full">
-                <motion.div
+                <div
                     className={`h-full rounded-full ${isExpiring ? 'bg-orange-400' : 'bg-violet-400'}`}
-                    initial={{ width: '100%' }}
-                    animate={{ width: '0%' }}
-                    transition={{ duration: offer.expiresInSeconds, ease: "linear" }}
+                    style={{
+                        width: `${Math.max(0, (timeLeft / 600) * 100)}%`,
+                        transition: 'width 1s linear',
+                    }}
                 />
             </div>
         </div>
