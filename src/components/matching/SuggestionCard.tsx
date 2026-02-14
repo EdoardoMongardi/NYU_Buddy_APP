@@ -27,7 +27,8 @@ const SWIPE_MIN_OFFSET = 30;
 /* ─────────────────────────────────────────────────
  *  Card content renderer — shared between active
  *  and background (next) card so both show full
- *  content immediately.
+ *  content immediately.  Card is content-sized;
+ *  NO h-full / flex-1 stretching.
  * ───────────────────────────────────────────────── */
 function CardBody({
   s,
@@ -53,8 +54,8 @@ function CardBody({
   isPWA: boolean;
 }) {
   return (
-    <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden flex flex-col rounded-2xl h-full">
-      <CardContent className="p-0 flex-1 flex flex-col">
+    <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden flex flex-col rounded-2xl">
+      <CardContent className="p-0 flex flex-col">
         {/* ── Header ── */}
         <div className={`bg-gray-50/80 px-3.5 relative border-b border-gray-100/80 ${isPWA ? 'py-3' : 'py-2.5'}`}>
           {/* Cycle counter badge */}
@@ -103,7 +104,7 @@ function CardBody({
         </div>
 
         {/* ── Body ── */}
-        <div className={`px-4 flex-1 flex flex-col ${isPWA ? 'py-3' : 'py-2.5'}`}>
+        <div className={`px-4 flex flex-col ${isPWA ? 'py-3' : 'py-2.5'}`}>
           {/* Explanation */}
           {s.explanation && (
             <div className="mb-2 bg-violet-50/30 py-1.5 px-3 rounded-xl border border-violet-100/30">
@@ -156,7 +157,7 @@ function CardBody({
           )}
 
           {/* Action CTA */}
-          <div className="mt-auto pt-2 border-t border-gray-100/60">
+          <div className="pt-2 border-t border-gray-100/60">
             {onInvite ? (
               canSendMore ? (
                 <Button
@@ -213,6 +214,11 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   const hasSwipedRef = useRef(false);
   const prevIsNewCycleRef = useRef(false);
 
+  // Track the uid that was showing when cycle-end was entered,
+  // so we can avoid flashing it when "Browse Again" is clicked
+  // before passSuggestion has completed.
+  const cycleEndUidRef = useRef<string | null>(null);
+
   // ── Skip enter animation after swipe ──
   const afterSwipeRef = useRef(false);
 
@@ -225,6 +231,13 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     prevIsNewCycleRef.current = isNew;
   }, [cycleInfo, suggestion]);
 
+  // Clear the cycle-end uid guard when suggestion changes to a different user
+  useEffect(() => {
+    if (suggestion && cycleEndUidRef.current && suggestion.uid !== cycleEndUidRef.current) {
+      cycleEndUidRef.current = null;
+    }
+  }, [suggestion]);
+
   // ── Swipe motion values ──
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-250, 0, 250], [-3, 0, 3]);
@@ -232,7 +245,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   // Background card derives from absolute drag distance
   const bgScale = useTransform(x, (v) => {
     const absV = Math.min(Math.abs(v), 250);
-    return 0.96 + (absV / 250) * 0.04;
+    return 0.97 + (absV / 250) * 0.03;
   });
   const bgOpacity = useTransform(x, (v) => {
     const absV = Math.min(Math.abs(v), 250);
@@ -251,6 +264,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     if (!isAvailable) {
       setShowCycleEnd(false);
       hasSwipedRef.current = false;
+      cycleEndUidRef.current = null;
     }
   }, [isAvailable]);
 
@@ -304,8 +318,10 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
 
       // If this is the last card, go straight to cycle-end (no network wait)
       if (isLastCard) {
+        // Remember which uid was showing so we don't flash it on "Browse Again"
+        cycleEndUidRef.current = suggestion?.uid ?? null;
         setShowCycleEnd(true);
-        // Fire pass in background
+        // Fire pass in background — will update suggestion when done
         passSuggestion();
         setIsSwiping(false);
       } else {
@@ -324,10 +340,9 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   // ── Browse Again handler ──
   const handleBrowseAgain = () => {
     setShowCycleEnd(false);
-    // Reset swiped flag to prevent the cycle-end useEffect from re-triggering
-    // if a background fetch has already set cycleInfo.isNewCycle = true
     hasSwipedRef.current = false;
     prevIsNewCycleRef.current = true;
+    // cycleEndUidRef stays set — used to guard against flashing the old card
   };
 
   // ── Invite handler ──
@@ -429,6 +444,23 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
 
   if (!suggestion) return null;
 
+  // ── Guard: if "Browse Again" was clicked but passSuggestion hasn't
+  //    delivered the new first card yet, show loading instead of the stale card ──
+  if (
+    !showCycleEnd &&
+    cycleEndUidRef.current &&
+    suggestion.uid === cycleEndUidRef.current
+  ) {
+    return (
+      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
+        <CardContent className="pt-6 text-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-violet-500 mx-auto mb-3" />
+          <p className="text-[13px] text-gray-400">Loading buddies...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // ── Cycle-end interstitial ──
   if (showCycleEnd) {
     return (
@@ -459,29 +491,23 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
 
   const skipAnimation = afterSwipeRef.current;
 
-  // Stack layer count: 3 layers for 2+ remaining, 2 for 1, 0 for none
+  // Stack layers: 2+ remaining → 2 layers, 1 → 1 layer, 0 → none
   const stackLayers = remainingCount >= 2 ? 2 : remainingCount === 1 ? 1 : 0;
 
   // ── Main swipeable card with stack effect ──
   return (
-    <div className="relative h-full flex flex-col">
-      {/* ── Decorative stack layers (visible at edges) ── */}
+    <div className="relative">
+      {/* ── Stack edge layers — offset to the RIGHT to peek behind card ── */}
       {stackLayers >= 2 && (
-        <div
-          className="absolute inset-x-0 top-0 bottom-0 mx-0 rounded-2xl bg-gray-100/50 border border-gray-200/30"
-          style={{ transform: 'scale(0.93)', transformOrigin: 'center top' }}
-        />
+        <div className="absolute top-[3px] bottom-[3px] left-1.5 right-0 rounded-2xl bg-gray-100/60 border border-gray-200/30" />
       )}
       {stackLayers >= 1 && (
-        <div
-          className="absolute inset-x-0 top-0 bottom-0 mx-0.5 rounded-2xl bg-gray-50/60 border border-gray-200/40"
-          style={{ transform: 'scale(0.96)', transformOrigin: 'center top' }}
-        />
+        <div className="absolute top-[1.5px] bottom-[1.5px] left-1.5 right-[2px] rounded-2xl bg-gray-50/70 border border-gray-200/40" />
       )}
 
       {/* ── Background card — shows FULL next card content ── */}
       <motion.div
-        className="absolute inset-x-0 top-0 bottom-0 mx-1 rounded-2xl overflow-hidden"
+        className="absolute top-0 bottom-0 left-1.5 right-1 rounded-2xl overflow-hidden"
         style={{ scale: bgScale, opacity: bgOpacity }}
       >
         {nextSuggestion ? (
@@ -497,8 +523,8 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
             isPWA={isPWA}
           />
         ) : isLastCard ? (
-          <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden rounded-2xl h-full">
-            <CardContent className="h-full flex items-center justify-center">
+          <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden rounded-2xl">
+            <CardContent className="py-10 flex items-center justify-center">
               <div className="text-center px-6">
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-violet-50 flex items-center justify-center">
                   <RefreshCw className="w-5 h-5 text-violet-400" />
@@ -512,7 +538,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
         )}
       </motion.div>
 
-      {/* ── Active card — slightly inset for edge peek ── */}
+      {/* ── Active card — content-sized, not stretched ── */}
       <motion.div
         key={suggestion.uid}
         initial={skipAnimation ? false : { opacity: 0, y: 12 }}
@@ -521,7 +547,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
         style={{ x, rotate, touchAction: 'none' }}
         onPan={handlePan}
         onPanEnd={handlePanEnd}
-        className="relative z-10 mx-1.5 flex-1"
+        className="relative z-10 mx-1.5"
       >
         <CardBody
           s={suggestion}

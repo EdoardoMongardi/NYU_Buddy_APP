@@ -193,7 +193,7 @@ export default function AvailabilitySheet({ isPWA = false }: { isPWA?: boolean }
       <SheetTrigger asChild>
         <Button
           size="lg"
-          className={`w-full bg-violet-600 hover:bg-violet-700 text-[15px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)] ${isPWA ? 'h-[48px]' : 'h-[44px]'}`}
+          className={`w-full bg-violet-600 hover:bg-violet-700 text-[15px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)] ${isPWA ? 'h-[46px]' : 'h-[44px]'}`}
         >
           <MapPin className="mr-2 h-5 w-5" />
           Set Availability
