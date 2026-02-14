@@ -20,19 +20,13 @@ interface SuggestionCardProps {
 }
 
 // ── Swipe thresholds ──
-// Browser: comfortable desktop/browser-mobile thresholds
-// PWA: lower because iOS edge-swipe gestures consume initial
-// touch movement, making effective drag shorter.
-const SWIPE_OFFSET_THRESHOLD_BROWSER = 100;
-const SWIPE_OFFSET_THRESHOLD_PWA = 70;
-const SWIPE_VELOCITY_THRESHOLD = 400;
-const SWIPE_MIN_OFFSET = 20;
+const SWIPE_OFFSET_THRESHOLD_BROWSER = 90;
+const SWIPE_OFFSET_THRESHOLD_PWA = 55;
+const SWIPE_VELOCITY_THRESHOLD = 350;
+const SWIPE_MIN_OFFSET = 15;
 
 /* ─────────────────────────────────────────────────
- *  Card content renderer — shared between active
- *  and background (next) card so both show full
- *  content immediately.  Card is content-sized;
- *  NO h-full / flex-1 stretching.
+ *  Card content renderer
  * ───────────────────────────────────────────────── */
 function CardBody({
   s,
@@ -62,7 +56,6 @@ function CardBody({
       <CardContent className="p-0 flex flex-col">
         {/* ── Header ── */}
         <div className={`bg-gray-50/80 px-3.5 relative border-b border-gray-100/80 ${isPWA ? 'py-3' : 'py-2.5'}`}>
-          {/* Cycle counter badge */}
           {cycleInfo && cycleInfo.total > 1 && (
             <div className={`absolute top-2 right-2.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
               cycleInfo.current === cycleInfo.total
@@ -73,15 +66,12 @@ function CardBody({
               {cycleInfo.current === cycleInfo.total && ' · Last'}
             </div>
           )}
-
           <div className="flex items-center space-x-3">
-            {/* Override the purple gradient fallback with a neutral gray
-                so image-loading doesn't cause a violet flash */}
             <ProfileAvatar
               photoURL={s.photoURL}
               displayName={s.displayName}
               size="md"
-              className="border-[3px] border-white shadow-md ring-2 ring-violet-100/60 !bg-gray-200"
+              className="border-[3px] border-white shadow-md ring-2 ring-violet-100/60"
             />
             <div className="flex-1 min-w-0">
               <h3 className="text-[17px] font-bold text-gray-800 tracking-tight truncate">
@@ -111,7 +101,6 @@ function CardBody({
 
         {/* ── Body ── */}
         <div className={`px-4 flex flex-col ${isPWA ? 'py-3' : 'py-2.5'}`}>
-          {/* Explanation */}
           {s.explanation && (
             <div className="mb-2 bg-violet-50/30 py-1.5 px-3 rounded-xl border border-violet-100/30">
               <p className="text-[11px] text-gray-600 italic text-center leading-relaxed">
@@ -119,64 +108,37 @@ function CardBody({
               </p>
             </div>
           )}
-
-          {/* Common Interests */}
           {commonInterests.length > 0 && (
             <div className="mb-1.5">
-              <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-0.5">
-                You both like
-              </p>
+              <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-0.5">You both like</p>
               <div className="flex items-center gap-1.5 overflow-hidden">
                 {commonInterests.length > 3 && (
-                  <Badge variant="secondary" className="bg-violet-50 text-violet-400 border border-violet-100/40 px-1.5 py-0 text-[11px] shrink-0">
-                    +{commonInterests.length - 3}
-                  </Badge>
+                  <Badge variant="secondary" className="bg-violet-50 text-violet-400 border border-violet-100/40 px-1.5 py-0 text-[11px] shrink-0">+{commonInterests.length - 3}</Badge>
                 )}
                 {commonInterests.slice(0, 3).map((interest) => (
-                  <Badge key={interest} variant="secondary" className="bg-violet-50 text-violet-600 border border-violet-100/60 px-2 py-0 text-[11px] shrink-0 whitespace-nowrap">
-                    {interest}
-                  </Badge>
+                  <Badge key={interest} variant="secondary" className="bg-violet-50 text-violet-600 border border-violet-100/60 px-2 py-0 text-[11px] shrink-0 whitespace-nowrap">{interest}</Badge>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Non-common Interests */}
           {nonCommonInterests.length > 0 && (
             <div className="mb-1.5">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
-                Interests
-              </p>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Interests</p>
               <div className="flex items-center gap-1.5 overflow-hidden">
                 {nonCommonInterests.length > 3 && (
-                  <Badge variant="outline" className="text-gray-400 border-dashed px-1.5 py-0 text-[11px] shrink-0">
-                    +{nonCommonInterests.length - 3}
-                  </Badge>
+                  <Badge variant="outline" className="text-gray-400 border-dashed px-1.5 py-0 text-[11px] shrink-0">+{nonCommonInterests.length - 3}</Badge>
                 )}
                 {nonCommonInterests.slice(0, 3).map((interest) => (
-                  <Badge key={interest} variant="outline" className="text-gray-600 border-gray-200/80 text-[11px] px-2 py-0 shrink-0 whitespace-nowrap">
-                    {interest}
-                  </Badge>
+                  <Badge key={interest} variant="outline" className="text-gray-600 border-gray-200/80 text-[11px] px-2 py-0 shrink-0 whitespace-nowrap">{interest}</Badge>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Action CTA */}
           <div className="pt-2 border-t border-gray-100/60">
             {onInvite ? (
               canSendMore ? (
-                <Button
-                  size="lg"
-                  className="w-full h-[44px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-[0_2px_12px_rgba(124,58,237,0.25)] transition-all text-[15px] font-semibold touch-scale"
-                  onClick={onInvite}
-                  disabled={isResponding || isSwiping}
-                >
-                  {isResponding ? (
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  ) : (
-                    <Send className="h-5 w-5 mr-2" />
-                  )}
+                <Button size="lg" className="w-full h-[44px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-[0_2px_12px_rgba(124,58,237,0.25)] transition-all text-[15px] font-semibold touch-scale" onClick={onInvite} disabled={isResponding || isSwiping}>
+                  {isResponding ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
                   Send Invite
                 </Button>
               ) : (
@@ -185,7 +147,6 @@ function CardBody({
                 </div>
               )
             ) : (
-              /* Background card: show muted CTA placeholder */
               <div className="w-full h-[44px] bg-violet-50/40 rounded-2xl flex items-center justify-center border border-violet-100/40">
                 <Send className="h-4 w-4 text-violet-300 mr-2" />
                 <span className="text-[13px] font-medium text-violet-400">Send Invite</span>
@@ -217,14 +178,56 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
 
   // ── Cycle end interstitial ──
   const [showCycleEnd, setShowCycleEnd] = useState(false);
+  const [browseAgainLoading, setBrowseAgainLoading] = useState(false);
   const hasSwipedRef = useRef(false);
   const prevIsNewCycleRef = useRef(false);
+
+  // Promise for the background passSuggestion call fired when last card is swiped.
+  // handleBrowseAgain awaits this so it never reveals a stale card.
+  const bgPassPromiseRef = useRef<Promise<void> | null>(null);
 
   // ── Skip enter animation after swipe ──
   const afterSwipeRef = useRef(false);
 
-  // Dynamic swipe threshold based on mode
+  // ── Track maximum drag distance during a pan gesture ──
+  const maxDragRef = useRef(0);
+  const dragDirRef = useRef(0);
+
+  // ── True initial touch position ──
+  // In iOS PWA standalone mode, the system gesture recognizer delays initial
+  // touch delivery to the web app by ~50-150ms while deciding if it's a
+  // system gesture (back/forward nav). Framer Motion's onPan only starts
+  // tracking from when it receives the first pointer event — AFTER this delay.
+  // So info.offset.x is systematically smaller than the real finger displacement.
+  // We capture the true start via onPointerDown (fires before FM's pan detection)
+  // and compute actual displacement in onPanEnd using raw pointer coordinates.
+  const pointerStartXRef = useRef(0);
+
+  // ── Ref for the card stack container ──
+  // Used to register a non-passive touchmove listener that calls preventDefault().
+  // CSS touch-action: none isn't 100% reliable in iOS PWA standalone mode.
+  // Actively preventing default on touchmove is the bulletproof way to stop
+  // iOS from stealing the touch for system gesture handling mid-drag.
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const swipeThreshold = isPWA ? SWIPE_OFFSET_THRESHOLD_PWA : SWIPE_OFFSET_THRESHOLD_BROWSER;
+
+  // ── Prevent iOS from stealing touches ──
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handler = (e: TouchEvent) => {
+      // Prevent default to claim the touch from iOS system gesture handling.
+      // This doesn't affect taps (touchstart → touchend without touchmove).
+      e.preventDefault();
+    };
+
+    el.addEventListener('touchmove', handler, { passive: false });
+    return () => el.removeEventListener('touchmove', handler);
+  // Re-attach when suggestion changes because the container re-renders
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestion?.uid]);
 
   // Detect cycle reset: only on transition from false → true AND user has swiped
   useEffect(() => {
@@ -235,7 +238,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     prevIsNewCycleRef.current = isNew;
   }, [cycleInfo, suggestion]);
 
-  // ── Preload next suggestion's photo to prevent flash ──
+  // Preload next suggestion's photo
   useEffect(() => {
     if (buffer.length > 0 && buffer[0].photoURL) {
       const img = new window.Image();
@@ -247,7 +250,6 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-250, 0, 250], [-3, 0, 3]);
 
-  // Background card derives from absolute drag distance
   const bgScale = useTransform(x, (v) => {
     const absV = Math.min(Math.abs(v), 250);
     return 0.97 + (absV / 250) * 0.03;
@@ -269,6 +271,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     if (!isAvailable) {
       setShowCycleEnd(false);
       hasSwipedRef.current = false;
+      bgPassPromiseRef.current = null;
     }
   }, [isAvailable]);
 
@@ -279,40 +282,64 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     }
   }, [suggestion?.uid]);
 
-  // ── Is this the last card in the cycle? ──
   const isLastCard = cycleInfo
     ? cycleInfo.current >= cycleInfo.total && buffer.length === 0
     : false;
 
-  // Remaining cards after current one (for stack layers)
   const remainingCount = buffer.length;
-
-  // The next suggestion to preview behind the active card
   const nextSuggestion = buffer.length > 0 ? buffer[0] : null;
 
-  // ── Swipe handlers ──
+  // ── Capture true start position before iOS gesture delay ──
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStartXRef.current = e.clientX;
+  };
+
+  // ── Pan handlers ──
   const handlePan = (_: PointerEvent, info: PanInfo) => {
     if (isResponding || isSwiping) return;
     x.set(info.offset.x);
+
+    const absOffset = Math.abs(info.offset.x);
+    if (absOffset > maxDragRef.current) {
+      maxDragRef.current = absOffset;
+      dragDirRef.current = info.offset.x > 0 ? 1 : -1;
+    }
   };
 
-  const handlePanEnd = async (_: PointerEvent, info: PanInfo) => {
+  const handlePanEnd = async (event: PointerEvent, info: PanInfo) => {
+    const maxDrag = maxDragRef.current;
+    const dominantDir = dragDirRef.current;
+    maxDragRef.current = 0;
+    dragDirRef.current = 0;
+
     if (isResponding || isSwiping) return;
 
     const absX = Math.abs(info.offset.x);
     const absVelocity = Math.abs(info.velocity.x);
 
+    // ── True displacement from raw pointer coordinates ──
+    // This captures the FULL finger movement including the initial portion
+    // that iOS's gesture recognizer consumed before releasing to the web app.
+    // In browser mode, this equals info.offset.x. In PWA mode, this can be
+    // 10-25px larger — the difference that causes the bounce-back problem.
+    const trueDisplacement = Math.abs(event.clientX - pointerStartXRef.current);
+
+    // Use the best available measurement: true displacement, max drag peak, or FM offset
+    const effectiveOffset = Math.max(trueDisplacement, maxDrag, absX);
+
     const shouldSwipe =
-      absX > swipeThreshold ||
-      (absVelocity > SWIPE_VELOCITY_THRESHOLD && absX > SWIPE_MIN_OFFSET);
+      effectiveOffset > swipeThreshold ||
+      (absVelocity > SWIPE_VELOCITY_THRESHOLD && effectiveOffset > SWIPE_MIN_OFFSET);
 
     if (shouldSwipe) {
-      const dir = info.offset.x > 0 ? 1 : -1;
+      // Direction: prefer FM offset if significant, fall back to true displacement direction
+      const trueDir = (event.clientX - pointerStartXRef.current) > 0 ? 1 : -1;
+      const dir = absX > 5 ? (info.offset.x > 0 ? 1 : -1) : (trueDisplacement > 5 ? trueDir : dominantDir || 1);
+
       setIsSwiping(true);
       hasSwipedRef.current = true;
       afterSwipeRef.current = true;
 
-      // Animate card exit
       await animate(x, dir * 500, {
         duration: 0.28,
         ease: [0, 0, 0.2, 1],
@@ -320,11 +347,11 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
 
       x.set(0);
 
-      // If this is the last card, go straight to cycle-end (no network wait)
       if (isLastCard) {
         setShowCycleEnd(true);
-        // Fire pass in background — will update suggestion when done
-        passSuggestion();
+        bgPassPromiseRef.current = passSuggestion().then(() => {
+          bgPassPromiseRef.current = null;
+        });
         setIsSwiping(false);
       } else {
         await passSuggestion();
@@ -339,15 +366,20 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     }
   };
 
-  // ── Browse Again handler ──
-  const handleBrowseAgain = () => {
+  // ── Browse Again: await background fetch before dismissing ──
+  const handleBrowseAgain = async () => {
+    // If the background passSuggestion hasn't completed yet, wait for it.
+    // This prevents the stale last-card from flashing before the new first card.
+    if (bgPassPromiseRef.current) {
+      setBrowseAgainLoading(true);
+      await bgPassPromiseRef.current;
+      setBrowseAgainLoading(false);
+    }
     setShowCycleEnd(false);
-    // Reset swiped flag to prevent the cycle-end useEffect from re-triggering
     hasSwipedRef.current = false;
     prevIsNewCycleRef.current = true;
   };
 
-  // ── Invite handler ──
   const handleInvite = async () => {
     if (!suggestion || isResponding) return;
     setIsResponding(true);
@@ -360,33 +392,28 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     }
   };
 
-  // ── Compute interests for current suggestion ──
+  // ── Compute interests ──
   const commonInterests =
     suggestion && userProfile
       ? suggestion.interests.filter((i) => userProfile.interests.includes(i))
       : [];
-
   const nonCommonInterests =
     suggestion
       ? suggestion.interests.filter((i) => !commonInterests.includes(i))
       : [];
-
   const walkMinutes = suggestion ? Math.max(1, Math.ceil(suggestion.distance / 80)) : 0;
 
-  // ── Compute interests for next suggestion (background card) ──
   const nextCommonInterests =
     nextSuggestion && userProfile
       ? nextSuggestion.interests.filter((i) => userProfile.interests.includes(i))
       : [];
-
   const nextNonCommonInterests =
     nextSuggestion
       ? nextSuggestion.interests.filter((i) => !nextCommonInterests.includes(i))
       : [];
-
   const nextWalkMinutes = nextSuggestion ? Math.max(1, Math.ceil(nextSuggestion.distance / 80)) : 0;
 
-  // ── Static states ──
+  // ── Render: static states ──
   if (!isAvailable) {
     return (
       <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
@@ -418,8 +445,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
         <CardContent className="pt-6 text-center py-8">
           <p className="text-red-500 text-[13px] mb-3">{error}</p>
           <Button onClick={() => fetchSuggestion('refresh')} variant="outline">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Try Again
+            <RefreshCw className="mr-2 h-4 w-4" /> Try Again
           </Button>
         </CardContent>
       </Card>
@@ -436,8 +462,7 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
           <h3 className="text-[16px] font-semibold text-gray-800 mb-1">No one nearby</h3>
           <p className="text-[13px] text-gray-400 mb-4">{searchMessage}</p>
           <Button onClick={() => fetchSuggestion('refresh')} variant="outline" size="sm" className="rounded-xl text-[13px]">
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Refresh List
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh List
           </Button>
         </CardContent>
       </Card>
@@ -464,9 +489,19 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
               {cycleInfo?.total === 1 ? '1 person is available right now.' : `${cycleInfo?.total || 0} people are available right now.`}
               {' '}New buddies will appear when they set availability.
             </p>
-            <Button onClick={handleBrowseAgain} variant="outline" size="sm" className="rounded-xl text-[13px] touch-scale">
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-              Browse Again
+            <Button
+              onClick={handleBrowseAgain}
+              variant="outline"
+              size="sm"
+              className="rounded-xl text-[13px] touch-scale"
+              disabled={browseAgainLoading}
+            >
+              {browseAgainLoading ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              {browseAgainLoading ? 'Loading...' : 'Browse Again'}
             </Button>
           </CardContent>
         </Card>
@@ -475,14 +510,10 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   }
 
   const skipAnimation = afterSwipeRef.current;
-
-  // Stack layers: 2+ remaining → 2 layers, 1 → 1 layer, 0 → none
   const stackLayers = remainingCount >= 2 ? 2 : remainingCount === 1 ? 1 : 0;
 
-  // ── Main swipeable card with stack effect ──
   return (
-    <div className="relative">
-      {/* ── Stack edge layers — offset to the RIGHT to peek behind card ── */}
+    <div className="relative" ref={containerRef}>
       {stackLayers >= 2 && (
         <div className="absolute top-[3px] bottom-[3px] left-1.5 right-0 rounded-2xl bg-gray-100/60 border border-gray-200/30" />
       )}
@@ -490,7 +521,6 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
         <div className="absolute top-[1.5px] bottom-[1.5px] left-1.5 right-[2px] rounded-2xl bg-gray-50/70 border border-gray-200/40" />
       )}
 
-      {/* ── Background card — shows FULL next card content ── */}
       <motion.div
         className="absolute top-0 bottom-0 left-1.5 right-1 rounded-2xl overflow-hidden"
         style={{ scale: bgScale, opacity: bgOpacity }}
@@ -523,13 +553,13 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
         )}
       </motion.div>
 
-      {/* ── Active card — content-sized, not stretched ── */}
       <motion.div
         key={suggestion.uid}
         initial={skipAnimation ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={skipAnimation ? { duration: 0 } : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         style={{ x, rotate, touchAction: 'none' }}
+        onPointerDown={handlePointerDown}
         onPan={handlePan}
         onPanEnd={handlePanEnd}
         className="relative z-10 mx-1.5"

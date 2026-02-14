@@ -234,6 +234,7 @@ export default function HomePage() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                   className="h-full"
+                  style={{ touchAction: 'none' }}
                 >
                   {outgoingOffers.length > 0 && (
                     <ActiveInvitesRow offers={outgoingOffers} onCancel={handleCancelOffer} />
