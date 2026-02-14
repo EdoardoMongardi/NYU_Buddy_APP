@@ -42,7 +42,7 @@ const DURATIONS = [
   { value: '120', label: '2 hours' },
 ];
 
-export default function AvailabilitySheet() {
+export default function AvailabilitySheet({ isPWA = false }: { isPWA?: boolean }) {
   const {
     presence,
     isAvailable,
@@ -152,7 +152,7 @@ export default function AvailabilitySheet() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-emerald-50/20 rounded-2xl px-4 py-3 border border-emerald-100/60 shadow-card border-l-[3px] border-l-emerald-400"
+        className={`bg-emerald-50/20 rounded-2xl px-4 border border-emerald-100/60 shadow-card border-l-[3px] border-l-emerald-400 ${isPWA ? 'py-3.5' : 'py-3'}`}
       >
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center space-x-2">
@@ -193,7 +193,7 @@ export default function AvailabilitySheet() {
       <SheetTrigger asChild>
         <Button
           size="lg"
-          className="w-full bg-violet-600 hover:bg-violet-700 h-[44px] text-[15px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)]"
+          className={`w-full bg-violet-600 hover:bg-violet-700 text-[15px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)] ${isPWA ? 'h-[48px]' : 'h-[44px]'}`}
         >
           <MapPin className="mr-2 h-5 w-5" />
           Set Availability

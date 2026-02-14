@@ -33,6 +33,15 @@ export default function HomePage() {
   const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
   const { pendingMatches } = usePendingConfirmations();
 
+  // ── PWA standalone detection ──
+  const [isPWA, setIsPWA] = useState(false);
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    setIsPWA(standalone);
+  }, []);
+
   // ── Notification bubble ──
   const { isSupported: notifSupported, permissionStatus, requestPermission } = useNotifications();
   const [notifDismissed, setNotifDismissed] = useState(true);
@@ -150,7 +159,7 @@ export default function HomePage() {
       )}
 
       {/* Title row — "Find a Buddy" + notification/install bubble */}
-      <div className="flex items-center justify-between shrink-0 pt-1 pb-1.5">
+      <div className={`flex items-center justify-between shrink-0 ${isPWA ? 'pt-1.5 pb-2' : 'pt-1 pb-1.5'}`}>
         <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
 
         {/* Notification bubble — only one of these shows at a time (mutually exclusive on iOS) */}
@@ -206,16 +215,16 @@ export default function HomePage() {
       ) : (
         <>
           <div className="shrink-0">
-            <AvailabilitySheet />
+            <AvailabilitySheet isPWA={isPWA} />
           </div>
 
           {isAvailable && (
-            <div className="shrink-0 mt-1.5">
+            <div className={`shrink-0 ${isPWA ? 'mt-2' : 'mt-1.5'}`}>
               <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} inviteCount={inboxCount} />
             </div>
           )}
 
-          <div className="flex-1 overflow-hidden min-h-0">
+          <div className={`flex-1 overflow-hidden min-h-0 ${isPWA ? 'mt-1' : ''}`}>
             <AnimatePresence mode="popLayout" initial={false}>
               {activeTab === 'discover' ? (
                 <motion.div
@@ -229,7 +238,7 @@ export default function HomePage() {
                   {outgoingOffers.length > 0 && (
                     <ActiveInvitesRow offers={outgoingOffers} onCancel={handleCancelOffer} />
                   )}
-                  <SuggestionCard isAvailable={isAvailable} canSendMore={canSendMore} />
+                  <SuggestionCard isAvailable={isAvailable} canSendMore={canSendMore} isPWA={isPWA} />
                 </motion.div>
               ) : (
                 <motion.div
