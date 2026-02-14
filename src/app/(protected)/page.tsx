@@ -162,18 +162,18 @@ export default function HomePage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.2 }}
-              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-2.5 pr-1.5 py-1 border border-violet-100/60"
+              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
             >
-              <Bell className="w-3 h-3 flex-shrink-0" />
+              <Bell className="w-3.5 h-3.5 flex-shrink-0" />
               <button
                 onClick={handleEnableNotifications}
                 disabled={notifRequesting}
-                className="text-[11px] font-medium whitespace-nowrap"
+                className="text-[12px] font-medium whitespace-nowrap"
               >
                 {notifRequesting ? 'Enabling...' : 'Notifications'}
               </button>
-              <button onClick={dismissNotif} className="p-0.5 hover:bg-violet-100 rounded-full">
-                <X className="w-3 h-3 text-violet-400" />
+              <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
+                <X className="w-3.5 h-3.5 text-violet-400" />
               </button>
             </motion.div>
           )}
@@ -184,14 +184,14 @@ export default function HomePage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.2 }}
-              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-2.5 pr-1.5 py-1 border border-violet-100/60"
+              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
             >
-              <Download className="w-3 h-3 flex-shrink-0" />
-              <button onClick={handleInstall} className="text-[11px] font-medium whitespace-nowrap">
+              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+              <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
                 Install
               </button>
-              <button onClick={dismissFor24Hours} className="p-0.5 hover:bg-violet-100 rounded-full">
-                <X className="w-3 h-3 text-violet-400" />
+              <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
+                <X className="w-3.5 h-3.5 text-violet-400" />
               </button>
             </motion.div>
           )}

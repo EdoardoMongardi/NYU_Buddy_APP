@@ -18,14 +18,15 @@ interface SuggestionCardProps {
 }
 
 // ── Swipe thresholds ──
-const SWIPE_OFFSET_THRESHOLD = 120;  // px — slightly longer drag needed
-const SWIPE_VELOCITY_THRESHOLD = 500; // px/s flick speed
-const SWIPE_MIN_OFFSET = 30;         // minimum offset for velocity-only swipes
+const SWIPE_OFFSET_THRESHOLD = 120;
+const SWIPE_VELOCITY_THRESHOLD = 500;
+const SWIPE_MIN_OFFSET = 30;
 
 export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionCardProps) {
   const { userProfile } = useAuth();
   const {
     suggestion,
+    buffer,
     cycleInfo,
     loading,
     error,
@@ -62,11 +63,11 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // Background card derives from absolute drag distance
   const bgScale = useTransform(x, (v) => {
     const absV = Math.min(Math.abs(v), 250);
-    return 0.96 + (absV / 250) * 0.04; // 0.96 → 1.0
+    return 0.96 + (absV / 250) * 0.04;
   });
   const bgOpacity = useTransform(x, (v) => {
     const absV = Math.min(Math.abs(v), 250);
-    return 0.4 + (absV / 250) * 0.6; // 0.4 → 1.0
+    return 0.5 + (absV / 250) * 0.5;
   });
 
   // Initial fetch when available
@@ -91,6 +92,14 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
     }
   }, [suggestion?.uid]);
 
+  // ── Is this the last card in the cycle? ──
+  const isLastCard = cycleInfo
+    ? cycleInfo.current >= cycleInfo.total && buffer.length === 0
+    : false;
+
+  // The next suggestion to preview behind the active card
+  const nextSuggestion = buffer.length > 0 ? buffer[0] : null;
+
   // ── Swipe handlers ──
   const handlePan = (_: PointerEvent, info: PanInfo) => {
     if (isResponding || isSwiping || loading) return;
@@ -113,21 +122,25 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
       hasSwipedRef.current = true;
       afterSwipeRef.current = true;
 
-      // Animate card exit — slightly longer for card-stack feel
+      // Animate card exit
       await animate(x, dir * 500, {
         duration: 0.28,
         ease: [0, 0, 0.2, 1],
       });
 
-      // Reset position for next card
       x.set(0);
 
-      // Browse next — instant from buffer
-      await passSuggestion();
-
-      setIsSwiping(false);
+      // If this is the last card, go straight to cycle-end (no network wait)
+      if (isLastCard) {
+        setShowCycleEnd(true);
+        // Fire pass in background
+        passSuggestion();
+        setIsSwiping(false);
+      } else {
+        await passSuggestion();
+        setIsSwiping(false);
+      }
     } else {
-      // Spring back to center
       animate(x, 0, {
         type: 'spring',
         bounce: 0.2,
@@ -227,9 +240,9 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   if (showCycleEnd) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       >
         <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
           <CardContent className="py-10 text-center">
@@ -256,13 +269,52 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
   // ── Main swipeable card with stack effect ──
   return (
     <div className="relative">
-      {/* Background card — decorative "next card" peek visible on edges */}
+      {/* ── Background card — shows REAL next card content ── */}
       <motion.div
-        className="absolute inset-x-0 top-1.5 bottom-1.5 mx-1 bg-white/70 rounded-2xl border border-gray-200/40"
+        className="absolute inset-x-0 top-0 bottom-0 mx-1 rounded-2xl overflow-hidden border border-gray-200/40 bg-white"
         style={{ scale: bgScale, opacity: bgOpacity }}
-      />
+      >
+        {nextSuggestion ? (
+          /* Real next-card preview */
+          <div className="h-full flex flex-col">
+            <div className="bg-gray-50/80 px-3.5 py-2.5 border-b border-gray-100/80">
+              <div className="flex items-center space-x-3">
+                <ProfileAvatar
+                  photoURL={nextSuggestion.photoURL}
+                  displayName={nextSuggestion.displayName}
+                  size="md"
+                  className="border-2 border-white shadow-sm"
+                />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-[17px] font-bold text-gray-800 tracking-tight truncate">
+                    {nextSuggestion.displayName}
+                  </h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Coffee className="w-3 h-3 text-violet-500 flex-shrink-0" />
+                    <span className="text-[11px] text-gray-500 truncate">Wants to {nextSuggestion.activity}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 bg-white" />
+          </div>
+        ) : isLastCard ? (
+          /* Cycle-end preview — shown when this is the last card */
+          <div className="h-full flex items-center justify-center bg-white">
+            <div className="text-center px-6">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-violet-50 flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-violet-400" />
+              </div>
+              <p className="text-[14px] font-semibold text-gray-700">That&apos;s everyone nearby</p>
+            </div>
+          </div>
+        ) : (
+          /* Generic placeholder */
+          <div className="h-full bg-white/80" />
+        )}
+      </motion.div>
 
-      {/* Active card — slightly inset so background edges peek through */}
+      {/* ── Active card — slightly inset for edge peek ── */}
       <motion.div
         key={suggestion.uid}
         initial={skipAnimation ? false : { opacity: 0, y: 12 }}
@@ -275,46 +327,46 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
       >
         <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden flex flex-col rounded-2xl">
           <CardContent className="p-0 flex-1 flex flex-col">
-            {/* ── Header — larger top section with bigger avatar ── */}
-            <div className="bg-gray-50/80 px-4 py-4 relative border-b border-gray-100/80">
+            {/* ── Header — compact top section ── */}
+            <div className="bg-gray-50/80 px-3.5 py-2.5 relative border-b border-gray-100/80">
               {/* Cycle counter badge */}
               {cycleInfo && cycleInfo.total > 1 && (
-                <div className={`absolute top-3 right-3 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                <div className={`absolute top-2 right-2.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                   cycleInfo.current === cycleInfo.total
                     ? 'bg-amber-100/60 text-amber-600'
                     : 'bg-gray-200/60 text-gray-500'
                 }`}>
-                  {cycleInfo.current} / {cycleInfo.total}
+                  {cycleInfo.current}/{cycleInfo.total}
                   {cycleInfo.current === cycleInfo.total && ' · Last'}
                 </div>
               )}
 
-              <div className="flex items-center space-x-3.5">
+              <div className="flex items-center space-x-3">
                 <ProfileAvatar
                   photoURL={suggestion.photoURL}
                   displayName={suggestion.displayName}
-                  size="lg"
+                  size="md"
                   className="border-[3px] border-white shadow-md ring-2 ring-violet-100/60"
                 />
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-[20px] font-bold text-gray-800 tracking-tight truncate">
+                  <h3 className="text-[17px] font-bold text-gray-800 tracking-tight truncate">
                     {suggestion.displayName}
                   </h3>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Coffee className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
-                    <span className="text-[12px] text-gray-600 font-medium truncate">Wants to {suggestion.activity}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Coffee className="w-3 h-3 text-violet-500 flex-shrink-0" />
+                    <span className="text-[11px] text-gray-500 font-medium truncate">Wants to {suggestion.activity}</span>
                   </div>
-                  <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
-                    <div className="flex items-center text-[11px] text-gray-500 bg-white/80 rounded-full px-2 py-0.5 border border-gray-100/60">
-                      <MapPin className="w-3 h-3 mr-0.5 text-violet-400" />
+                  <div className="flex items-center flex-wrap gap-1 mt-1">
+                    <div className="flex items-center text-[10px] text-gray-500 bg-white/80 rounded-full px-1.5 py-0.5 border border-gray-100/60">
+                      <MapPin className="w-2.5 h-2.5 mr-0.5 text-violet-400" />
                       <span>{suggestion.distance}m</span>
                     </div>
-                    <div className="flex items-center text-[11px] text-gray-500 bg-white/80 rounded-full px-2 py-0.5 border border-gray-100/60">
-                      <Footprints className="w-3 h-3 mr-0.5 text-gray-400" />
-                      <span>~{walkMinutes} min walk</span>
+                    <div className="flex items-center text-[10px] text-gray-500 bg-white/80 rounded-full px-1.5 py-0.5 border border-gray-100/60">
+                      <Footprints className="w-2.5 h-2.5 mr-0.5 text-gray-400" />
+                      <span>~{walkMinutes}min</span>
                     </div>
-                    <div className="flex items-center text-[11px] text-gray-500 bg-white/80 rounded-full px-2 py-0.5 border border-gray-100/60">
-                      <Clock className="w-3 h-3 mr-0.5 text-gray-400" />
+                    <div className="flex items-center text-[10px] text-gray-500 bg-white/80 rounded-full px-1.5 py-0.5 border border-gray-100/60">
+                      <Clock className="w-2.5 h-2.5 mr-0.5 text-gray-400" />
                       <span>{suggestion.durationMinutes}m</span>
                     </div>
                   </div>
@@ -323,11 +375,11 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
             </div>
 
             {/* ── Body ── */}
-            <div className="px-4 py-3 flex-1 flex flex-col">
+            <div className="px-4 py-2.5 flex-1 flex flex-col">
               {/* Explanation */}
               {suggestion.explanation && (
-                <div className="mb-2.5 bg-violet-50/30 py-2 px-3 rounded-xl border border-violet-100/30">
-                  <p className="text-[12px] text-gray-600 italic text-center leading-relaxed">
+                <div className="mb-2 bg-violet-50/30 py-1.5 px-3 rounded-xl border border-violet-100/30">
+                  <p className="text-[11px] text-gray-600 italic text-center leading-relaxed">
                     &ldquo;{suggestion.explanation}&rdquo;
                   </p>
                 </div>
@@ -335,8 +387,8 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
 
               {/* Common Interests — single line, max 3, +N on left */}
               {commonInterests.length > 0 && (
-                <div className="mb-2">
-                  <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-1">
+                <div className="mb-1.5">
+                  <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-0.5">
                     You both like
                   </p>
                   <div className="flex items-center gap-1.5 overflow-hidden">
@@ -360,8 +412,8 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
 
               {/* Non-common Interests — single line, max 3, +N on left */}
               {nonCommonInterests.length > 0 && (
-                <div className="mb-2">
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                <div className="mb-1.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
                     Interests
                   </p>
                   <div className="flex items-center gap-1.5 overflow-hidden">
@@ -380,11 +432,11 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
               )}
 
               {/* Action CTA */}
-              <div className="mt-auto pt-2.5 border-t border-gray-100/60">
+              <div className="mt-auto pt-2 border-t border-gray-100/60">
                 {canSendMore ? (
                   <Button
                     size="lg"
-                    className="w-full h-[46px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-[0_2px_12px_rgba(124,58,237,0.25)] transition-all text-[15px] font-semibold touch-scale"
+                    className="w-full h-[44px] bg-violet-600 hover:bg-violet-700 rounded-2xl shadow-[0_2px_12px_rgba(124,58,237,0.25)] transition-all text-[15px] font-semibold touch-scale"
                     onClick={handleInvite}
                     disabled={isResponding || isSwiping}
                   >
@@ -396,7 +448,7 @@ export default function SuggestionCard({ isAvailable, canSendMore }: SuggestionC
                     Send Invite
                   </Button>
                 ) : (
-                  <div className="w-full h-[46px] bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 px-4 text-center">
+                  <div className="w-full h-[44px] bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 px-4 text-center">
                     <span className="text-xs font-medium text-gray-400">
                       Max 3 active invites
                     </span>

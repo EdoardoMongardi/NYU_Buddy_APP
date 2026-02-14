@@ -191,6 +191,7 @@ export function useCycleSuggestions() {
 
     return {
         suggestion,
+        buffer,
         cycleInfo,
         loading,
         error,

@@ -152,12 +152,12 @@ export default function AvailabilitySheet() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-emerald-50/20 rounded-2xl p-5 border border-emerald-100/60 shadow-card border-l-[3px] border-l-emerald-400"
+        className="bg-emerald-50/20 rounded-2xl px-4 py-3 border border-emerald-100/60 shadow-card border-l-[3px] border-l-emerald-400"
       >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="font-semibold text-gray-800 text-[15px]">You&apos;re Available</span>
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="font-semibold text-gray-800 text-[14px]">You&apos;re Available</span>
           </div>
           <Button
             variant="ghost"
@@ -174,7 +174,7 @@ export default function AvailabilitySheet() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-4 text-[14px] text-gray-500">
+        <div className="flex items-center gap-3.5 text-[13px] text-gray-500">
           <div className="flex items-center gap-1.5">
             <Coffee className="h-3.5 w-3.5 text-emerald-500" />
             <span>{presence.activity}</span>
@@ -193,7 +193,7 @@ export default function AvailabilitySheet() {
       <SheetTrigger asChild>
         <Button
           size="lg"
-          className="w-full bg-violet-600 hover:bg-violet-700 h-[52px] text-[16px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)]"
+          className="w-full bg-violet-600 hover:bg-violet-700 h-[44px] text-[15px] font-semibold rounded-2xl touch-scale shadow-[0_2px_12px_rgba(124,58,237,0.25)]"
         >
           <MapPin className="mr-2 h-5 w-5" />
           Set Availability
