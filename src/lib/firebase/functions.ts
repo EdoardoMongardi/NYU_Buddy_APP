@@ -82,9 +82,10 @@ export interface CycleInfo {
 }
 
 export const suggestionGetCycle = createCallable<
-  { action?: 'next' | 'refresh' },
+  { action?: 'next' | 'refresh'; batchSize?: number },
   {
     suggestion: CycleSuggestion | null;
+    suggestions?: CycleSuggestion[];
     cycleInfo: CycleInfo;
     message?: string;
   }

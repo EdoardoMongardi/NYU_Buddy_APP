@@ -48,6 +48,7 @@ interface Candidate {
 interface GetSuggestionData {
     action?: 'next' | 'refresh'; // 'next' = get next in cycle, 'refresh' = force new cycle
     targetUid?: string; // For pass action (not used in GetSuggestionData but used in pass handler request)
+    batchSize?: number; // How many candidates to return (default 1, max 5)
 }
 
 // Calculate distance score (bucketed)
@@ -330,7 +331,8 @@ export async function suggestionGetCycleHandler(
     try {
         const uid = request.auth.uid;
         const db = admin.firestore();
-        const { action } = request.data || {};
+        const data = request.data || {};
+        const { action } = data;
 
         // Get presence
         const presenceRef = db.collection('presence').doc(uid);
@@ -407,44 +409,66 @@ export async function suggestionGetCycleHandler(
             }
         }
 
-        const bestCandidate = availableCandidates[0];
+        // ── Batch support: return multiple candidates for client-side buffering ──
+        const batchSize = Math.min(Math.max(Number(data.batchSize) || 1, 1), 5);
+        const topCandidates = availableCandidates.slice(0, batchSize);
 
-        // Build response
-        const validCandidateUid = bestCandidate.uid;
-        const candidatePresence = await db.collection('presence').doc(validCandidateUid).get();
-        const candidateUser = await db.collection('users').doc(validCandidateUid).get();
-
-        if (!candidatePresence.exists || !candidateUser.exists) {
-            // Edge case: Race condition. Just recurse or return error to trigger retry?
-            // Simple: Return null/message to force client refresh
-            return {
-                suggestion: null,
-                cycleInfo: { total: 0, current: 0, isNewCycle: false },
-                message: 'User just went offline. Please refresh.',
-            };
-        }
-
-        const candidateData = candidatePresence.data()!;
-        const userData = candidateUser.data()!;
+        // Get user's interests (for explanation generation)
         const userDoc = await db.collection('users').doc(uid).get();
         const userInterests: string[] = userDoc.exists ? userDoc.data()!.interests || [] : [];
 
-        const explanation = generateExplanation(
-            { ...bestCandidate, interests: userData.interests || [] }, // Merge minimal data
-            userInterests.filter(i => (userData.interests || []).includes(i))
+        // Build suggestion objects in parallel
+        const suggestionResults = await Promise.all(
+            topCandidates.map(async (candidate) => {
+                try {
+                    const [presSnap, usrSnap] = await Promise.all([
+                        db.collection('presence').doc(candidate.uid).get(),
+                        db.collection('users').doc(candidate.uid).get(),
+                    ]);
+
+                    if (!presSnap.exists || !usrSnap.exists) return null;
+
+                    const presData = presSnap.data()!;
+                    const usrData = usrSnap.data()!;
+
+                    const explanation = generateExplanation(
+                        { ...candidate, interests: usrData.interests || [] },
+                        userInterests.filter(i => (usrData.interests || []).includes(i))
+                    );
+
+                    return {
+                        uid: candidate.uid,
+                        displayName: usrData.displayName || 'NYU Student',
+                        photoURL: usrData.photoURL || null,
+                        interests: usrData.interests || [],
+                        activity: presData.activity,
+                        distance: candidate.distance,
+                        durationMinutes: presData.durationMinutes || 60,
+                        explanation,
+                    };
+                } catch (err) {
+                    console.warn(`[getCycleSuggestion] Failed to build data for ${candidate.uid}:`, err);
+                    return null;
+                }
+            })
         );
 
+        const validSuggestions = suggestionResults.filter(
+            (s): s is NonNullable<typeof s> => s !== null
+        );
+
+        if (validSuggestions.length === 0) {
+            return {
+                suggestion: null,
+                suggestions: [],
+                cycleInfo: { total: candidates.length, current: seenUids.size + 1, isNewCycle: isReset },
+                message: 'Users just went offline. Please refresh.',
+            };
+        }
+
         return {
-            suggestion: {
-                uid: validCandidateUid,
-                displayName: userData.displayName || 'NYU Student',
-                photoURL: userData.photoURL || null,
-                interests: userData.interests || [],
-                activity: candidateData.activity,
-                distance: bestCandidate.distance,
-                durationMinutes: candidateData.durationMinutes || 60,
-                explanation,
-            },
+            suggestion: validSuggestions[0],   // Backward compat (single)
+            suggestions: validSuggestions,      // Batch for prefetch buffer
             cycleInfo: {
                 total: candidates.length,
                 current: seenUids.size + 1,
