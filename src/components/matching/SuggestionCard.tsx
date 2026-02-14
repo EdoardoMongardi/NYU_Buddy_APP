@@ -20,9 +20,13 @@ interface SuggestionCardProps {
 }
 
 // ── Swipe thresholds ──
-const SWIPE_OFFSET_THRESHOLD = 120;
-const SWIPE_VELOCITY_THRESHOLD = 500;
-const SWIPE_MIN_OFFSET = 30;
+// Browser: comfortable desktop/browser-mobile thresholds
+// PWA: lower because iOS edge-swipe gestures consume initial
+// touch movement, making effective drag shorter.
+const SWIPE_OFFSET_THRESHOLD_BROWSER = 100;
+const SWIPE_OFFSET_THRESHOLD_PWA = 70;
+const SWIPE_VELOCITY_THRESHOLD = 400;
+const SWIPE_MIN_OFFSET = 20;
 
 /* ─────────────────────────────────────────────────
  *  Card content renderer — shared between active
@@ -71,11 +75,13 @@ function CardBody({
           )}
 
           <div className="flex items-center space-x-3">
+            {/* Override the purple gradient fallback with a neutral gray
+                so image-loading doesn't cause a violet flash */}
             <ProfileAvatar
               photoURL={s.photoURL}
               displayName={s.displayName}
               size="md"
-              className="border-[3px] border-white shadow-md ring-2 ring-violet-100/60"
+              className="border-[3px] border-white shadow-md ring-2 ring-violet-100/60 !bg-gray-200"
             />
             <div className="flex-1 min-w-0">
               <h3 className="text-[17px] font-bold text-gray-800 tracking-tight truncate">
@@ -214,13 +220,11 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   const hasSwipedRef = useRef(false);
   const prevIsNewCycleRef = useRef(false);
 
-  // Track the uid that was showing when cycle-end was entered,
-  // so we can avoid flashing it when "Browse Again" is clicked
-  // before passSuggestion has completed.
-  const cycleEndUidRef = useRef<string | null>(null);
-
   // ── Skip enter animation after swipe ──
   const afterSwipeRef = useRef(false);
+
+  // Dynamic swipe threshold based on mode
+  const swipeThreshold = isPWA ? SWIPE_OFFSET_THRESHOLD_PWA : SWIPE_OFFSET_THRESHOLD_BROWSER;
 
   // Detect cycle reset: only on transition from false → true AND user has swiped
   useEffect(() => {
@@ -231,12 +235,13 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     prevIsNewCycleRef.current = isNew;
   }, [cycleInfo, suggestion]);
 
-  // Clear the cycle-end uid guard when suggestion changes to a different user
+  // ── Preload next suggestion's photo to prevent flash ──
   useEffect(() => {
-    if (suggestion && cycleEndUidRef.current && suggestion.uid !== cycleEndUidRef.current) {
-      cycleEndUidRef.current = null;
+    if (buffer.length > 0 && buffer[0].photoURL) {
+      const img = new window.Image();
+      img.src = buffer[0].photoURL;
     }
-  }, [suggestion]);
+  }, [buffer]);
 
   // ── Swipe motion values ──
   const x = useMotionValue(0);
@@ -264,7 +269,6 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
     if (!isAvailable) {
       setShowCycleEnd(false);
       hasSwipedRef.current = false;
-      cycleEndUidRef.current = null;
     }
   }, [isAvailable]);
 
@@ -288,18 +292,18 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
 
   // ── Swipe handlers ──
   const handlePan = (_: PointerEvent, info: PanInfo) => {
-    if (isResponding || isSwiping || loading) return;
+    if (isResponding || isSwiping) return;
     x.set(info.offset.x);
   };
 
   const handlePanEnd = async (_: PointerEvent, info: PanInfo) => {
-    if (isResponding || isSwiping || loading) return;
+    if (isResponding || isSwiping) return;
 
     const absX = Math.abs(info.offset.x);
     const absVelocity = Math.abs(info.velocity.x);
 
     const shouldSwipe =
-      absX > SWIPE_OFFSET_THRESHOLD ||
+      absX > swipeThreshold ||
       (absVelocity > SWIPE_VELOCITY_THRESHOLD && absX > SWIPE_MIN_OFFSET);
 
     if (shouldSwipe) {
@@ -318,8 +322,6 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
 
       // If this is the last card, go straight to cycle-end (no network wait)
       if (isLastCard) {
-        // Remember which uid was showing so we don't flash it on "Browse Again"
-        cycleEndUidRef.current = suggestion?.uid ?? null;
         setShowCycleEnd(true);
         // Fire pass in background — will update suggestion when done
         passSuggestion();
@@ -340,9 +342,9 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   // ── Browse Again handler ──
   const handleBrowseAgain = () => {
     setShowCycleEnd(false);
+    // Reset swiped flag to prevent the cycle-end useEffect from re-triggering
     hasSwipedRef.current = false;
     prevIsNewCycleRef.current = true;
-    // cycleEndUidRef stays set — used to guard against flashing the old card
   };
 
   // ── Invite handler ──
@@ -443,23 +445,6 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   }
 
   if (!suggestion) return null;
-
-  // ── Guard: if "Browse Again" was clicked but passSuggestion hasn't
-  //    delivered the new first card yet, show loading instead of the stale card ──
-  if (
-    !showCycleEnd &&
-    cycleEndUidRef.current &&
-    suggestion.uid === cycleEndUidRef.current
-  ) {
-    return (
-      <Card className="border border-gray-200/60 shadow-card bg-white rounded-2xl">
-        <CardContent className="pt-6 text-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-violet-500 mx-auto mb-3" />
-          <p className="text-[13px] text-gray-400">Loading buddies...</p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   // ── Cycle-end interstitial ──
   if (showCycleEnd) {
