@@ -48,7 +48,7 @@ export default function ProtectedLayout({
 
   if (loading || isChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f7]">
+      <div className="fixed inset-0 flex items-center justify-center bg-[#f2f2f7]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-violet-500 mx-auto" />
           <p className="mt-2 text-gray-400 text-sm">Loading...</p>
@@ -58,19 +58,21 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div className="h-[100dvh] bg-[#f2f2f7] relative flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-[#f2f2f7] flex flex-col overflow-hidden">
       {/* Subtle top gradient for visual gravity — purely decorative */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-72"
+        className="pointer-events-none absolute inset-x-0 top-0 h-72 z-0"
         style={{
           background: 'linear-gradient(180deg, rgba(120, 90, 220, 0.045) 0%, rgba(120, 90, 220, 0.015) 40%, transparent 100%)',
         }}
         aria-hidden="true"
       />
-      <Navbar />
-      <NotificationPrompt />
-      <InstallBanner />
-      <main className="container mx-auto px-5 pt-3 pb-[env(safe-area-inset-bottom)] relative flex-1 min-h-0 flex flex-col">{children}</main>
+      <div className="shrink-0 relative z-10">
+        <Navbar />
+        <NotificationPrompt />
+        <InstallBanner />
+      </div>
+      <main className="flex-1 overflow-hidden relative z-10 px-5 pt-2 pb-[env(safe-area-inset-bottom)]">{children}</main>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle } from 'lucide-react';
 import { OutgoingOffer } from '@/lib/firebase/functions';
 import Image from 'next/image';
@@ -19,6 +19,7 @@ export function CollapsibleInviteCard({
     isExpanded,
     onExpand,
     onCollapse,
+    onCancel,
 }: CollapsibleInviteCardProps) {
     const [timeLeft, setTimeLeft] = useState(offer.expiresInSeconds);
     const [isExpiring, setIsExpiring] = useState(false);
@@ -62,32 +63,25 @@ export function CollapsibleInviteCard({
 
     if (hasExpired) {
         return (
-            <motion.div
-                layout
-                initial={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 h-[40px] bg-red-50/60 border border-red-100/60 rounded-xl flex items-center justify-center px-2"
-            >
+            <div className="flex-1 bg-red-50/60 border border-red-100/60 rounded-2xl flex items-center justify-center px-2 py-2.5">
                 <span className="text-red-400 font-medium text-[11px] flex items-center gap-1">
                     <AlertCircle size={12} />
                     Expired
                 </span>
-            </motion.div>
+            </div>
         );
     }
 
     return (
-        <motion.div
-            layout
-            style={{ borderRadius: 12 }}
-            className={`flex-1 relative overflow-hidden cursor-pointer transition-colors touch-scale ${
+        <div
+            className={`flex-1 relative overflow-hidden cursor-pointer rounded-2xl transition-colors ${
                 isExpanded
                     ? isExpiring ? 'bg-orange-50/60 border-orange-200/60' : 'bg-violet-50/30 border-violet-200/60'
                     : isExpiring ? 'bg-orange-50/60 border-orange-200/60' : 'bg-white border-gray-200/60'
             } border shadow-card`}
             onClick={() => isExpanded ? onCollapse() : onExpand()}
         >
-            {/* Compact chip content */}
+            {/* Header — always visible */}
             <div className="flex items-center px-2.5 py-2 gap-2 min-w-0">
                 <div className="relative w-6 h-6 flex-shrink-0">
                     <Image
@@ -104,7 +98,6 @@ export function CollapsibleInviteCard({
                     </h3>
                     <div className="flex items-center gap-1">
                         {!isExpanded ? (
-                            /* Waiting dots (collapsed) */
                             <div className="flex gap-[2px]">
                                 {[0, 1, 2].map(i => (
                                     <motion.div
@@ -116,7 +109,6 @@ export function CollapsibleInviteCard({
                                 ))}
                             </div>
                         ) : (
-                            /* Timer text (expanded) */
                             <span className={`text-[10px] font-medium leading-tight ${isExpiring ? 'text-orange-600' : 'text-gray-400'}`}>
                                 {formatTime(timeLeft)}
                             </span>
@@ -124,13 +116,34 @@ export function CollapsibleInviteCard({
                     </div>
                 </div>
 
-                {/* Timer pill (collapsed only) */}
                 {!isExpanded && (
                     <span className={`text-[10px] font-medium tabular-nums flex-shrink-0 ${isExpiring ? 'text-orange-600' : 'text-gray-400'}`}>
                         {formatTime(timeLeft)}
                     </span>
                 )}
             </div>
+
+            {/* Cancel button — individual per card, shown when expanded */}
+            <AnimatePresence>
+                {isExpanded && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden"
+                    >
+                        <div className="px-2 pb-2 pt-0">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onCancel(); }}
+                                className="w-full py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-500 text-[11px] font-medium rounded-lg border border-gray-100 transition-colors touch-scale"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Progress bar at bottom */}
             <div className="absolute bottom-0 left-0 h-[1.5px] bg-gray-100/60 w-full">
@@ -141,6 +154,6 @@ export function CollapsibleInviteCard({
                     transition={{ duration: offer.expiresInSeconds, ease: "linear" }}
                 />
             </div>
-        </motion.div>
+        </div>
     );
 }

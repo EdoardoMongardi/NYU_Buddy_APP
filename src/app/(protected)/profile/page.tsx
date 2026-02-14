@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { doc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { Loader2, User, Heart, Coffee, ArrowLeft, Save, Trash2, Shield } from 'lucide-react';
+import { Loader2, User, Heart, Coffee, ArrowLeft, Save, Trash2, Shield, LogOut } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 export default function ProfilePage() {
-    const { user, userProfile, refreshUserProfile } = useAuth();
+    const { user, userProfile, refreshUserProfile, signOut } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -289,6 +289,22 @@ export default function ProfilePage() {
                                     <p className="text-xs text-gray-500">
                                         Email cannot be changed
                                     </p>
+                                </div>
+
+                                {/* Sign Out */}
+                                <div className="pt-4 mt-4 border-t border-gray-100">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
+                                        onClick={async () => {
+                                            await signOut();
+                                            router.push('/login');
+                                        }}
+                                    >
+                                        <LogOut className="h-4 w-4 mr-2" />
+                                        Sign Out
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>

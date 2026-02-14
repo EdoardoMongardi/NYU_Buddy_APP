@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 
 import AvailabilitySheet from '@/components/availability/AvailabilitySheet';
 import SuggestionCard from '@/components/matching/SuggestionCard';
@@ -12,8 +12,6 @@ import { usePresence } from '@/lib/hooks/usePresence';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useOffers } from '@/lib/hooks/useOffers';
-import { Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import MatchOverlay from '@/components/match/MatchOverlay';
 import { DidYouMeetDialog } from '@/components/match/DidYouMeetDialog';
@@ -111,18 +109,11 @@ export default function HomePage() {
     if (presence?.matchId && presence.status === 'matched') {
       setShowMatchOverlay(presence.matchId);
     } else if (showMatchOverlay && (!presence || presence.status !== 'matched')) {
-      // Presence says user is NOT matched (or presence is null/deleted) — clear any stale overlay.
-      // This handles the case where cached Firestore data briefly shows
-      // an accepted offer or matched presence before the server update arrives.
-      // Also handles presence deletion by cleanup (when presence becomes null).
       setShowMatchOverlay(null);
     }
   }, [presence, showMatchOverlay]);
 
   // Fallback: Redirect if offer is accepted (Legacy/Backup)
-  // Only trust accepted offers if presence ALSO confirms user is matched.
-  // Without this guard, stale cached offer data from Firestore local persistence
-  // can trigger a redirect back to a completed/cancelled match.
   useEffect(() => {
     if (showMatchOverlay) return; // Prioritize overlay
     if (isAcceptingRef.current) return;
@@ -141,15 +132,12 @@ export default function HomePage() {
   };
 
   const handleAcceptOffer = async (offerId: string) => {
-    // Set suppression flag to block Presence Overlay
     isAcceptingRef.current = true;
     try {
       const result = await respondToOffer(offerId, 'accept');
-      // Intentionally NOT setting showMatchOverlay here.
-      // InvitesTab will handle the redirect.
       return result;
     } catch (error) {
-      isAcceptingRef.current = false; // Reset on failure
+      isAcceptingRef.current = false;
       throw error;
     }
   };
@@ -163,7 +151,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="max-w-md mx-auto flex flex-col flex-1 min-h-0">
+    <div className="max-w-md mx-auto h-full overflow-hidden flex flex-col">
       {showMatchOverlay && user && (
         <MatchOverlay
           matchId={showMatchOverlay}
@@ -186,37 +174,18 @@ export default function HomePage() {
         />
       )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="flex justify-between items-center shrink-0"
-      >
-        <div>
+      {/* Header — only shown before availability is set */}
+      {!isAvailable && (
+        <div className="shrink-0 pb-2">
           <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
-          {!isAvailable && (
-            <p className="text-[13px] text-gray-400 mt-0.5">
-              {contextSubtitle}
-            </p>
-          )}
+          <p className="text-[13px] text-gray-400 mt-0.5">
+            {contextSubtitle}
+          </p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.push('/profile')}
-          className="rounded-full hover:bg-gray-100 touch-scale h-10 w-10"
-        >
-          <Settings className="w-5 h-5 text-gray-400" />
-        </Button>
-      </motion.div>
+      )}
 
       {!emailVerified ? (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-          className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mt-3"
-        >
+        <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mt-2">
           <h3 className="font-semibold text-amber-800 mb-2">
             Verify Your Email
           </h3>
@@ -224,74 +193,56 @@ export default function HomePage() {
             Please verify your NYU email address to access all features.
             Check your inbox for the verification link.
           </p>
-        </motion.div>
+        </div>
       ) : (
         <>
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-            className="shrink-0 mt-3"
-          >
+          <div className="shrink-0">
             <AvailabilitySheet />
-          </motion.div>
+          </div>
 
           {isAvailable && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="shrink-0 mt-3"
-            >
+            <div className="shrink-0 mt-2">
               <TabNavigation
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 inviteCount={inboxCount}
               />
-            </motion.div>
+            </div>
           )}
 
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
-            className="flex-1 min-h-0 mt-3"
-          >
-            <AnimatePresence mode="wait">
+          {/* Content area — fills remaining space, no scroll */}
+          <div className="flex-1 overflow-hidden mt-2">
+            <AnimatePresence mode="popLayout" initial={false}>
               {activeTab === 'discover' ? (
                 <motion.div
                   key="discover"
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 8 }}
-                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                  className="h-full flex flex-col"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="h-full"
                 >
-                  {/* Show active invites if exist */}
+                  {/* Active invites if exist */}
                   {outgoingOffers.length > 0 && (
-                    <div className="shrink-0">
-                      <ActiveInvitesRow
-                        offers={outgoingOffers}
-                        onCancel={handleCancelOffer}
-                      />
-                    </div>
+                    <ActiveInvitesRow
+                      offers={outgoingOffers}
+                      onCancel={handleCancelOffer}
+                    />
                   )}
 
-                  {/* Suggestion card fills remaining space */}
-                  <div className="flex-1 min-h-0">
-                    <SuggestionCard
-                      isAvailable={isAvailable}
-                      canSendMore={canSendMore}
-                    />
-                  </div>
+                  {/* Suggestion card */}
+                  <SuggestionCard
+                    isAvailable={isAvailable}
+                    canSendMore={canSendMore}
+                  />
                 </motion.div>
               ) : (
                 <motion.div
                   key="invites"
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -8 }}
-                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
                 >
                   <InvitesTab
                     offers={inboxOffers}
@@ -307,7 +258,7 @@ export default function HomePage() {
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+          </div>
         </>
       )}
     </div>
