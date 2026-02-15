@@ -10,19 +10,18 @@ interface CampusMapProps {
 
 // NYU Washington Square campus center
 const NYU_CENTER: [number, number] = [40.7295, -73.9965];
-// Zoom 16 = ~4 block radius around NYU, ideal for campus activity
-const FIXED_ZOOM = 16;
+const DEFAULT_ZOOM = 15;
 
-// Tight bounds around lower Manhattan / NYU area — user can pan a bit but not leave NYC
+// Full NYC metro bounds — tiles always fill the viewport
 const NYC_BOUNDS: [[number, number], [number, number]] = [
-  [40.70, -74.02], // southwest
-  [40.76, -73.97], // northeast
+  [40.48, -74.28], // southwest
+  [40.92, -73.68], // northeast
 ];
 
 export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<L.CircleMarker[]>([]);
+  const markersRef = useRef<L.Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
 
   // Initialize map
@@ -30,23 +29,26 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
     if (!mapContainerRef.current || mapRef.current) return;
 
     import('leaflet').then((L) => {
+      // Fix default icon path issue with bundlers
+      delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+
       const nycBounds = L.latLngBounds(NYC_BOUNDS[0], NYC_BOUNDS[1]);
 
       const map = L.map(mapContainerRef.current!, {
         center: NYU_CENTER,
-        zoom: FIXED_ZOOM,
-        zoomControl: false,          // no zoom buttons
+        zoom: DEFAULT_ZOOM,
+        zoomControl: false,           // no +/- buttons, cleaner UI
         attributionControl: false,
-        scrollWheelZoom: false,       // disable scroll zoom
-        doubleClickZoom: false,       // disable double-click zoom
-        touchZoom: false,             // disable pinch zoom
-        boxZoom: false,               // disable box zoom
-        keyboard: false,              // disable keyboard zoom
-        dragging: true,               // allow panning only
+        scrollWheelZoom: true,        // allow scroll zoom
+        doubleClickZoom: true,        // allow double-click zoom
+        touchZoom: true,              // allow pinch zoom
+        boxZoom: false,               // not useful on mobile
+        keyboard: true,
+        dragging: true,
         maxBounds: nycBounds,
         maxBoundsViscosity: 1.0,
-        minZoom: FIXED_ZOOM,
-        maxZoom: FIXED_ZOOM,
+        minZoom: 13,                  // roughly all of Manhattan
+        maxZoom: 18,                  // street-level detail
       });
 
       // Carto Voyager — colorful, modern tiles
@@ -63,9 +65,8 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
 
       // Force resize multiple times to handle any layout timing issues
       setTimeout(() => map.invalidateSize(), 0);
-      setTimeout(() => map.invalidateSize(), 100);
-      setTimeout(() => map.invalidateSize(), 300);
-      setTimeout(() => map.invalidateSize(), 600);
+      setTimeout(() => map.invalidateSize(), 150);
+      setTimeout(() => map.invalidateSize(), 500);
     });
 
     return () => {
@@ -88,35 +89,27 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
       // Add new markers
       statuses.forEach((status) => {
         const isOwn = status.uid === currentUid;
-        const color = isOwn ? '#7c3aed' : '#3b82f6';
+        const emoji = status.emoji || '📍';
 
-        const marker = L.circleMarker([status.lat, status.lng], {
-          radius: isOwn ? 12 : 9,
-          fillColor: color,
-          fillOpacity: 0.9,
-          color: '#fff',
-          weight: 2.5,
-        }).addTo(mapRef.current!);
+        const icon = L.divIcon({
+          html: `<span class="emoji-marker-icon">${emoji}</span>`,
+          className: 'emoji-marker',
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+          popupAnchor: [0, -20],
+        });
 
-        // Pulsing ring for own dot
-        if (isOwn) {
-          const ring = L.circleMarker([status.lat, status.lng], {
-            radius: 18,
-            fillColor: color,
-            fillOpacity: 0.15,
-            color: color,
-            weight: 1.5,
-            opacity: 0.4,
-          }).addTo(mapRef.current!);
-          markersRef.current.push(ring);
-        }
+        const marker = L.marker([status.lat, status.lng], { icon }).addTo(
+          mapRef.current!
+        );
 
         marker.bindPopup(
-          `<div style="text-align:center;padding:2px 4px;">
-            <strong style="font-size:13px;">${status.statusText}</strong>
-            ${isOwn ? '<br><span style="font-size:11px;color:#888;">You</span>' : ''}
+          `<div style="text-align:center;padding:4px 8px;min-width:80px;">
+            <div style="font-size:22px;line-height:1;">${emoji}</div>
+            <div style="font-size:13px;font-weight:600;margin-top:4px;color:#1f2937;">${status.statusText}</div>
+            ${isOwn ? '<div style="font-size:11px;color:#9ca3af;margin-top:2px;">You</div>' : ''}
           </div>`,
-          { closeButton: false, offset: L.point(0, -4) }
+          { closeButton: false, className: 'emoji-popup' }
         );
 
         marker.on('click', () => marker.openPopup());
@@ -129,7 +122,7 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   return (
     <div
       ref={mapContainerRef}
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      style={{ width: '100vw', height: '100dvh' }}
     />
   );
 }

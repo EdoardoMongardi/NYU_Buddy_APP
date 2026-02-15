@@ -6,6 +6,7 @@ import { ACTIVITY_LIMITS } from '../constants/activityState';
 
 interface SetStatusData {
   statusText: string;
+  emoji?: string;
   lat: number;
   lng: number;
 }
@@ -47,6 +48,9 @@ export async function mapStatusSetHandler(
     throw new HttpsError('invalid-argument', 'Location must be in the NYC area');
   }
 
+  // Validate / default emoji
+  const emoji = data.emoji && data.emoji.trim().length > 0 ? data.emoji.trim() : '📍';
+
   const geohash = geohashForLocation([data.lat, data.lng]);
   const now = admin.firestore.Timestamp.now();
   const expiresAt = admin.firestore.Timestamp.fromMillis(
@@ -57,6 +61,7 @@ export async function mapStatusSetHandler(
   await db.collection('mapStatus').doc(uid).set({
     uid: uid,
     statusText: statusText,
+    emoji: emoji,
     lat: data.lat,
     lng: data.lng,
     geohash: geohash,

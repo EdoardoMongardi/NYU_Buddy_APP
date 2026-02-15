@@ -8,7 +8,7 @@ interface UseMapStatusReturn {
   loading: boolean;
   error: string | null;
   myStatus: string | null;
-  setStatus: (statusText: string, lat: number, lng: number) => Promise<void>;
+  setStatus: (statusText: string, emoji: string, lat: number, lng: number) => Promise<void>;
   clearStatus: () => Promise<void>;
   refresh: () => Promise<void>;
   settingStatus: boolean;
@@ -32,7 +32,7 @@ export function useMapStatus(): UseMapStatusReturn {
       const result = await mapStatusGetNearby({
         lat: DEFAULT_LAT,
         lng: DEFAULT_LNG,
-        radiusKm: 2,
+        radiusKm: 5,
       });
       setStatuses(result.data.statuses);
     } catch (err) {
@@ -52,10 +52,10 @@ export function useMapStatus(): UseMapStatusReturn {
     };
   }, [fetchNearby]);
 
-  const setStatusFn = useCallback(async (statusText: string, lat: number, lng: number) => {
+  const setStatusFn = useCallback(async (statusText: string, emoji: string, lat: number, lng: number) => {
     setSettingStatus(true);
     try {
-      await mapStatusSet({ statusText, lat, lng });
+      await mapStatusSet({ statusText, emoji, lat, lng });
       setMyStatus(statusText);
       await fetchNearby();
     } finally {

@@ -69,6 +69,7 @@ export async function mapStatusGetNearbyHandler(
       statuses.push({
         uid: d.uid,
         statusText: d.statusText,
+        emoji: d.emoji || '📍',
         lat: d.lat,
         lng: d.lng,
         expiresAt: d.expiresAt?.toDate?.()?.toISOString() || null,

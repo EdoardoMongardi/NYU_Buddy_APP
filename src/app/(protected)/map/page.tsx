@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useMapStatus } from '@/lib/hooks/useMapStatus';
 import { useAuth } from '@/lib/hooks/useAuth';
 import dynamic from 'next/dynamic';
@@ -22,7 +22,6 @@ export default function MapPage() {
   const { user } = useAuth();
   const {
     statuses,
-    loading,
     error,
     myStatus,
     setStatus,
@@ -32,8 +31,8 @@ export default function MapPage() {
   } = useMapStatus();
 
   return (
-    <div className="fixed inset-0 z-50 bg-white">
-      {/* Map fills entire screen — absolute positioning guarantees full coverage */}
+    <div className="fixed inset-0 z-50">
+      {/* Map fills entire screen */}
       {error ? (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
           <div className="text-center p-6">
@@ -44,35 +43,16 @@ export default function MapPage() {
           </div>
         </div>
       ) : (
-        <div className="absolute inset-0">
-          <CampusMap statuses={statuses} currentUid={user?.uid} />
-        </div>
+        <CampusMap statuses={statuses} currentUid={user?.uid} />
       )}
 
-      {/* Floating header bar */}
-      <div className="absolute top-0 left-0 right-0 z-[1000] pointer-events-none">
-        <div className="flex items-center gap-3 px-4 pt-[env(safe-area-inset-top,12px)] pb-2">
-          <button
-            onClick={() => router.back()}
-            className="pointer-events-auto p-2 rounded-full bg-white/90 backdrop-blur shadow-sm hover:bg-white transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
-          </button>
-          <div className="pointer-events-auto bg-white/90 backdrop-blur rounded-full px-4 py-1.5 shadow-sm">
-            <span className="text-sm font-semibold text-gray-900">Campus Map</span>
-            <span className="ml-2 text-xs text-gray-400">
-              {statuses.length} {statuses.length === 1 ? 'active' : 'active'}
-            </span>
-          </div>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="pointer-events-auto ml-auto p-2 rounded-full bg-white/90 backdrop-blur shadow-sm hover:bg-white transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 text-gray-500 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-      </div>
+      {/* Back button — top left */}
+      <button
+        onClick={() => router.back()}
+        className="absolute top-[env(safe-area-inset-top,12px)] left-4 z-[1000] p-2.5 rounded-full bg-white/90 backdrop-blur-sm shadow-md hover:bg-white transition-colors"
+      >
+        <ArrowLeft className="w-5 h-5 text-gray-700" />
+      </button>
 
       {/* Floating bottom status panel */}
       <div className="absolute bottom-0 left-0 right-0 z-[1000] pointer-events-none">

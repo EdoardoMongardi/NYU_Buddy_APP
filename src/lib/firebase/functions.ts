@@ -500,7 +500,7 @@ export const groupGetMessages = createCallable<
 
 // Map Status
 export const mapStatusSet = createCallable<
-  { statusText: string; lat: number; lng: number },
+  { statusText: string; emoji: string; lat: number; lng: number },
   { success: boolean }
 >('mapStatusSet');
 
@@ -512,6 +512,7 @@ export const mapStatusClear = createCallable<
 export interface MapStatusNearby {
   uid: string;
   statusText: string;
+  emoji: string;
   lat: number;
   lng: number;
   expiresAt: string | null;
