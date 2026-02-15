@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
@@ -40,6 +40,10 @@ export default function MapboxMap({
   const mapLoaded = useRef(false);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
   const statusLookup = useRef<Map<string, MapStatusNearby>>(new Map());
+  const pendingSyncRef = useRef(false);
+
+  // Debug state — visible on the map for diagnosis
+  const [debugInfo, setDebugInfo] = useState('init');
 
   // Keep latest values in refs for use inside stable callbacks
   const onSelectRef = useRef(onSelectStatus);
@@ -76,11 +80,25 @@ export default function MapboxMap({
   // ── Sync markers to match current statuses data ──
   const syncMarkers = useCallback(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded.current) return;
+    if (!map) {
+      console.warn('[MapboxMap] syncMarkers: no map ref');
+      pendingSyncRef.current = true;
+      return;
+    }
+    if (!mapLoaded.current) {
+      console.warn('[MapboxMap] syncMarkers: map not loaded yet — will retry on load');
+      pendingSyncRef.current = true;
+      return;
+    }
 
     const data = statusesRef.current;
     const uid = currentUidRef.current;
     const markers = markersRef.current;
+
+    console.log(`[MapboxMap] syncMarkers: ${data.length} statuses, ${markers.size} existing markers, uid=${uid}`);
+    if (data.length > 0) {
+      console.log('[MapboxMap] First status:', JSON.stringify(data[0]));
+    }
 
     // Build latest lookup
     const newLookup = new Map(data.map((s) => [s.uid, s]));
@@ -95,20 +113,20 @@ export default function MapboxMap({
     });
 
     // Add or update
+    let created = 0;
+    let updated = 0;
     for (const status of data) {
       const isMe = status.uid === uid;
       const existing = markers.get(status.uid);
 
       if (existing) {
-        // Update position
         existing.marker.setLngLat([status.lng, status.lat]);
-        // Update emoji text if changed
         const emojiSpan = existing.el.querySelector('.emoji-pin-emoji');
         if (emojiSpan && emojiSpan.textContent !== (status.emoji || '📍')) {
           emojiSpan.textContent = status.emoji || '📍';
         }
+        updated++;
       } else {
-        // Create new marker
         const el = createMarkerEl(status.emoji, isMe);
 
         el.addEventListener('click', (e) => {
@@ -129,21 +147,38 @@ export default function MapboxMap({
           .addTo(map);
 
         markers.set(status.uid, { marker, el });
+        created++;
       }
     }
 
-    if (data.length > 0) {
-      console.log(`[MapboxMap] Synced ${data.length} emoji marker(s)`);
-    }
+    const msg = `data=${data.length} created=${created} updated=${updated} total=${markers.size}`;
+    console.log(`[MapboxMap] syncMarkers done: ${msg}`);
+    setDebugInfo(msg);
+    pendingSyncRef.current = false;
   }, [createMarkerEl]);
 
   // ── Initialise map (once, on first visible) ──
   useEffect(() => {
-    if (!visible || mapRef.current || !containerRef.current) return;
-    if (!mapboxgl.accessToken) {
-      console.warn('[MapboxMap] Missing NEXT_PUBLIC_MAPBOX_TOKEN');
+    if (!visible) {
+      console.log('[MapboxMap] init: not visible, skipping');
       return;
     }
+    if (mapRef.current) {
+      console.log('[MapboxMap] init: map already exists, skipping');
+      return;
+    }
+    if (!containerRef.current) {
+      console.warn('[MapboxMap] init: no container ref!');
+      return;
+    }
+    if (!mapboxgl.accessToken) {
+      console.error('[MapboxMap] init: missing NEXT_PUBLIC_MAPBOX_TOKEN');
+      setDebugInfo('ERROR: no Mapbox token');
+      return;
+    }
+
+    console.log('[MapboxMap] init: creating new map');
+    setDebugInfo('creating map…');
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
@@ -171,25 +206,38 @@ export default function MapboxMap({
 
     map.on('load', () => {
       mapLoaded.current = true;
-      console.log('[MapboxMap] Style loaded — syncing markers');
+      console.log('[MapboxMap] map style loaded');
 
-      // Subtle style customisation to feel more cohesive with the app
+      // Subtle style customisation
       try {
-        // Slightly warmer water colour
         if (map.getLayer('water')) {
           map.setPaintProperty('water', 'fill-color', '#d6e6f5');
         }
-        // Softer building outlines
         if (map.getLayer('building')) {
           map.setPaintProperty('building', 'fill-color', '#e8e4ef');
           map.setPaintProperty('building', 'fill-opacity', 0.45);
         }
       } catch {
-        // Non-critical — style layers may differ between versions
+        // non-critical
       }
 
-      // Initial sync
+      // ── TEST MARKER: hardcoded pin at NYU to verify markers work ──
+      const testEl = document.createElement('div');
+      testEl.className = 'emoji-pin';
+      testEl.innerHTML = '<span class="emoji-pin-emoji">🏫</span>';
+      new mapboxgl.Marker({ element: testEl, anchor: 'center' })
+        .setLngLat(NYU_CENTER)
+        .addTo(map);
+      console.log('[MapboxMap] TEST MARKER added at NYU center');
+
+      // Sync real data
       syncMarkers();
+
+      // Belt-and-suspenders: if a sync was queued before load, run it now
+      if (pendingSyncRef.current) {
+        console.log('[MapboxMap] Running pending sync after load');
+        syncMarkers();
+      }
     });
 
     // Click empty map area → deselect
@@ -211,6 +259,7 @@ export default function MapboxMap({
 
   // ── Re-sync markers when statuses data changes ──
   useEffect(() => {
+    console.log(`[MapboxMap] statuses prop changed: ${statuses.length} items, mapLoaded=${mapLoaded.current}`);
     syncMarkers();
   }, [statuses, syncMarkers]);
 
@@ -235,10 +284,33 @@ export default function MapboxMap({
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="mapbox-container"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-    />
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <div
+        ref={containerRef}
+        className="mapbox-container"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
+
+      {/* Temporary debug overlay — remove after confirming fix */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 8,
+          right: 8,
+          background: 'rgba(0,0,0,0.7)',
+          color: '#0f0',
+          fontSize: 10,
+          fontFamily: 'monospace',
+          padding: '4px 8px',
+          borderRadius: 6,
+          zIndex: 99999,
+          pointerEvents: 'none',
+          maxWidth: 200,
+          wordBreak: 'break-all',
+        }}
+      >
+        {debugInfo}
+      </div>
+    </div>
   );
 }

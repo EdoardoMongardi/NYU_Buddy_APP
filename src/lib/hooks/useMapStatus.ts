@@ -34,15 +34,18 @@ export function useMapStatus({ enabled = true }: UseMapStatusOptions = {}): UseM
   const fetchNearby = useCallback(async () => {
     try {
       setError(null);
+      console.log('[useMapStatus] fetchNearby: calling mapStatusGetNearby…');
       const result = await mapStatusGetNearby({
         lat: DEFAULT_LAT,
         lng: DEFAULT_LNG,
         radiusKm: 5,
       });
-      setStatuses(result.data.statuses);
+      const list = result.data.statuses ?? [];
+      console.log(`[useMapStatus] fetchNearby: got ${list.length} statuses`, list);
+      setStatuses(list);
       hasFetched.current = true;
     } catch (err) {
-      console.error('[useMapStatus] Error fetching nearby:', err);
+      console.error('[useMapStatus] fetchNearby ERROR:', err);
       setError(err instanceof Error ? err.message : 'Failed to load map');
     } finally {
       setLoading(false);
@@ -74,9 +77,14 @@ export function useMapStatus({ enabled = true }: UseMapStatusOptions = {}): UseM
   const setStatusFn = useCallback(async (statusText: string, emoji: string, lat: number, lng: number) => {
     setSettingStatus(true);
     try {
+      console.log(`[useMapStatus] setStatus: text="${statusText}" emoji=${emoji} lat=${lat} lng=${lng}`);
       await mapStatusSet({ statusText, emoji, lat, lng });
+      console.log('[useMapStatus] setStatus: success, now refreshing nearby…');
       setMyStatus(statusText);
       await fetchNearby();
+    } catch (err) {
+      console.error('[useMapStatus] setStatus ERROR:', err);
+      throw err;
     } finally {
       setSettingStatus(false);
     }
