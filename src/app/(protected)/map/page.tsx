@@ -32,10 +32,10 @@ export default function MapPage() {
   } = useMapStatus();
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col">
-      {/* Map fills entire screen */}
+    <div className="fixed inset-0 z-50 bg-white">
+      {/* Map fills entire screen — absolute positioning guarantees full coverage */}
       {error ? (
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
           <div className="text-center p-6">
             <p className="text-red-600 text-sm font-medium">{error}</p>
             <button onClick={refresh} className="mt-3 text-violet-600 text-sm font-medium">
@@ -44,7 +44,7 @@ export default function MapPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 relative">
+        <div className="absolute inset-0">
           <CampusMap statuses={statuses} currentUid={user?.uid} />
         </div>
       )}

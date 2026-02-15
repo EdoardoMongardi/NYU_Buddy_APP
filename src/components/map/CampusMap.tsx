@@ -61,8 +61,11 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
       mapRef.current = map;
       setMapReady(true);
 
-      // Force resize after render
+      // Force resize multiple times to handle any layout timing issues
+      setTimeout(() => map.invalidateSize(), 0);
       setTimeout(() => map.invalidateSize(), 100);
+      setTimeout(() => map.invalidateSize(), 300);
+      setTimeout(() => map.invalidateSize(), 600);
     });
 
     return () => {
@@ -126,7 +129,7 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   return (
     <div
       ref={mapContainerRef}
-      className="w-full h-full"
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
     />
   );
 }
