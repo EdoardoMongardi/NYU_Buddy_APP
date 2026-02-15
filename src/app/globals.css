@@ -112,44 +112,10 @@
   }
 }
 
-/* ── Leaflet + Tailwind compatibility fix ── */
-/* Tailwind Preflight sets img { max-width: 100%; height: auto; } which
-   breaks Leaflet's tile images — they get constrained to their container
-   width instead of their natural 256px tile size, creating white gaps. */
-.leaflet-container img {
+/* ── Mapbox GL overrides ── */
+.mapboxgl-canvas {
+  outline: none;
+}
+.mapboxgl-popup {
   max-width: none !important;
-  max-height: none !important;
-  height: auto;
-}
-.leaflet-container {
-  width: 100%;
-  height: 100%;
-  background: #f2f2f7;
-}
-
-/* ── Leaflet emoji marker overrides ── */
-.emoji-marker {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.emoji-marker-icon {
-  font-size: 30px;
-  line-height: 1;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
-  cursor: pointer;
-}
-.emoji-popup .leaflet-popup-content-wrapper {
-  border-radius: 14px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
-  padding: 0;
-}
-.emoji-popup .leaflet-popup-content {
-  margin: 8px 12px;
-}
-.emoji-popup .leaflet-popup-tip {
-  box-shadow: none;
 }

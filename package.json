@@ -33,6 +33,7 @@
     "geofire-common": "^6.0.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.563.0",
+    "mapbox-gl": "^3.18.1",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",

@@ -3,6 +3,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { mapStatusSet, mapStatusClear, mapStatusGetNearby, MapStatusNearby } from '@/lib/firebase/functions';
 
+interface UseMapStatusOptions {
+  enabled?: boolean;
+}
+
 interface UseMapStatusReturn {
   statuses: MapStatusNearby[];
   loading: boolean;
@@ -18,13 +22,14 @@ interface UseMapStatusReturn {
 const DEFAULT_LAT = 40.7295;
 const DEFAULT_LNG = -73.9965;
 
-export function useMapStatus(): UseMapStatusReturn {
+export function useMapStatus({ enabled = true }: UseMapStatusOptions = {}): UseMapStatusReturn {
   const [statuses, setStatuses] = useState<MapStatusNearby[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myStatus, setMyStatus] = useState<string | null>(null);
   const [settingStatus, setSettingStatus] = useState(false);
   const refreshInterval = useRef<NodeJS.Timeout | null>(null);
+  const hasFetched = useRef(false);
 
   const fetchNearby = useCallback(async () => {
     try {
@@ -35,6 +40,7 @@ export function useMapStatus(): UseMapStatusReturn {
         radiusKm: 5,
       });
       setStatuses(result.data.statuses);
+      hasFetched.current = true;
     } catch (err) {
       console.error('[useMapStatus] Error fetching nearby:', err);
       setError(err instanceof Error ? err.message : 'Failed to load map');
@@ -43,14 +49,27 @@ export function useMapStatus(): UseMapStatusReturn {
     }
   }, []);
 
-  // Initial load + auto-refresh every 30s
+  // Fetch + auto-refresh only when enabled
   useEffect(() => {
+    if (!enabled) {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+        refreshInterval.current = null;
+      }
+      return;
+    }
+
+    // Fetch immediately when enabled turns on
     fetchNearby();
     refreshInterval.current = setInterval(fetchNearby, 30000);
+
     return () => {
-      if (refreshInterval.current) clearInterval(refreshInterval.current);
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+        refreshInterval.current = null;
+      }
     };
-  }, [fetchNearby]);
+  }, [enabled, fetchNearby]);
 
   const setStatusFn = useCallback(async (statusText: string, emoji: string, lat: number, lng: number) => {
     setSettingStatus(true);
