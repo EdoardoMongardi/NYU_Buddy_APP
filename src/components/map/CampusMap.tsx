@@ -3,9 +3,6 @@
 import { useEffect, useRef } from 'react';
 import { MapStatusNearby } from '@/lib/firebase/functions';
 
-// Leaflet CSS loaded via <link> in layout or dynamically
-// We use the global L object since leaflet doesn't play well with SSR
-
 interface CampusMapProps {
   statuses: MapStatusNearby[];
   currentUid?: string;
@@ -14,6 +11,12 @@ interface CampusMapProps {
 // NYU Washington Square campus center
 const NYU_CENTER: [number, number] = [40.7295, -73.9965];
 const DEFAULT_ZOOM = 15;
+
+// Bounding box: restrict panning to roughly the NYC area
+const NYC_BOUNDS: [[number, number], [number, number]] = [
+  [40.48, -74.28], // southwest corner
+  [40.92, -73.68], // northeast corner
+];
 
 export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -24,27 +27,32 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Dynamic import to avoid SSR issues
     import('leaflet').then((L) => {
-      // Fix default marker icons
-      delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-      });
+      const nycBounds = L.latLngBounds(NYC_BOUNDS[0], NYC_BOUNDS[1]);
 
       const map = L.map(mapContainerRef.current!, {
         center: NYU_CENTER,
         zoom: DEFAULT_ZOOM,
         zoomControl: true,
-        attributionControl: true,
+        attributionControl: false, // hide default attribution for cleaner look
+        minZoom: 12,              // don't zoom out beyond NYC
+        maxZoom: 18,
+        maxBounds: nycBounds,     // restrict panning to NYC
+        maxBoundsViscosity: 1.0,  // hard stop at the boundary (no elastic drag)
       });
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19,
-      }).addTo(map);
+      // Carto Voyager — colorful, modern vector-style tiles (free, no API key)
+      L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+          subdomains: 'abcd',
+          maxZoom: 19,
+        }
+      ).addTo(map);
+
+      // Small, subtle attribution in the corner
+      L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
 
       mapRef.current = map;
 
