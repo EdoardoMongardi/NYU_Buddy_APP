@@ -4,13 +4,13 @@ import { useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
-import { ensureEmojiImages } from '@/lib/utils/emojiSprite';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 // NYU Washington Square campus center
 const NYU_CENTER: [number, number] = [-73.9965, 40.7295];
 const DEFAULT_ZOOM = 14.5;
+const DEFAULT_PITCH = 45;
 
 // Full NYC metro bounds [sw, ne] in [lng, lat] order
 const NYC_BOUNDS: [[number, number], [number, number]] = [
@@ -21,6 +21,7 @@ const NYC_BOUNDS: [[number, number], [number, number]] = [
 const SOURCE_ID = 'statuses';
 const LAYER_CLUSTERS = 'cluster-circles';
 const LAYER_CLUSTER_COUNT = 'cluster-count';
+const LAYER_EMOJI_BG = 'emoji-bg';
 const LAYER_EMOJI_PINS = 'emoji-pins';
 
 interface MapboxMapProps {
@@ -31,9 +32,6 @@ interface MapboxMapProps {
   visible: boolean;
 }
 
-/**
- * Build a GeoJSON FeatureCollection from status data.
- */
 function toGeoJSON(
   statuses: MapStatusNearby[]
 ): GeoJSON.FeatureCollection<GeoJSON.Point> {
@@ -66,17 +64,14 @@ export default function MapboxMap({
   onSelectStatus,
   visible,
 }: MapboxMapProps) {
-  void _currentUid; // reserved for future use (e.g. highlight own pin)
+  void _currentUid;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const mapLoaded = useRef(false);
   const statusesRef = useRef(statuses);
-  const selectedIdRef = useRef(selectedId);
   const onSelectRef = useRef(onSelectStatus);
 
-  // Keep refs in sync
   statusesRef.current = statuses;
-  selectedIdRef.current = selectedId;
   onSelectRef.current = onSelectStatus;
 
   // ── Initialize map (once, on first visible) ──
@@ -92,11 +87,13 @@ export default function MapboxMap({
       style: 'mapbox://styles/mapbox/light-v11',
       center: NYU_CENTER,
       zoom: DEFAULT_ZOOM,
+      pitch: DEFAULT_PITCH,
+      bearing: -15,
       maxBounds: NYC_BOUNDS,
       minZoom: 11,
       maxZoom: 18,
-      pitchWithRotate: false,
-      dragRotate: false,
+      dragRotate: true,
+      pitchWithRotate: true,
       attributionControl: false,
     });
 
@@ -105,10 +102,10 @@ export default function MapboxMap({
       'bottom-right'
     );
 
-    map.on('load', async () => {
+    map.on('load', () => {
       mapLoaded.current = true;
 
-      // Add empty source
+      // Add GeoJSON source with clustering
       map.addSource(SOURCE_ID, {
         type: 'geojson',
         data: toGeoJSON([]),
@@ -117,7 +114,7 @@ export default function MapboxMap({
         clusterRadius: 50,
       });
 
-      // Cluster circles
+      // ── Cluster circles ──
       map.addLayer({
         id: LAYER_CLUSTERS,
         type: 'circle',
@@ -129,7 +126,7 @@ export default function MapboxMap({
           'circle-radius': [
             'step',
             ['get', 'point_count'],
-            18, // default
+            18,
             5, 22,
             10, 26,
             25, 32,
@@ -139,7 +136,7 @@ export default function MapboxMap({
         },
       });
 
-      // Cluster count labels
+      // ── Cluster count labels ──
       map.addLayer({
         id: LAYER_CLUSTER_COUNT,
         type: 'symbol',
@@ -156,33 +153,47 @@ export default function MapboxMap({
         },
       });
 
-      // Emoji pin layer (initially with fallback icon)
+      // ── Emoji background circles (white sticker look) ──
+      map.addLayer({
+        id: LAYER_EMOJI_BG,
+        type: 'circle',
+        source: SOURCE_ID,
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-radius': 20,
+          'circle-color': '#ffffff',
+          'circle-opacity': 0.95,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': 'rgba(0,0,0,0.1)',
+          'circle-blur': 0,
+        },
+      });
+
+      // ── Emoji text pins ──
       map.addLayer({
         id: LAYER_EMOJI_PINS,
         type: 'symbol',
         source: SOURCE_ID,
         filter: ['!', ['has', 'point_count']],
         layout: {
-          'icon-image': ['concat', 'emoji_', ['get', 'emoji']],
-          'icon-size': 1,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'icon-anchor': 'center',
+          'text-field': ['get', 'emoji'],
+          'text-size': 22,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+          'text-anchor': 'center',
+          'text-offset': [0, 0.05],
         },
       });
 
       // Populate with initial data
-      await syncStatuses(map, statusesRef.current);
+      syncData(map, statusesRef.current);
 
       // ── Click: emoji pin ──
       map.on('click', LAYER_EMOJI_PINS, (e) => {
         if (!e.features || e.features.length === 0) return;
         const f = e.features[0];
         const props = f.properties!;
-        const coords = (f.geometry as GeoJSON.Point).coordinates as [
-          number,
-          number,
-        ];
+        const coords = (f.geometry as GeoJSON.Point).coordinates as [number, number];
 
         const status: MapStatusNearby = {
           uid: props.uid,
@@ -195,13 +206,28 @@ export default function MapboxMap({
         };
 
         onSelectRef.current(status);
+        map.easeTo({ center: coords, offset: [0, 100], duration: 400 });
+      });
 
-        // Shift map so pin is visible below the info card
-        map.easeTo({
-          center: coords,
-          offset: [0, 100],
-          duration: 400,
-        });
+      // Also handle click on the background circle
+      map.on('click', LAYER_EMOJI_BG, (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const f = e.features[0];
+        const props = f.properties!;
+        const coords = (f.geometry as GeoJSON.Point).coordinates as [number, number];
+
+        const status: MapStatusNearby = {
+          uid: props.uid,
+          emoji: props.emoji,
+          statusText: props.statusText,
+          lat: props.lat,
+          lng: props.lng,
+          createdAt: props.createdAt,
+          expiresAt: props.expiresAt,
+        };
+
+        onSelectRef.current(status);
+        map.easeTo({ center: coords, offset: [0, 100], duration: 400 });
       });
 
       // ── Click: cluster → zoom in ──
@@ -209,17 +235,13 @@ export default function MapboxMap({
         if (!e.features || e.features.length === 0) return;
         const coords = (e.features[0].geometry as GeoJSON.Point)
           .coordinates as [number, number];
-        map.easeTo({
-          center: coords,
-          zoom: map.getZoom() + 2,
-          duration: 400,
-        });
+        map.easeTo({ center: coords, zoom: map.getZoom() + 2, duration: 400 });
       });
 
       // ── Click: empty area → deselect ──
       map.on('click', (e) => {
         const features = map.queryRenderedFeatures(e.point, {
-          layers: [LAYER_EMOJI_PINS, LAYER_CLUSTERS],
+          layers: [LAYER_EMOJI_PINS, LAYER_EMOJI_BG, LAYER_CLUSTERS],
         });
         if (features.length === 0) {
           onSelectRef.current(null);
@@ -227,25 +249,21 @@ export default function MapboxMap({
       });
 
       // ── Cursor ──
-      map.on('mouseenter', LAYER_EMOJI_PINS, () => {
-        map.getCanvas().style.cursor = 'pointer';
-      });
-      map.on('mouseleave', LAYER_EMOJI_PINS, () => {
-        map.getCanvas().style.cursor = '';
-      });
-      map.on('mouseenter', LAYER_CLUSTERS, () => {
-        map.getCanvas().style.cursor = 'pointer';
-      });
-      map.on('mouseleave', LAYER_CLUSTERS, () => {
-        map.getCanvas().style.cursor = '';
+      const pointerLayers = [LAYER_EMOJI_PINS, LAYER_EMOJI_BG, LAYER_CLUSTERS];
+      pointerLayers.forEach((layer) => {
+        map.on('mouseenter', layer, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', layer, () => {
+          map.getCanvas().style.cursor = '';
+        });
       });
     });
 
     mapRef.current = map;
 
     return () => {
-      // Do NOT destroy map on unmount — singleton pattern.
-      // Only destroy if the entire layout is unmounting (logout).
+      // Singleton — don't destroy on effect cleanup
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -259,16 +277,10 @@ export default function MapboxMap({
     }
   }, [visible]);
 
-  // ── Sync statuses to GeoJSON source ──
-  const syncStatuses = useCallback(
-    async (map: mapboxgl.Map, data: MapStatusNearby[]) => {
+  // ── Sync data to GeoJSON source (no Canvas, no image registration needed) ──
+  const syncData = useCallback(
+    (map: mapboxgl.Map, data: MapStatusNearby[]) => {
       if (!mapLoaded.current) return;
-
-      // Ensure all emoji images are registered
-      const emojis = data.map((s) => s.emoji || '📍');
-      await ensureEmojiImages(map, emojis);
-
-      // Update GeoJSON data
       const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
       if (src) {
         src.setData(toGeoJSON(data));
@@ -279,40 +291,41 @@ export default function MapboxMap({
 
   useEffect(() => {
     if (mapRef.current && mapLoaded.current) {
-      syncStatuses(mapRef.current, statuses);
+      syncData(mapRef.current, statuses);
     }
-  }, [statuses, syncStatuses]);
+  }, [statuses, syncData]);
 
-  // ── Update selected pin icon size ──
+  // ── Update selected pin style ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded.current) return;
-    if (!map.getLayer(LAYER_EMOJI_PINS)) return;
+    if (!map.getLayer(LAYER_EMOJI_BG) || !map.getLayer(LAYER_EMOJI_PINS)) return;
 
     if (selectedId) {
-      map.setLayoutProperty(LAYER_EMOJI_PINS, 'icon-image', [
-        'case',
-        ['==', ['get', 'uid'], selectedId],
-        ['concat', 'emoji_', ['get', 'emoji'], '_selected'],
-        ['concat', 'emoji_', ['get', 'emoji']],
+      // Background: selected pin gets violet ring + larger
+      map.setPaintProperty(LAYER_EMOJI_BG, 'circle-radius', [
+        'case', ['==', ['get', 'uid'], selectedId], 24, 20,
       ]);
-      map.setLayoutProperty(LAYER_EMOJI_PINS, 'icon-size', [
-        'case',
-        ['==', ['get', 'uid'], selectedId],
-        1.15,
-        1,
+      map.setPaintProperty(LAYER_EMOJI_BG, 'circle-stroke-width', [
+        'case', ['==', ['get', 'uid'], selectedId], 3, 1.5,
+      ]);
+      map.setPaintProperty(LAYER_EMOJI_BG, 'circle-stroke-color', [
+        'case', ['==', ['get', 'uid'], selectedId], '#7c3aed', 'rgba(0,0,0,0.1)',
+      ]);
+      // Emoji text: selected is larger
+      map.setLayoutProperty(LAYER_EMOJI_PINS, 'text-size', [
+        'case', ['==', ['get', 'uid'], selectedId], 28, 22,
       ]);
     } else {
-      map.setLayoutProperty(LAYER_EMOJI_PINS, 'icon-image', [
-        'concat',
-        'emoji_',
-        ['get', 'emoji'],
-      ]);
-      map.setLayoutProperty(LAYER_EMOJI_PINS, 'icon-size', 1);
+      // Reset to defaults
+      map.setPaintProperty(LAYER_EMOJI_BG, 'circle-radius', 20);
+      map.setPaintProperty(LAYER_EMOJI_BG, 'circle-stroke-width', 1.5);
+      map.setPaintProperty(LAYER_EMOJI_BG, 'circle-stroke-color', 'rgba(0,0,0,0.1)');
+      map.setLayoutProperty(LAYER_EMOJI_PINS, 'text-size', 22);
     }
   }, [selectedId]);
 
-  // Clean up map on full unmount (e.g. logout)
+  // Clean up map on full unmount (logout)
   useEffect(() => {
     return () => {
       if (mapRef.current) {
