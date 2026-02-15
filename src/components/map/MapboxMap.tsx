@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
+import { nyuCampusZones, nyuBuildingPoints } from '@/data/nyuCampus';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -24,6 +25,140 @@ function isInNYC(lat: number, lng: number): boolean {
     lng >= NYC_BOUNDS[0][0] &&
     lng <= NYC_BOUNDS[1][0]
   );
+}
+
+// ─── NYU Map Styling ─────────────────────────────────────────────────────────
+// Called once on map load. Uses dynamic layer discovery so it works across
+// Mapbox style versions without hardcoded layer IDs.
+
+function applyNyuMapStyle(map: mapboxgl.Map): void {
+  const layers = map.getStyle().layers ?? [];
+
+  // ── a) Subtle base-map overrides (dynamic discovery) ──
+  for (const layer of layers) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const src = (layer as any)['source-layer'] as string | undefined;
+
+    // Parks: gentle sage green
+    if (
+      layer.type === 'fill' &&
+      (src === 'landuse' || src === 'landuse_overlay' || src === 'landcover')
+    ) {
+      try {
+        map.setPaintProperty(layer.id, 'fill-color', [
+          'match',
+          ['get', 'class'],
+          'park',
+          '#d4edda',
+          'national_park',
+          '#d4edda',
+          'grass',
+          '#d4edda',
+          'scrub',
+          '#dff0df',
+          // fallback — keep whatever the style already had
+          ['coalesce', ['get', 'color'], '#e8e8e0'],
+        ]);
+      } catch {
+        // non-critical — some layers may not support this expression
+      }
+    }
+
+    // Water fills: clean blue
+    if (layer.type === 'fill' && src === 'water') {
+      try {
+        map.setPaintProperty(layer.id, 'fill-color', '#bdd9ee');
+      } catch {
+        /* skip */
+      }
+    }
+
+    // Waterway lines: matching blue
+    if (layer.type === 'line' && src === 'waterway') {
+      try {
+        map.setPaintProperty(layer.id, 'line-color', '#a3cde4');
+      } catch {
+        /* skip */
+      }
+    }
+  }
+
+  // ── b) Find first symbol layer as anchor for z-ordering ──
+  let firstSymbolId: string | undefined;
+  for (const layer of layers) {
+    if (layer.type === 'symbol') {
+      firstSymbolId = layer.id;
+      break;
+    }
+  }
+
+  // ── c) NYU campus zone overlays ──
+  if (!map.getSource('nyu-zones')) {
+    map.addSource('nyu-zones', { type: 'geojson', data: nyuCampusZones });
+  }
+  map.addLayer(
+    {
+      id: 'nyu-zone-fill',
+      type: 'fill',
+      source: 'nyu-zones',
+      paint: {
+        'fill-color': '#7c3aed',
+        'fill-opacity': 0.06, // very subtle violet wash
+      },
+    },
+    firstSymbolId
+  );
+  map.addLayer(
+    {
+      id: 'nyu-zone-outline',
+      type: 'line',
+      source: 'nyu-zones',
+      paint: {
+        'line-color': '#7c3aed',
+        'line-opacity': 0.18,
+        'line-width': 1.5,
+      },
+    },
+    firstSymbolId
+  );
+
+  // ── d) NYU building labels (zoom-tiered, auto-positioned) ──
+  if (!map.getSource('nyu-buildings')) {
+    map.addSource('nyu-buildings', { type: 'geojson', data: nyuBuildingPoints });
+  }
+  map.addLayer({
+    id: 'nyu-building-labels',
+    type: 'symbol',
+    source: 'nyu-buildings',
+    minzoom: 13,
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-size': ['match', ['get', 'tier'], 1, 11.5, 10],
+      'text-max-width': 8,
+      'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+      'text-radial-offset': 0.8,
+      'text-optional': true,
+      'text-allow-overlap': false,
+      'symbol-sort-key': ['match', ['get', 'tier'], 1, 0, 1],
+      visibility: 'visible',
+    },
+    paint: {
+      'text-color': '#6d28d9',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.5,
+      'text-halo-blur': 0.5,
+      'text-opacity': [
+        'step',
+        ['zoom'],
+        0, // invisible below zoom 13
+        13,
+        ['match', ['get', 'tier'], 1, 1, 0], // tier 1 visible at 13
+        15.5,
+        1, // all tiers visible at 15.5+
+      ],
+    },
+  });
 }
 
 interface Props {
@@ -203,17 +338,11 @@ export default function MapboxMap({
     map.on('load', () => {
       mapLoaded.current = true;
 
-      // Subtle style tweaks
+      // Apply NYU campus styling (parks, water, zones, building labels)
       try {
-        if (map.getLayer('water')) {
-          map.setPaintProperty('water', 'fill-color', '#d6e6f5');
-        }
-        if (map.getLayer('building')) {
-          map.setPaintProperty('building', 'fill-color', '#e8e4ef');
-          map.setPaintProperty('building', 'fill-opacity', 0.45);
-        }
-      } catch {
-        // non-critical
+        applyNyuMapStyle(map);
+      } catch (err) {
+        console.warn('[MapboxMap] applyNyuMapStyle failed:', err);
       }
 
       // Center on user's real location
