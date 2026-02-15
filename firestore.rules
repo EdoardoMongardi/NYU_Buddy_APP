@@ -153,5 +153,76 @@ service cloud.firestore {
       allow read: if false; // Cloud Functions only (no client reads needed)
       allow write: if false; // Cloud Functions only
     }
+
+    // ========================================================================
+    // ACTIVITY COMPANION SYSTEM (v2.0)
+    // ========================================================================
+
+    // Activity Posts collection
+    // All authenticated users can read active posts
+    // Creator can create (via Cloud Functions preferred, but allow client create for flexibility)
+    // Updates and lifecycle transitions via Cloud Functions only
+    match /activityPosts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.creatorUid == request.auth.uid;
+      allow update: if false; // All updates via Cloud Functions
+      allow delete: if false;
+    }
+
+    // Join Requests collection
+    // Requester can read their own request; post creator can read requests for their post
+    // All writes via Cloud Functions
+    match /joinRequests/{requestId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.requesterUid == request.auth.uid ||
+         resource.data.creatorUid == request.auth.uid);
+      allow create: if false; // Created by Cloud Functions (joinRequestSend)
+      allow update: if false; // Updated by Cloud Functions (respond, withdraw)
+      allow delete: if false;
+    }
+
+    // Groups collection
+    // Only group members can read
+    // All writes via Cloud Functions
+    match /groups/{groupId} {
+      allow read: if isAuthenticated() &&
+        request.auth.uid in resource.data.memberUids;
+      allow create: if false; // Created by Cloud Functions (joinRequestRespond)
+      allow update: if false; // Updated by Cloud Functions (leave, kick)
+      allow delete: if false;
+    }
+
+    // Group Chat Messages subcollection
+    // Only group members can read messages
+    // All writes via Cloud Functions (groupSendMessage)
+    match /groupChats/{groupId}/messages/{messageId} {
+      allow read: if isAuthenticated() &&
+        request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
+      allow create: if false; // All writes via Cloud Functions
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Map Status collection
+    // All authenticated users can read
+    // Owner can write and delete their own status
+    match /mapStatus/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    // Activity Reports collection
+    // Reporter can create; reporter can read own reports; admin can read/update all
+    match /activityReports/{reportId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.reporterUid == request.auth.uid;
+      allow read: if isAuthenticated() &&
+        (resource.data.reporterUid == request.auth.uid || isAdmin());
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
   }
 }

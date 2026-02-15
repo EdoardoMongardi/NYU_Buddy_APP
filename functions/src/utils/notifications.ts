@@ -136,3 +136,115 @@ export async function sendMatchCreatedNotification(
 
   return { success: result.success };
 }
+
+// ============================================================================
+// ACTIVITY COMPANION NOTIFICATIONS (v2.0 — Round A: direct send, no throttling)
+// ============================================================================
+
+/**
+ * Send "Join request received" notification to post creator
+ */
+export async function sendJoinRequestReceivedNotification(
+  creatorUid: string,
+  requesterName: string,
+  postBody: string,
+  postId: string
+): Promise<{ success: boolean }> {
+  const truncated = postBody.length > 40 ? postBody.substring(0, 40) + '...' : postBody;
+  const result = await sendNotificationToUser(creatorUid, {
+    title: 'New Join Request',
+    body: `${requesterName} wants to join: "${truncated}"`,
+    data: {
+      type: 'join_request_received',
+      postId,
+    },
+  });
+  return { success: result.success };
+}
+
+/**
+ * Send "Join request accepted" notification to requester
+ */
+export async function sendJoinRequestAcceptedNotification(
+  requesterUid: string,
+  creatorName: string,
+  postBody: string,
+  postId: string,
+  groupId: string
+): Promise<{ success: boolean }> {
+  const truncated = postBody.length > 30 ? postBody.substring(0, 30) + '...' : postBody;
+  const result = await sendNotificationToUser(requesterUid, {
+    title: "You're in!",
+    body: `${creatorName} accepted your request for "${truncated}"`,
+    data: {
+      type: 'join_request_accepted',
+      postId,
+      groupId,
+    },
+  });
+  return { success: result.success };
+}
+
+/**
+ * Send group chat message notification (direct send per message, no batching in Round A)
+ */
+export async function sendGroupChatMessageNotification(
+  recipientUid: string,
+  senderName: string,
+  messageBody: string,
+  groupId: string,
+  postId: string
+): Promise<{ success: boolean }> {
+  const truncated = messageBody.length > 50 ? messageBody.substring(0, 50) + '...' : messageBody;
+  const result = await sendNotificationToUser(recipientUid, {
+    title: senderName,
+    body: truncated,
+    data: {
+      type: 'group_chat_message',
+      groupId,
+      postId,
+    },
+  });
+  return { success: result.success };
+}
+
+/**
+ * Send "Activity expired" notification to group members
+ */
+export async function sendActivityExpiredNotification(
+  uid: string,
+  postBody: string,
+  postId: string
+): Promise<{ success: boolean }> {
+  const truncated = postBody.length > 30 ? postBody.substring(0, 30) + '...' : postBody;
+  const result = await sendNotificationToUser(uid, {
+    title: 'Activity Ended',
+    body: `Your activity "${truncated}" has ended`,
+    data: {
+      type: 'activity_expired',
+      postId,
+    },
+  });
+  return { success: result.success };
+}
+
+/**
+ * Send "Slot reopened" notification when a participant leaves a filled group
+ */
+export async function sendSlotReopenedNotification(
+  creatorUid: string,
+  leaverName: string,
+  postId: string,
+  groupId: string
+): Promise<{ success: boolean }> {
+  const result = await sendNotificationToUser(creatorUid, {
+    title: 'Participant Left',
+    body: `${leaverName} left your activity. A slot is now open.`,
+    data: {
+      type: 'slot_reopened',
+      postId,
+      groupId,
+    },
+  });
+  return { success: result.success };
+}

@@ -7,7 +7,9 @@ import { Bell, Download, X } from 'lucide-react';
 import AvailabilitySheet from '@/components/availability/AvailabilitySheet';
 import SuggestionCard from '@/components/matching/SuggestionCard';
 import TabNavigation from '@/components/home/TabNavigation';
+import SubTabNavigation from '@/components/home/SubTabNavigation';
 import InvitesTab from '@/components/home/InvitesTab';
+import ActivityFeed from '@/components/activity/ActivityFeed';
 import { ActiveInvitesRow } from '@/components/match/ActiveInvitesRow';
 import { usePresence } from '@/lib/hooks/usePresence';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -111,7 +113,10 @@ export default function HomePage() {
     outgoingOffers, canSendMore, fetchOutgoing, cancelOutgoingOffer,
   } = useOffers();
 
-  const [activeTab, setActiveTab] = useState<'discover' | 'invites'>('discover');
+  // Top-level tabs: Activities vs Instant Match
+  const [activeTab, setActiveTab] = useState<'activities' | 'instant-match'>('activities');
+  // Sub-tabs within Instant Match
+  const [subTab, setSubTab] = useState<'discover' | 'invites'>('discover');
   const emailVerified = user?.emailVerified;
 
   useEffect(() => {
@@ -162,7 +167,7 @@ export default function HomePage() {
       <div className={`flex items-center justify-between shrink-0 ${isPWA ? 'pt-1.5 pb-2' : 'pt-1 pb-1.5'}`}>
         <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
 
-        {/* Notification bubble — only one of these shows at a time (mutually exclusive on iOS) */}
+        {/* Notification bubble — only one of these shows at a time */}
         <AnimatePresence mode="wait">
           {showNotifBubble && (
             <motion.div
@@ -214,42 +219,75 @@ export default function HomePage() {
         </div>
       ) : (
         <>
+          {/* Top-level tabs: Activities / Instant Match */}
           <div className="shrink-0">
-            <AvailabilitySheet isPWA={isPWA} />
+            <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} inviteCount={inboxCount} />
           </div>
-
-          {isAvailable && (
-            <div className={`shrink-0 ${isPWA ? 'mt-2' : 'mt-1.5'}`}>
-              <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} inviteCount={inboxCount} />
-            </div>
-          )}
 
           <div className={`flex-1 overflow-hidden min-h-0 ${isPWA ? 'mt-1' : ''}`}>
             <AnimatePresence mode="popLayout" initial={false}>
-              {activeTab === 'discover' ? (
+              {activeTab === 'activities' ? (
                 <motion.div
-                  key="discover"
+                  key="activities"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="h-full"
-                  style={{ touchAction: 'none' }}
+                  className="h-full overflow-y-auto"
                 >
-                  {outgoingOffers.length > 0 && (
-                    <ActiveInvitesRow offers={outgoingOffers} onCancel={handleCancelOffer} />
-                  )}
-                  <SuggestionCard isAvailable={isAvailable} canSendMore={canSendMore} isPWA={isPWA} />
+                  <ActivityFeed />
                 </motion.div>
               ) : (
                 <motion.div
-                  key="invites"
+                  key="instant-match"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
+                  className="h-full flex flex-col overflow-hidden"
                 >
-                  <InvitesTab offers={inboxOffers} loading={inboxLoading} error={inboxError} onRefresh={fetchInbox} onAccept={handleAcceptOffer} onDecline={handleDeclineOffer} isAvailable={isAvailable} userPhotoURL={userProfile?.photoURL} userDisplayName={userProfile?.displayName} />
+                  {/* Availability sheet */}
+                  <div className="shrink-0 mt-2">
+                    <AvailabilitySheet isPWA={isPWA} />
+                  </div>
+
+                  {/* Sub-tabs: Discover / Invites */}
+                  {isAvailable && (
+                    <div className="shrink-0 mt-2">
+                      <SubTabNavigation activeTab={subTab} onTabChange={setSubTab} inviteCount={inboxCount} />
+                    </div>
+                  )}
+
+                  <div className="flex-1 overflow-hidden min-h-0 mt-1">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      {subTab === 'discover' ? (
+                        <motion.div
+                          key="discover"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="h-full"
+                          style={{ touchAction: 'none' }}
+                        >
+                          {outgoingOffers.length > 0 && (
+                            <ActiveInvitesRow offers={outgoingOffers} onCancel={handleCancelOffer} />
+                          )}
+                          <SuggestionCard isAvailable={isAvailable} canSendMore={canSendMore} isPWA={isPWA} />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="invites"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <InvitesTab offers={inboxOffers} loading={inboxLoading} error={inboxError} onRefresh={fetchInbox} onAccept={handleAcceptOffer} onDecline={handleDeclineOffer} isAvailable={isAvailable} userPhotoURL={userProfile?.photoURL} userDisplayName={userProfile?.displayName} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
