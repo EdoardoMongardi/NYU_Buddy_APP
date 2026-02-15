@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
-import { ensureEmojiImages, emojiImageName } from '@/lib/utils/emojiSprite';
+import { ensureEmojiImages } from '@/lib/utils/emojiSprite';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -61,11 +61,12 @@ function toGeoJSON(
 
 export default function MapboxMap({
   statuses,
-  currentUid,
+  currentUid: _currentUid,
   selectedId,
   onSelectStatus,
   visible,
 }: MapboxMapProps) {
+  void _currentUid; // reserved for future use (e.g. highlight own pin)
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const mapLoaded = useRef(false);
