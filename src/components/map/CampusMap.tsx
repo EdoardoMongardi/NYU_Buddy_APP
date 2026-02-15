@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { MapStatusNearby } from '@/lib/firebase/functions';
 
 interface CampusMapProps {
@@ -24,9 +24,16 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   const markersRef = useRef<L.Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
 
+  // Stable invalidateSize helper
+  const invalidate = useCallback(() => {
+    mapRef.current?.invalidateSize();
+  }, []);
+
   // Initialize map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
+
+    const container = mapContainerRef.current;
 
     import('leaflet').then((L) => {
       // Fix default icon path issue with bundlers
@@ -34,21 +41,21 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
 
       const nycBounds = L.latLngBounds(NYC_BOUNDS[0], NYC_BOUNDS[1]);
 
-      const map = L.map(mapContainerRef.current!, {
+      const map = L.map(container, {
         center: NYU_CENTER,
         zoom: DEFAULT_ZOOM,
-        zoomControl: false,           // no +/- buttons, cleaner UI
+        zoomControl: false,
         attributionControl: false,
-        scrollWheelZoom: true,        // allow scroll zoom
-        doubleClickZoom: true,        // allow double-click zoom
-        touchZoom: true,              // allow pinch zoom
-        boxZoom: false,               // not useful on mobile
+        scrollWheelZoom: true,
+        doubleClickZoom: true,
+        touchZoom: true,
+        boxZoom: false,
         keyboard: true,
         dragging: true,
         maxBounds: nycBounds,
         maxBoundsViscosity: 1.0,
-        minZoom: 13,                  // roughly all of Manhattan
-        maxZoom: 18,                  // street-level detail
+        minZoom: 13,
+        maxZoom: 18,
       });
 
       // Carto Voyager — colorful, modern tiles
@@ -63,13 +70,20 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
       mapRef.current = map;
       setMapReady(true);
 
-      // Force resize multiple times to handle any layout timing issues
-      setTimeout(() => map.invalidateSize(), 0);
-      setTimeout(() => map.invalidateSize(), 150);
-      setTimeout(() => map.invalidateSize(), 500);
+      // Force resize at multiple points to handle any layout timing
+      requestAnimationFrame(() => map.invalidateSize());
+      setTimeout(() => map.invalidateSize(), 100);
+      setTimeout(() => map.invalidateSize(), 400);
     });
 
+    // ResizeObserver: call invalidateSize whenever the container resizes
+    const ro = new ResizeObserver(() => {
+      mapRef.current?.invalidateSize();
+    });
+    ro.observe(container);
+
     return () => {
+      ro.disconnect();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -77,16 +91,20 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
     };
   }, []);
 
+  // Also invalidate when the window resizes (orientation change, etc.)
+  useEffect(() => {
+    window.addEventListener('resize', invalidate);
+    return () => window.removeEventListener('resize', invalidate);
+  }, [invalidate]);
+
   // Update markers when statuses change OR when map becomes ready
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
 
     import('leaflet').then((L) => {
-      // Clear existing markers
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
 
-      // Add new markers
       statuses.forEach((status) => {
         const isOwn = status.uid === currentUid;
         const emoji = status.emoji || '📍';
@@ -122,7 +140,7 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   return (
     <div
       ref={mapContainerRef}
-      style={{ width: '100vw', height: '100dvh' }}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
     />
   );
 }
