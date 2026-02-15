@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapStatusNearby } from '@/lib/firebase/functions';
 
 interface CampusMapProps {
@@ -10,18 +10,20 @@ interface CampusMapProps {
 
 // NYU Washington Square campus center
 const NYU_CENTER: [number, number] = [40.7295, -73.9965];
-const DEFAULT_ZOOM = 15;
+// Zoom 16 = ~4 block radius around NYU, ideal for campus activity
+const FIXED_ZOOM = 16;
 
-// Bounding box: restrict panning to roughly the NYC area
+// Tight bounds around lower Manhattan / NYU area — user can pan a bit but not leave NYC
 const NYC_BOUNDS: [[number, number], [number, number]] = [
-  [40.48, -74.28], // southwest corner
-  [40.92, -73.68], // northeast corner
+  [40.70, -74.02], // southwest
+  [40.76, -73.97], // northeast
 ];
 
 export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.CircleMarker[]>([]);
+  const [mapReady, setMapReady] = useState(false);
 
   // Initialize map
   useEffect(() => {
@@ -32,29 +34,32 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
 
       const map = L.map(mapContainerRef.current!, {
         center: NYU_CENTER,
-        zoom: DEFAULT_ZOOM,
-        zoomControl: true,
-        attributionControl: false, // hide default attribution for cleaner look
-        minZoom: 12,              // don't zoom out beyond NYC
-        maxZoom: 18,
-        maxBounds: nycBounds,     // restrict panning to NYC
-        maxBoundsViscosity: 1.0,  // hard stop at the boundary (no elastic drag)
+        zoom: FIXED_ZOOM,
+        zoomControl: false,          // no zoom buttons
+        attributionControl: false,
+        scrollWheelZoom: false,       // disable scroll zoom
+        doubleClickZoom: false,       // disable double-click zoom
+        touchZoom: false,             // disable pinch zoom
+        boxZoom: false,               // disable box zoom
+        keyboard: false,              // disable keyboard zoom
+        dragging: true,               // allow panning only
+        maxBounds: nycBounds,
+        maxBoundsViscosity: 1.0,
+        minZoom: FIXED_ZOOM,
+        maxZoom: FIXED_ZOOM,
       });
 
-      // Carto Voyager — colorful, modern vector-style tiles (free, no API key)
+      // Carto Voyager — colorful, modern tiles
       L.tileLayer(
         'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
         {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
           subdomains: 'abcd',
           maxZoom: 19,
         }
       ).addTo(map);
 
-      // Small, subtle attribution in the corner
-      L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
-
       mapRef.current = map;
+      setMapReady(true);
 
       // Force resize after render
       setTimeout(() => map.invalidateSize(), 100);
@@ -68,9 +73,9 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
     };
   }, []);
 
-  // Update markers when statuses change
+  // Update markers when statuses change OR when map becomes ready
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapReady || !mapRef.current) return;
 
     import('leaflet').then((L) => {
       // Clear existing markers
@@ -83,32 +88,45 @@ export default function CampusMap({ statuses, currentUid }: CampusMapProps) {
         const color = isOwn ? '#7c3aed' : '#3b82f6';
 
         const marker = L.circleMarker([status.lat, status.lng], {
-          radius: isOwn ? 10 : 8,
+          radius: isOwn ? 12 : 9,
           fillColor: color,
           fillOpacity: 0.9,
           color: '#fff',
-          weight: 2,
+          weight: 2.5,
         }).addTo(mapRef.current!);
 
+        // Pulsing ring for own dot
+        if (isOwn) {
+          const ring = L.circleMarker([status.lat, status.lng], {
+            radius: 18,
+            fillColor: color,
+            fillOpacity: 0.15,
+            color: color,
+            weight: 1.5,
+            opacity: 0.4,
+          }).addTo(mapRef.current!);
+          markersRef.current.push(ring);
+        }
+
         marker.bindPopup(
-          `<div style="text-align:center;">
+          `<div style="text-align:center;padding:2px 4px;">
             <strong style="font-size:13px;">${status.statusText}</strong>
+            ${isOwn ? '<br><span style="font-size:11px;color:#888;">You</span>' : ''}
           </div>`,
-          { closeButton: false }
+          { closeButton: false, offset: L.point(0, -4) }
         );
 
-        marker.on('mouseover', () => marker.openPopup());
+        marker.on('click', () => marker.openPopup());
 
         markersRef.current.push(marker);
       });
     });
-  }, [statuses, currentUid]);
+  }, [statuses, currentUid, mapReady]);
 
   return (
     <div
       ref={mapContainerRef}
-      className="w-full h-full rounded-2xl overflow-hidden"
-      style={{ minHeight: '300px' }}
+      className="w-full h-full"
     />
   );
 }
