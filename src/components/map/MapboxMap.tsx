@@ -4,7 +4,11 @@ import { useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
-import { nyuCampusZones, nyuBuildingPoints } from '@/data/nyuCampus';
+import {
+  nyuCampusZones,
+  nyuBuildingPoints,
+  nyuBuildingFootprints,
+} from '@/data/nyuCampus';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -122,7 +126,50 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
     firstSymbolId
   );
 
-  // ── d) NYU building labels (zoom-tiered, auto-positioned) ──
+  // ── d) NYU building footprints (violet blocks, more opaque than zones) ──
+  if (!map.getSource('nyu-footprints')) {
+    map.addSource('nyu-footprints', {
+      type: 'geojson',
+      data: nyuBuildingFootprints,
+    });
+  }
+  map.addLayer(
+    {
+      id: 'nyu-footprint-fill',
+      type: 'fill',
+      source: 'nyu-footprints',
+      minzoom: 13,
+      paint: {
+        'fill-color': '#7c3aed',
+        'fill-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          13, 0.15,
+          15, 0.28,
+        ],
+      },
+    },
+    firstSymbolId
+  );
+  map.addLayer(
+    {
+      id: 'nyu-footprint-outline',
+      type: 'line',
+      source: 'nyu-footprints',
+      minzoom: 14,
+      paint: {
+        'line-color': '#6d28d9',
+        'line-opacity': 0.35,
+        'line-width': 1,
+      },
+    },
+    firstSymbolId
+  );
+
+  // ── e) NYU building labels (zoom-tiered, auto-positioned) ──
+  // Color: warm amber (#b45309) to contrast against violet building blocks
+  // while still being clearly highlighted vs. default grey map labels.
   if (!map.getSource('nyu-buildings')) {
     map.addSource('nyu-buildings', { type: 'geojson', data: nyuBuildingPoints });
   }
@@ -133,8 +180,8 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
     minzoom: 13,
     layout: {
       'text-field': ['get', 'name'],
-      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-      'text-size': ['match', ['get', 'tier'], 1, 11.5, 10],
+      'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+      'text-size': ['match', ['get', 'tier'], 1, 12, 10.5],
       'text-max-width': 8,
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
       'text-radial-offset': 0.8,
@@ -144,18 +191,18 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
       visibility: 'visible',
     },
     paint: {
-      'text-color': '#6d28d9',
+      'text-color': '#92400e',
       'text-halo-color': '#ffffff',
-      'text-halo-width': 1.5,
-      'text-halo-blur': 0.5,
+      'text-halo-width': 1.8,
+      'text-halo-blur': 0.4,
       'text-opacity': [
         'step',
         ['zoom'],
-        0, // invisible below zoom 13
+        0,
         13,
-        ['match', ['get', 'tier'], 1, 1, 0], // tier 1 visible at 13
+        ['match', ['get', 'tier'], 1, 1, 0],
         15.5,
-        1, // all tiers visible at 15.5+
+        1,
       ],
     },
   });

@@ -98,6 +98,35 @@ function pt(
   };
 }
 
+/**
+ * Generate approximate rectangular footprint polygons for each building point.
+ * These are rendered as violet fill blocks on the map.
+ */
+function buildingFootprint(
+  lng: number,
+  lat: number,
+  tier: 1 | 2,
+): GeoJSON.Feature<GeoJSON.Polygon> {
+  // Half-extents in degrees (at NYC ~40.73° lat)
+  // Tier 1 (major): ~45m × 30m  |  Tier 2: ~30m × 20m
+  const dLat = tier === 1 ? 0.000200 : 0.000135;
+  const dLng = tier === 1 ? 0.000175 : 0.000120;
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [lng - dLng, lat - dLat],
+        [lng + dLng, lat - dLat],
+        [lng + dLng, lat + dLat],
+        [lng - dLng, lat + dLat],
+        [lng - dLng, lat - dLat],
+      ]],
+    },
+  };
+}
+
 export const nyuBuildingPoints: GeoJSON.FeatureCollection<GeoJSON.Point, BuildingProperties> = {
   type: 'FeatureCollection',
   features: [
@@ -166,4 +195,17 @@ export const nyuBuildingPoints: GeoJSON.FeatureCollection<GeoJSON.Point, Buildin
     pt(-73.9857, 40.6950, 'Othmer Residence',       2, 'brooklyn'),
     pt(-73.9890, 40.6945, '1 Pierrepont Plaza',     2, 'brooklyn'),
   ],
+};
+
+// ─── Building Footprints (generated from points) ─────────────────────────────
+
+export const nyuBuildingFootprints: GeoJSON.FeatureCollection<GeoJSON.Polygon> = {
+  type: 'FeatureCollection',
+  features: nyuBuildingPoints.features.map((f) =>
+    buildingFootprint(
+      f.geometry.coordinates[0],
+      f.geometry.coordinates[1],
+      f.properties.tier,
+    )
+  ),
 };
