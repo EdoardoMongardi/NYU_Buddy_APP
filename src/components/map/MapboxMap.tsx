@@ -9,6 +9,12 @@ import nyuFootprintsData from '@/data/nyuBuildingFootprints.json';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
+// Custom style URL (from `scripts/mapbox-create-style.ts` pipeline).
+// When set, NYU building footprints come from the baked-in vector tileset.
+// When absent, we fall back to light-v11 + runtime GeoJSON overlay.
+const CUSTOM_STYLE = process.env.NEXT_PUBLIC_MAPBOX_STYLE || '';
+const MAP_STYLE = CUSTOM_STYLE || 'mapbox://styles/mapbox/light-v11';
+
 // Fallback center (NYU campus) — used while geolocation is resolving
 const FALLBACK_CENTER: [number, number] = [-73.9965, 40.7295];
 const DEFAULT_ZOOM = 14.5;
@@ -57,11 +63,10 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
           '#d4edda',
           'scrub',
           '#dff0df',
-          // fallback — keep whatever the style already had
           ['coalesce', ['get', 'color'], '#e8e8e0'],
         ]);
       } catch {
-        // non-critical — some layers may not support this expression
+        // non-critical
       }
     }
 
@@ -69,18 +74,14 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
     if (layer.type === 'fill' && src === 'water') {
       try {
         map.setPaintProperty(layer.id, 'fill-color', '#bdd9ee');
-      } catch {
-        /* skip */
-      }
+      } catch { /* skip */ }
     }
 
     // Waterway lines: matching blue
     if (layer.type === 'line' && src === 'waterway') {
       try {
         map.setPaintProperty(layer.id, 'line-color', '#a3cde4');
-      } catch {
-        /* skip */
-      }
+      } catch { /* skip */ }
     }
   }
 
@@ -97,82 +98,82 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
   if (!map.getSource('nyu-zones')) {
     map.addSource('nyu-zones', { type: 'geojson', data: nyuCampusZones });
   }
-  map.addLayer(
-    {
-      id: 'nyu-zone-fill',
-      type: 'fill',
-      source: 'nyu-zones',
-      paint: {
-        'fill-color': '#7c3aed',
-        'fill-opacity': 0.06, // very subtle violet wash
+  if (!map.getLayer('nyu-zone-fill')) {
+    map.addLayer(
+      {
+        id: 'nyu-zone-fill',
+        type: 'fill',
+        source: 'nyu-zones',
+        paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.06 },
       },
-    },
-    firstSymbolId
-  );
-  map.addLayer(
-    {
-      id: 'nyu-zone-outline',
-      type: 'line',
-      source: 'nyu-zones',
-      paint: {
-        'line-color': '#7c3aed',
-        'line-opacity': 0.18,
-        'line-width': 1.5,
-      },
-    },
-    firstSymbolId
-  );
-
-  // ── d) NYU building footprints (real OSM polygons — violet blocks) ──
-  if (!map.getSource('nyu-footprints')) {
-    map.addSource('nyu-footprints', {
-      type: 'geojson',
-      data: nyuFootprintsData as GeoJSON.FeatureCollection,
-    });
+      firstSymbolId,
+    );
   }
-  map.addLayer(
-    {
-      id: 'nyu-footprint-fill',
-      type: 'fill',
-      source: 'nyu-footprints',
-      minzoom: 13,
-      paint: {
-        'fill-color': '#7c3aed',
-        'fill-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          13, 0.14,
-          15, 0.25,
-        ],
+  if (!map.getLayer('nyu-zone-outline')) {
+    map.addLayer(
+      {
+        id: 'nyu-zone-outline',
+        type: 'line',
+        source: 'nyu-zones',
+        paint: { 'line-color': '#7c3aed', 'line-opacity': 0.18, 'line-width': 1.5 },
       },
-    },
-    firstSymbolId
-  );
-  map.addLayer(
-    {
-      id: 'nyu-footprint-outline',
-      type: 'line',
-      source: 'nyu-footprints',
-      minzoom: 14,
-      paint: {
-        'line-color': '#6d28d9',
-        'line-opacity': 0.40,
-        'line-width': 1.5,
-      },
-    },
-    firstSymbolId
-  );
+      firstSymbolId,
+    );
+  }
+
+  // ── d) NYU building footprints ──
+  // If using the custom Mapbox style the tileset layers (nyu-building-fill,
+  // nyu-building-outline) are already baked in.  Otherwise add a runtime
+  // GeoJSON overlay so footprints still appear during development.
+  const buildingFillLayerId = CUSTOM_STYLE
+    ? 'nyu-building-fill'      // from custom style's tileset
+    : 'nyu-footprint-fill';    // runtime GeoJSON layer
+
+  if (!CUSTOM_STYLE) {
+    // Runtime fallback — render GeoJSON footprints as map layers
+    if (!map.getSource('nyu-footprints')) {
+      map.addSource('nyu-footprints', {
+        type: 'geojson',
+        data: nyuFootprintsData as GeoJSON.FeatureCollection,
+      });
+    }
+    if (!map.getLayer('nyu-footprint-fill')) {
+      map.addLayer(
+        {
+          id: 'nyu-footprint-fill',
+          type: 'fill',
+          source: 'nyu-footprints',
+          minzoom: 13,
+          paint: {
+            'fill-color': '#7c3aed',
+            'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.14, 15, 0.25],
+          },
+        },
+        firstSymbolId,
+      );
+    }
+    if (!map.getLayer('nyu-footprint-outline')) {
+      map.addLayer(
+        {
+          id: 'nyu-footprint-outline',
+          type: 'line',
+          source: 'nyu-footprints',
+          minzoom: 14,
+          paint: { 'line-color': '#6d28d9', 'line-opacity': 0.40, 'line-width': 1.5 },
+        },
+        firstSymbolId,
+      );
+    }
+  }
 
   // Click on violet building → popup with building name
-  map.on('click', 'nyu-footprint-fill', (e) => {
+  map.on('click', buildingFillLayerId, (e) => {
     if (!e.features?.length) return;
     const name = e.features[0].properties?.name;
     if (!name) return;
 
-    // Remove existing building popups
-    const existing = document.querySelector('.nyu-building-popup');
-    if (existing) existing.remove();
+    const prev = document.querySelector('.nyu-building-popup');
+    if (prev) prev.remove();
 
     new mapboxgl.Popup({
       closeButton: false,
@@ -185,55 +186,49 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
       .setHTML(`<strong style="font-size:13px;color:#6d28d9">${name}</strong>`)
       .addTo(map);
   });
-
-  // Pointer cursor on hover over buildings
-  map.on('mouseenter', 'nyu-footprint-fill', () => {
+  map.on('mouseenter', buildingFillLayerId, () => {
     map.getCanvas().style.cursor = 'pointer';
   });
-  map.on('mouseleave', 'nyu-footprint-fill', () => {
+  map.on('mouseleave', buildingFillLayerId, () => {
     map.getCanvas().style.cursor = '';
   });
 
   // ── e) NYU building labels (zoom-tiered, auto-positioned) ──
-  // Labels hidden by default (clean map). Shown progressively at higher zoom.
-  // Tier 1 (major): zoom >= 15  |  Tier 2 (secondary): zoom >= 16.5
-  // Click on violet building block shows popup with name at any zoom.
   if (!map.getSource('nyu-buildings')) {
     map.addSource('nyu-buildings', { type: 'geojson', data: nyuBuildingPoints });
   }
-  map.addLayer({
-    id: 'nyu-building-labels',
-    type: 'symbol',
-    source: 'nyu-buildings',
-    minzoom: 15,
-    layout: {
-      'text-field': ['get', 'name'],
-      'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-      'text-size': ['match', ['get', 'tier'], 1, 12, 10.5],
-      'text-max-width': 8,
-      'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-      'text-radial-offset': 0.8,
-      'text-optional': true,
-      'text-allow-overlap': false,
-      'symbol-sort-key': ['match', ['get', 'tier'], 1, 0, 1],
-      visibility: 'visible',
-    },
-    paint: {
-      'text-color': '#92400e',
-      'text-halo-color': '#ffffff',
-      'text-halo-width': 1.8,
-      'text-halo-blur': 0.4,
-      'text-opacity': [
-        'step',
-        ['zoom'],
-        0,             // invisible below zoom 15
-        15,
-        ['match', ['get', 'tier'], 1, 1, 0],  // tier 1 at zoom 15
-        16.5,
-        1,             // all tiers at zoom 16.5+
-      ],
-    },
-  });
+  if (!map.getLayer('nyu-building-labels')) {
+    map.addLayer({
+      id: 'nyu-building-labels',
+      type: 'symbol',
+      source: 'nyu-buildings',
+      minzoom: 15,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+        'text-size': ['match', ['get', 'tier'], 1, 12, 10.5],
+        'text-max-width': 8,
+        'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+        'text-radial-offset': 0.8,
+        'text-optional': true,
+        'text-allow-overlap': false,
+        'symbol-sort-key': ['match', ['get', 'tier'], 1, 0, 1],
+        visibility: 'visible',
+      },
+      paint: {
+        'text-color': '#92400e',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.8,
+        'text-halo-blur': 0.4,
+        'text-opacity': [
+          'step', ['zoom'],
+          0,
+          15, ['match', ['get', 'tier'], 1, 1, 0],
+          16.5, 1,
+        ],
+      },
+    });
+  }
 }
 
 interface Props {
@@ -389,7 +384,7 @@ export default function MapboxMap({
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: 'mapbox://styles/mapbox/light-v11',
+      style: MAP_STYLE,
       center: FALLBACK_CENTER,
       zoom: DEFAULT_ZOOM,
       pitch: 0,

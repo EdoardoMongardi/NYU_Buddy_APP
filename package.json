@@ -11,7 +11,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "generate:footprints": "tsx scripts/generate-nyu-footprints.ts"
+    "generate:footprints": "tsx scripts/generate-nyu-footprints.ts",
+    "pipeline:nyu-fetch": "tsx scripts/fetch-nyu-footprints-soda.ts",
+    "pipeline:nyu-upload": "tsx scripts/mapbox-upload-tileset.ts",
+    "pipeline:nyu-style": "tsx scripts/fetch-nyu-footprints-soda.ts && tsx scripts/mapbox-upload-tileset.ts && tsx scripts/mapbox-create-style.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -46,6 +49,7 @@
   },
   "devDependencies": {
     "@turf/area": "^7.3.4",
+    "@turf/boolean-point-in-polygon": "^7.3.4",
     "@turf/centroid": "^7.3.4",
     "@turf/helpers": "^7.3.4",
     "@turf/simplify": "^7.3.4",
