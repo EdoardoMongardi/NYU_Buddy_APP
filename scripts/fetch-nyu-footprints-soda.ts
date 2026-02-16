@@ -353,7 +353,7 @@ async function main() {
       }
     }
 
-    if (match && match.confidence >= 0.3) {
+    if (match && match.confidence >= 0.85) {
       // Simplify polygon
       const simplified = simplify(match.feature, { tolerance: 0.000005, highQuality: true });
 
