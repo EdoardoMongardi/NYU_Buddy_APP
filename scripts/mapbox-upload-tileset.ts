@@ -101,48 +101,47 @@ async function createOrUpdateTileset(): Promise<void> {
     },
   };
 
-  // Check if tileset exists
-  const checkResp = await apiFetch(`/tilesets/v1/${TILESET_ID}`);
+  // Try to create tileset first; if it already exists, update the recipe
+  console.log('   Attempting to create tileset...');
+  const createResp = await apiFetch(
+    `/tilesets/v1/${TILESET_ID}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipe,
+        name: 'NYU Buildings',
+        description: 'Building footprints for NYU Manhattan + Brooklyn campuses',
+        private: false,
+      }),
+    },
+  );
 
-  if (checkResp.ok) {
-    // Tileset exists → update recipe
-    console.log('   Tileset exists, updating recipe...');
-    const patchResp = await apiFetch(
-      `/tilesets/v1/${TILESET_ID}/recipe`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recipe),
-      },
-    );
-    if (!patchResp.ok) {
-      const text = await patchResp.text();
-      console.error(`❌ Recipe update failed (${patchResp.status}): ${text}`);
-      process.exit(1);
-    }
-    console.log('   ✅ Recipe updated');
-  } else {
-    // Create new tileset
-    console.log('   Creating new tileset...');
-    const createResp = await apiFetch(
-      `/tilesets/v1/${TILESET_ID}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipe,
-          name: 'NYU Buildings',
-          description: 'Building footprints for NYU Manhattan + Brooklyn campuses',
-          private: false,
-        }),
-      },
-    );
-    if (!createResp.ok) {
-      const text = await createResp.text();
-      console.error(`❌ Create failed (${createResp.status}): ${text}`);
-      process.exit(1);
-    }
+  if (createResp.ok) {
     console.log('   ✅ Tileset created');
+  } else {
+    const createText = await createResp.text();
+    if (createResp.status === 400 && createText.includes('already exists')) {
+      // Tileset exists → update recipe instead
+      console.log('   Tileset already exists, updating recipe...');
+      const patchResp = await apiFetch(
+        `/tilesets/v1/${TILESET_ID}/recipe`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(recipe),
+        },
+      );
+      if (!patchResp.ok) {
+        const text = await patchResp.text();
+        console.error(`❌ Recipe update failed (${patchResp.status}): ${text}`);
+        process.exit(1);
+      }
+      console.log('   ✅ Recipe updated');
+    } else {
+      console.error(`❌ Create failed (${createResp.status}): ${createText}`);
+      process.exit(1);
+    }
   }
 }
 

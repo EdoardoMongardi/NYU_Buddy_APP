@@ -68,7 +68,7 @@ interface MatchReport {
   buildingName: string;
   campus: string;
   candidateCount: number;
-  strategy: 'point-in-polygon' | 'nearest-centroid' | 'expanded-search' | 'failed';
+  strategy: 'point-in-polygon' | 'jitter-pip' | 'nearest-centroid' | 'expanded-search' | 'failed';
   confidence: number;
   polygonArea: number;
   warnings: string[];
@@ -156,10 +156,102 @@ async function fetchWithCache(buildingId: string, lat: number, lng: number, radi
 
 interface MatchResult {
   feature: Feature<Polygon | MultiPolygon>;
-  strategy: 'point-in-polygon' | 'nearest-centroid' | 'expanded-search';
+  strategy: 'point-in-polygon' | 'jitter-pip' | 'nearest-centroid' | 'expanded-search';
   confidence: number;
   distance: number;
   area: number;
+}
+
+// At ~40.73° latitude: 1° lat ≈ 111 km, 1° lng ≈ 84 km
+const JITTER_OFFSETS_M = [10, 18]; // conservative radii to avoid adjacent buildings
+const JITTER_DIRS = [
+  [0, 1], [1, 1], [1, 0], [1, -1],
+  [0, -1], [-1, -1], [-1, 0], [-1, 1],
+];
+
+/** Try point-in-polygon at the original point + jittered points around it. */
+function findContaining(
+  candidates: Feature<Polygon | MultiPolygon>[],
+  lat: number,
+  lng: number,
+): { feature: Feature<Polygon | MultiPolygon>; jittered: boolean } | null {
+  // Try original point first
+  const pt0 = point([lng, lat]);
+  const direct = candidates.filter(f => {
+    try { return booleanPointInPolygon(pt0, f as Feature<Polygon>); } catch { return false; }
+  });
+  if (direct.length > 0) {
+    // Multiple containing polygons: pick the one whose centroid is closest
+    // to the original point AND has reasonable area
+    const picked = pickBestForPoint(direct, lat, lng);
+    return { feature: picked, jittered: false };
+  }
+
+  // Jitter: try offset points in 8 directions at increasing radii
+  // Collect ALL unique polygons hit by any jittered point, then pick
+  // the one whose centroid is CLOSEST to the original point.
+  const hitSet = new Map<string, Feature<Polygon | MultiPolygon>>();
+  for (const offsetM of JITTER_OFFSETS_M) {
+    for (const [dx, dy] of JITTER_DIRS) {
+      const dLat = (dy * offsetM) / 111_000;
+      const dLng = (dx * offsetM) / 84_000;
+      const jPt = point([lng + dLng, lat + dLat]);
+      for (const f of candidates) {
+        try {
+          if (booleanPointInPolygon(jPt, f as Feature<Polygon>)) {
+            const key = JSON.stringify(f.geometry.coordinates).slice(0, 100);
+            if (!hitSet.has(key)) hitSet.set(key, f);
+          }
+        } catch { /* skip */ }
+      }
+    }
+  }
+
+  if (hitSet.size > 0) {
+    const hits = Array.from(hitSet.values());
+    const picked = pickBestForPoint(hits, lat, lng);
+    return { feature: picked, jittered: true };
+  }
+
+  return null;
+}
+
+/** Among multiple containing polygons, prefer the one whose centroid is
+ *  closest to the original point, with an area bonus for institutional size.
+ *  This prevents jitter from accidentally selecting a distant large building. */
+function pickBestForPoint(
+  features: Feature<Polygon | MultiPolygon>[],
+  lat: number,
+  lng: number,
+): Feature<Polygon | MultiPolygon> {
+  let best = features[0];
+  let bestScore = -Infinity;
+  for (const f of features) {
+    const a = area(f);
+    if (a < 30) continue; // skip sheds
+    const c = centroid(f);
+    const dist = haversineMeters(lat, lng, c.geometry.coordinates[1], c.geometry.coordinates[0]);
+    // Score: strongly prefer closer centroid, mild preference for institutional area
+    const proximityScore = 1 / (1 + dist / 20); // decays with distance
+    const areaScore = areaDesirability(a);
+    const score = proximityScore * 0.75 + areaScore * 0.25;
+    if (score > bestScore) {
+      bestScore = score;
+      best = f;
+    }
+  }
+  return best;
+}
+
+/** Score how "institutional building"-like an area is.
+ *  Sweet spot: 200–8000 m². Penalise < 50 m² and > 20000 m². */
+function areaDesirability(a: number): number {
+  if (a < 30) return 0;
+  if (a < 100) return 0.3;
+  if (a < 200) return 0.6;
+  if (a <= 8000) return 1.0;
+  if (a <= 15000) return 0.7;
+  return 0.4;
 }
 
 function matchBuilding(
@@ -170,51 +262,49 @@ function matchBuilding(
 ): MatchResult | null {
   if (candidates.length === 0) return null;
 
-  const pt = point([lng, lat]);
-
-  // First: find candidates that CONTAIN the point
-  const containing = candidates.filter(f => {
-    try {
-      return booleanPointInPolygon(pt, f as Feature<Polygon>);
-    } catch {
-      return false;
-    }
-  });
-
-  if (containing.length > 0) {
-    // Pick smallest area (most specific building)
-    let best: Feature<Polygon | MultiPolygon> = containing[0];
-    let bestArea = area(containing[0]);
-    for (let i = 1; i < containing.length; i++) {
-      const a = area(containing[i]);
-      if (a < bestArea) {
-        best = containing[i];
-        bestArea = a;
-      }
-    }
-    const c = centroid(best);
+  // ── 1) Point-in-polygon with jitter ──
+  const pip = findContaining(candidates, lat, lng);
+  if (pip) {
+    const c = centroid(pip.feature);
     const dist = haversineMeters(lat, lng, c.geometry.coordinates[1], c.geometry.coordinates[0]);
+    const a = area(pip.feature);
+    const baseStrategy = strategy === 'expanded-search' ? 'expanded-search' : (pip.jittered ? 'jitter-pip' : 'point-in-polygon');
     return {
-      feature: best,
-      strategy: strategy === 'expanded-search' ? 'expanded-search' : 'point-in-polygon',
-      confidence: strategy === 'expanded-search' ? 0.75 : 0.95,
+      feature: pip.feature,
+      strategy: baseStrategy as MatchResult['strategy'],
+      confidence: pip.jittered ? 0.85 : (strategy === 'expanded-search' ? 0.75 : 0.95),
       distance: dist,
-      area: bestArea,
+      area: a,
     };
   }
 
-  // Fallback: pick nearest centroid
-  let bestDist = Infinity;
+  // ── 2) Area-weighted nearest centroid (skip tiny buildings) ──
+  const MIN_AREA = 40; // skip sheds / garages
+  const MAX_DIST = 80; // only consider buildings within 80m
+  let bestScore = -Infinity;
   let best: Feature<Polygon | MultiPolygon> | null = null;
+  let bestDist = 0;
   let bestArea = 0;
+
   for (const f of candidates) {
     try {
+      const a = area(f);
+      if (a < MIN_AREA) continue;
+
       const c = centroid(f);
       const dist = haversineMeters(lat, lng, c.geometry.coordinates[1], c.geometry.coordinates[0]);
-      if (dist < bestDist) {
-        bestDist = dist;
+      if (dist > MAX_DIST) continue;
+
+      // Score: closer + more institutional area = better
+      const distPenalty = 1 - (dist / MAX_DIST);
+      const areaBonus = areaDesirability(a);
+      const score = distPenalty * 0.5 + areaBonus * 0.5;
+
+      if (score > bestScore) {
+        bestScore = score;
         best = f;
-        bestArea = area(f);
+        bestDist = dist;
+        bestArea = a;
       }
     } catch { /* skip bad geometry */ }
   }
@@ -223,7 +313,7 @@ function matchBuilding(
   return {
     feature: best,
     strategy: strategy === 'expanded-search' ? 'expanded-search' : 'nearest-centroid',
-    confidence: bestDist < 30 ? 0.70 : bestDist < 60 ? 0.50 : 0.30,
+    confidence: bestDist < 25 ? 0.75 : bestDist < 50 ? 0.55 : 0.35,
     distance: bestDist,
     area: bestArea,
   };
