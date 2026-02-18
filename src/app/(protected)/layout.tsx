@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { AnimatePresence } from 'framer-motion';
 
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useMapStatus } from '@/lib/hooks/useMapStatus';
-import Navbar from '@/components/layout/Navbar';
+import BottomTabBar, { TabKey } from '@/components/layout/BottomTabBar';
 import SetStatusSheet from '@/components/map/SetStatusSheet';
 import StatusInfoCard from '@/components/map/StatusInfoCard';
+import ManageActivityTab from '@/components/activity/ManageActivityTab';
+import InstantMatchTab from '@/components/matching/InstantMatchTab';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
 
 // Dynamic import — SSR-safe, only loads mapbox-gl on client
@@ -33,8 +35,20 @@ export default function ProtectedLayout({
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
 
+  // ── PWA standalone detection ──
+  const [isPWA, setIsPWA] = useState(false);
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    setIsPWA(standalone);
+  }, []);
+
+  // ── Tab state ──
+  const [activeTab, setActiveTab] = useState<TabKey>('home');
+
   // ── Map singleton state ──
-  const isMapVisible = pathname === '/map';
+  const isMapVisible = activeTab === 'map';
   const [selectedStatus, setSelectedStatus] = useState<MapStatusNearby | null>(null);
   const {
     statuses,
@@ -90,9 +104,37 @@ export default function ProtectedLayout({
     setIsChecking(false);
   }, [user, userProfile, loading, router, pathname]);
 
+  // ── Handle tab changes ──
+  const handleTabChange = (tab: TabKey) => {
+    if (tab === 'settings') {
+      router.push('/profile');
+      return;
+    }
+    // If on a sub-page (post detail, match, profile, etc.), navigate back to root
+    if (pathname !== '/') {
+      router.push('/');
+    }
+    setActiveTab(tab);
+  };
+
+  // Sync: when navigating to /profile, highlight settings tab
+  useEffect(() => {
+    if (pathname === '/profile') {
+      setActiveTab('settings');
+    } else if (pathname === '/') {
+      // Stay on whatever tab was last selected, don't force home
+    }
+  }, [pathname]);
+
+  // Is user on a sub-page (post detail, match, feedback, etc.)?
+  const isSubPage = pathname !== '/' && pathname !== '/onboarding';
+
+  // Is user on the root page? (where we show tab content)
+  const isRootPage = pathname === '/';
+
   if (loading || isChecking) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-[#f2f2f7]">
+      <div className="fixed inset-0 flex items-center justify-center bg-white">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-violet-500 mx-auto" />
           <p className="mt-2 text-gray-400 text-sm">Loading...</p>
@@ -103,27 +145,9 @@ export default function ProtectedLayout({
 
   return (
     <div
-      className="fixed inset-0 bg-[#f2f2f7] flex flex-col overflow-hidden"
+      className="fixed inset-0 bg-white flex flex-col overflow-hidden"
       style={{ overscrollBehavior: 'none' }}
     >
-      {/* Subtle top gradient — hidden when map is visible */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-72 z-0"
-        style={{
-          display: isMapVisible ? 'none' : undefined,
-          background: 'linear-gradient(180deg, rgba(120, 90, 220, 0.045) 0%, rgba(120, 90, 220, 0.015) 40%, transparent 100%)',
-        }}
-        aria-hidden="true"
-      />
-
-      {/* Navbar — hidden when map is visible */}
-      <div
-        style={{ display: isMapVisible ? 'none' : undefined }}
-        className="shrink-0 relative z-10"
-      >
-        <Navbar />
-      </div>
-
       {/* ── Persistent Map Layer (always in DOM, CSS toggled) ── */}
       <div
         style={{ display: isMapVisible ? 'block' : 'none' }}
@@ -159,21 +183,12 @@ export default function ProtectedLayout({
           )}
         </AnimatePresence>
 
-        {/* Back button */}
-        <button
-          onClick={() => {
-            setSelectedStatus(null);
-            router.back();
-          }}
-          className="fixed left-4 z-[9999] p-2.5 rounded-full bg-white/90 backdrop-blur-sm shadow-md hover:bg-white transition-colors"
-          style={{ top: 'calc(env(safe-area-inset-top, 12px) + 56px)' }}
+        {/* Bottom status panel — positioned above the bottom tab bar */}
+        <div
+          className="fixed left-0 right-0 z-[9999] pointer-events-none"
+          style={{ bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))' }}
         >
-          <ArrowLeft className="w-5 h-5 text-gray-700" />
-        </button>
-
-        {/* Bottom status panel */}
-        <div className="fixed bottom-0 left-0 right-0 z-[9999] pointer-events-none">
-          <div className="px-4 pb-[env(safe-area-inset-bottom,16px)]">
+          <div className="px-4 pb-2 md:pb-4 md:ml-[220px]">
             <div className="pointer-events-auto bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-gray-200/50 p-3">
               <SetStatusSheet
                 myStatus={myStatus}
@@ -186,13 +201,27 @@ export default function ProtectedLayout({
         </div>
       </div>
 
-      {/* ── Main content area (hidden when map is visible) ── */}
+      {/* ── Main content area ── */}
       <main
         style={{ display: isMapVisible ? 'none' : undefined }}
-        className="flex-1 min-h-0 overflow-auto relative z-10 px-5 pt-2 pb-[env(safe-area-inset-bottom)]"
+        className="flex-1 min-h-0 overflow-auto relative z-10 pb-[calc(52px+env(safe-area-inset-bottom,0px))] md:pb-0 md:pl-[220px]"
       >
-        {children}
+        {/* If on root page, render tab content */}
+        {isRootPage && activeTab === 'home' && children}
+        {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
+        {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
+
+        {/* If on a sub-page, render the route children normally */}
+        {isSubPage && children}
       </main>
+
+      {/* ── Tab Bar (always visible, except on onboarding) ── */}
+      {pathname !== '/onboarding' && (
+        <BottomTabBar
+          activeTab={isSubPage && pathname !== '/profile' ? 'home' : activeTab}
+          onTabChange={handleTabChange}
+        />
+      )}
     </div>
   );
 }
