@@ -21,7 +21,7 @@ export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
   const { pendingMatches } = usePendingConfirmations();
 
   // ── PWA standalone detection ──
