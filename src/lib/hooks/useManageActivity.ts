@@ -29,7 +29,7 @@ export function useManageActivity() {
         try {
             setLoadingPosts(true);
             setError(null);
-            const res = await activityPostGetMine({ status: null });
+            const res = await activityPostGetMine({});
             setMyPosts(res.data.posts);
         } catch (err) {
             console.error('[useManageActivity] Error fetching my posts:', err);
@@ -43,7 +43,7 @@ export function useManageActivity() {
         try {
             setLoadingJoined(true);
             setError(null);
-            const res = await joinRequestGetMine({ status: null });
+            const res = await joinRequestGetMine({});
             const requests = res.data.requests;
 
             // Initialize with loading state

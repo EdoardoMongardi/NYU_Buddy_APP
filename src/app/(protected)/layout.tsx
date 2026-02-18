@@ -188,7 +188,7 @@ export default function ProtectedLayout({
           className="fixed left-0 right-0 z-[9999] pointer-events-none"
           style={{ bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))' }}
         >
-          <div className="px-4 pb-2 md:pb-4 md:ml-[220px]">
+          <div className="px-4 pb-2 md:pb-4 md:max-w-[600px] md:mx-auto">
             <div className="pointer-events-auto bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-gray-200/50 p-3">
               <SetStatusSheet
                 myStatus={myStatus}
@@ -204,15 +204,17 @@ export default function ProtectedLayout({
       {/* ── Main content area ── */}
       <main
         style={{ display: isMapVisible ? 'none' : undefined }}
-        className="flex-1 min-h-0 overflow-auto relative z-10 pb-[calc(52px+env(safe-area-inset-bottom,0px))] md:pb-0 md:pl-[220px]"
+        className="flex-1 min-h-0 overflow-auto relative z-10 pb-[calc(49px+env(safe-area-inset-bottom,0px))] md:pb-0"
       >
-        {/* If on root page, render tab content */}
-        {isRootPage && activeTab === 'home' && children}
-        {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
-        {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
+        <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
+          {/* If on root page, render tab content */}
+          {isRootPage && activeTab === 'home' && children}
+          {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
+          {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
 
-        {/* If on a sub-page, render the route children normally */}
-        {isSubPage && children}
+          {/* If on a sub-page, render the route children normally */}
+          {isSubPage && children}
+        </div>
       </main>
 
       {/* ── Tab Bar (always visible, except on onboarding) ── */}

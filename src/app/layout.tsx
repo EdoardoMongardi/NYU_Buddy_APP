@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   title: "NYU Buddy",
   description: "Find your study buddy at NYU",
   manifest: "/manifest.json?v=2",
+  themeColor: "#ffffff",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

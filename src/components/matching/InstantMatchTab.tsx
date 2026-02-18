@@ -86,8 +86,13 @@ export default function InstantMatchTab({ isPWA }: InstantMatchTabProps) {
                 <MatchOverlay matchId={showMatchOverlay} currentUserId={user.uid} currentUserPhoto={userProfile?.photoURL} onComplete={handleMatchOverlayComplete} isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)} />
             )}
 
+            {/* Header */}
+            <div className="shrink-0 pt-2 pb-1">
+                <h2 className="text-[20px] font-bold text-gray-900">Instant Match</h2>
+            </div>
+
             {/* Availability sheet */}
-            <div className="shrink-0 mt-2">
+            <div className="shrink-0 mt-1">
                 <AvailabilitySheet isPWA={isPWA} />
             </div>
 

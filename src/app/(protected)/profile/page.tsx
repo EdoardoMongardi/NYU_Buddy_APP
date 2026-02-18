@@ -202,15 +202,7 @@ export default function ProfilePage() {
     return (
         <div className="max-w-md mx-auto py-6 space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => router.back()}
-                    className="rounded-full"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                </Button>
+            <div className="flex items-center gap-4 mb-6 px-1">
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
                     Edit Profile
                 </h1>
