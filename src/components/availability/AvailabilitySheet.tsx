@@ -200,7 +200,7 @@ export default function AvailabilitySheet({ isPWA = false }: { isPWA?: boolean }
         </Button>
       </SheetTrigger>
 
-      <SheetContent side="bottom" className="rounded-t-3xl">
+      <SheetContent side="bottom" className="rounded-t-3xl md:max-w-[600px] md:left-1/2 md:-translate-x-1/2 md:border-x md:border-gray-200">
         <SheetHeader className="text-left">
           <SheetTitle>Set Your Availability</SheetTitle>
           <SheetDescription>
