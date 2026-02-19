@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { doc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { Loader2, User, Heart, Coffee, ArrowLeft, Save, Trash2, Shield, LogOut } from 'lucide-react';
+import { Loader2, User, Heart, Coffee, Save, Trash2, Shield, LogOut } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
