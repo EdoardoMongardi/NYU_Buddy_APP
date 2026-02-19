@@ -47,7 +47,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
             >
                 <div
                     className="flex items-center justify-around"
-                    style={{ height: '44px' }}
+                    style={{ height: '48px', paddingTop: '2px', paddingBottom: '2px' }}
                 >
                     {TABS.map((tab) => {
                         const isActive = activeTab === tab.key;
@@ -67,8 +67,6 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                         );
                     })}
                 </div>
-                {/* Small padding below icons before safe area, matching X */}
-                <div style={{ height: '4px' }} />
                 {/* Safe area spacer for iPhone home indicator */}
                 <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
             </nav>
