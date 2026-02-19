@@ -406,38 +406,29 @@ export default function ProfilePage() {
                     </TabsContent>
                 </Tabs>
 
-                {/* Footer Actions */}
-                <motion.div
-                    className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-gray-200"
-                    initial={{ y: 100 }}
-                    animate={{ y: 0 }}
-                >
-                    <div className="max-w-md mx-auto flex gap-3">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => router.back()}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            className="flex-[2] bg-gradient-to-r from-violet-600 to-purple-600"
-                            disabled={isLoading || (!isDirty && !hasPhotoChanges)}
-                        >
-                            {isLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : (
-                                <Save className="h-4 w-4 mr-2" />
-                            )}
-                            Save Changes
-                        </Button>
-                    </div>
-                </motion.div>
-
-                {/* Spacer for fixed footer */}
-                <div className="h-24" />
+                {/* Footer Actions (Static) */}
+                <div className="mt-8 pt-6 border-t border-gray-100 flex gap-3 pb-8">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => router.back()}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        className="flex-[2] bg-gradient-to-r from-violet-600 to-purple-600"
+                        disabled={isLoading || (!isDirty && !hasPhotoChanges)}
+                    >
+                        {isLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                            <Save className="h-4 w-4 mr-2" />
+                        )}
+                        Save Changes
+                    </Button>
+                </div>
             </form>
         </div>
     );

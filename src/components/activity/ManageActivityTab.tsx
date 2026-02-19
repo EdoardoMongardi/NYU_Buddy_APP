@@ -14,6 +14,7 @@ import {
     FileText,
     UserPlus,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useManageActivity, JoinedActivity } from '@/lib/hooks/useManageActivity';
 import { CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
 import { FeedPost } from '@/lib/firebase/functions';
@@ -237,50 +238,53 @@ export default function ManageActivityTab() {
 
     return (
         <div
-            className="max-w-md mx-auto h-full overflow-hidden flex flex-col px-5"
+            className="max-w-md mx-auto h-full overflow-hidden flex flex-col"
             style={{ overscrollBehavior: 'none' }}
         >
-            {/* Section header */}
-            <div className="shrink-0 pt-4 pb-2">
-                <h2 className="text-[20px] font-bold text-gray-900 mb-3">Manage Activity</h2>
+            {/* ── Manage Activity Header (X-style tabs) ── */}
+            <div className="shrink-0 pt-3 bg-white border-b border-gray-100">
+                <h2 className="text-[20px] font-bold text-gray-900 mb-2 px-5">Manage Activity</h2>
 
-                {/* Segmented control */}
-                <div className="flex bg-gray-100/80 rounded-xl p-1">
+                {/* Tabs */}
+                <div className="flex relative">
                     <button
                         onClick={() => setActiveSection('my-posts')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-medium transition-all ${activeSection === 'my-posts'
-                            ? 'bg-white text-gray-900 shadow-sm'
-                            : 'text-gray-400'
+                        className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'my-posts' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
-                        <FileText className="w-4 h-4" />
-                        My Posts
+                        <span>My Posts</span>
                         {myPosts.length > 0 && (
-                            <span className="min-w-[18px] h-[18px] flex items-center justify-center bg-violet-100 text-violet-600 text-[10px] font-bold rounded-full px-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeSection === 'my-posts' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500'}`}>
                                 {myPosts.length}
                             </span>
                         )}
                     </button>
                     <button
                         onClick={() => setActiveSection('joined')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-medium transition-all ${activeSection === 'joined'
-                            ? 'bg-white text-gray-900 shadow-sm'
-                            : 'text-gray-400'
+                        className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'joined' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
-                        <UserPlus className="w-4 h-4" />
-                        Joined
+                        <span>Joined</span>
                         {joinedActivities.length > 0 && (
-                            <span className="min-w-[18px] h-[18px] flex items-center justify-center bg-violet-100 text-violet-600 text-[10px] font-bold rounded-full px-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeSection === 'joined' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500'}`}>
                                 {joinedActivities.length}
                             </span>
                         )}
                     </button>
+                    {/* Animated underline indicator */}
+                    <motion.div
+                        className="absolute bottom-0 h-[3px] bg-violet-600 rounded-full"
+                        animate={{
+                            left: activeSection === 'my-posts' ? '0%' : '50%',
+                            width: '50%',
+                        }}
+                        transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+                    />
                 </div>
             </div>
 
             {/* Content area */}
-            <div className="flex-1 overflow-y-auto min-h-0 pb-20">
+            <div className="flex-1 overflow-y-auto min-h-0 pb-20 px-5 pt-3">
                 {/* Refresh */}
                 <div className="flex justify-center my-3">
                     <button
