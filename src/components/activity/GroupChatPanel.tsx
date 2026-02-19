@@ -8,9 +8,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface GroupChatPanelProps {
   groupId: string;
+  fullScreen?: boolean;
 }
 
-export default function GroupChatPanel({ groupId }: GroupChatPanelProps) {
+export default function GroupChatPanel({ groupId, fullScreen = false }: GroupChatPanelProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const { messages, loading, error, sendMessage, sending } = useGroupChat(groupId);
@@ -49,15 +50,27 @@ export default function GroupChatPanel({ groupId }: GroupChatPanelProps) {
   };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl mt-4 overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-900">Group Chat</h3>
-      </div>
+    <div
+      className={
+        fullScreen
+          ? 'flex flex-col h-full bg-white'
+          : 'bg-white border border-gray-100 rounded-2xl mt-4 overflow-hidden'
+      }
+    >
+      {!fullScreen && (
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-900">Group Chat</h3>
+        </div>
+      )}
 
       {/* Messages */}
       <div
         ref={containerRef}
-        className="h-[300px] overflow-y-auto px-4 py-3 space-y-2"
+        className={
+          fullScreen
+            ? 'flex-1 overflow-y-auto px-4 py-3 space-y-2'
+            : 'h-[300px] overflow-y-auto px-4 py-3 space-y-2'
+        }
       >
         {loading ? (
           <div className="flex items-center justify-center py-8">
@@ -96,11 +109,10 @@ export default function GroupChatPanel({ groupId }: GroupChatPanelProps) {
                     </p>
                   )}
                   <div
-                    className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                      isOwn
-                        ? 'bg-violet-600 text-white rounded-br-md'
-                        : 'bg-gray-100 text-gray-800 rounded-bl-md'
-                    }`}
+                    className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${isOwn
+                      ? 'bg-violet-600 text-white rounded-br-md'
+                      : 'bg-gray-100 text-gray-800 rounded-bl-md'
+                      }`}
                   >
                     {msg.body}
                   </div>
@@ -125,11 +137,10 @@ export default function GroupChatPanel({ groupId }: GroupChatPanelProps) {
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-            input.trim() && !sending
-              ? 'bg-violet-600 text-white hover:bg-violet-700'
-              : 'bg-gray-100 text-gray-400'
-          }`}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${input.trim() && !sending
+            ? 'bg-violet-600 text-white hover:bg-violet-700'
+            : 'bg-gray-100 text-gray-400'
+            }`}
         >
           {sending ? (
             <Loader2 className="w-4 h-4 animate-spin" />

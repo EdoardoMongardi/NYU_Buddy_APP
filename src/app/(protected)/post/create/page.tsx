@@ -63,7 +63,7 @@ export default function CreatePostPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto pb-8">
+    <div className="max-w-md mx-auto pb-8 px-5">
       {/* Header */}
       <div className="flex items-center gap-3 py-3">
         <button
@@ -104,11 +104,10 @@ export default function CreatePostPage() {
               <button
                 key={cat}
                 onClick={() => setCategory(cat)}
-                className={`py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-                  category === cat
+                className={`py-2.5 rounded-xl text-[13px] font-medium transition-all ${category === cat
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 {CATEGORY_LABELS[cat]}
               </button>
@@ -126,11 +125,10 @@ export default function CreatePostPage() {
               <button
                 key={n}
                 onClick={() => setMaxParticipants(n)}
-                className={`flex-1 py-2.5 rounded-xl text-[14px] font-medium transition-all ${
-                  maxParticipants === n
+                className={`flex-1 py-2.5 rounded-xl text-[14px] font-medium transition-all ${maxParticipants === n
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 {n}
               </button>
@@ -148,11 +146,10 @@ export default function CreatePostPage() {
               <button
                 key={hrs}
                 onClick={() => setDuration(hrs)}
-                className={`py-2.5 rounded-xl text-[13px] font-medium transition-all ${
-                  duration === hrs
+                className={`py-2.5 rounded-xl text-[13px] font-medium transition-all ${duration === hrs
                     ? 'bg-violet-600 text-white shadow-sm'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 {DURATION_LABELS[hrs]}
               </button>
@@ -181,11 +178,10 @@ export default function CreatePostPage() {
         <button
           onClick={handleSubmit}
           disabled={!isValid || submitting}
-          className={`w-full py-3.5 rounded-xl text-[15px] font-semibold transition-all ${
-            isValid && !submitting
+          className={`w-full py-3.5 rounded-xl text-[15px] font-semibold transition-all ${isValid && !submitting
               ? 'bg-violet-600 text-white hover:bg-violet-700 active:scale-[0.98] shadow-sm'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-          }`}
+            }`}
         >
           {submitting ? (
             <span className="flex items-center justify-center gap-2">

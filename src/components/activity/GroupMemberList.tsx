@@ -102,7 +102,7 @@ export default function GroupMemberList({
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4 mt-4">
+    <div className="bg-white border border-gray-100 rounded-2xl p-4">
       <h3 className="text-sm font-semibold text-gray-900 mb-3">
         Members ({group.memberCount})
       </h3>

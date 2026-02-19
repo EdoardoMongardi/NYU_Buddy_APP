@@ -51,10 +51,10 @@ export function PlaceCard({
         return (
             <div
                 className={`rounded-xl border-2 p-3 transition-all ${isSelected
-                        ? 'border-green-500 bg-green-50'
-                        : isOtherChoice
-                            ? 'border-orange-300 bg-orange-50'
-                            : 'border-gray-200 bg-white'
+                    ? 'border-green-500 bg-green-50'
+                    : isOtherChoice
+                        ? 'border-orange-300 bg-orange-50'
+                        : 'border-gray-200 bg-white'
                     }`}
             >
                 <div className="flex items-start gap-2">
@@ -82,9 +82,9 @@ export function PlaceCard({
                         onClick={onSelect}
                         disabled={isLoading}
                         size="sm"
-                        className="w-full mt-2 h-7 text-[10px] bg-orange-500 hover:bg-orange-600"
+                        className="w-full mt-1.5 h-6 text-[9px] bg-orange-500 hover:bg-orange-600 py-0"
                     >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Go with this'}
+                        {isLoading ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Go with this'}
                     </Button>
                 )}
             </div>

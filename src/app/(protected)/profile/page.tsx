@@ -199,7 +199,7 @@ export default function ProfilePage() {
     const displayPhotoURL = removePhoto ? null : (imagePreview || userProfile.photoURL);
 
     return (
-        <div className="max-w-md mx-auto py-6 space-y-6">
+        <div className="max-w-md mx-auto py-6 space-y-6 px-5">
             {/* Header */}
             <div className="flex items-center gap-4 mb-6 px-1">
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
