@@ -167,9 +167,10 @@ export default function PostDetailPage() {
         top: 'var(--vv-offset-top, 0px)',
         height: isKbOpen
           ? 'var(--vvh, 100dvh)'
-          : 'calc(var(--vvh, 100dvh) - env(safe-area-inset-bottom, 0px))',
-        // Depending on existing layout padding, we might need to adjust height calculation
-        // but for now, assuming standard full viewport usage
+          : 'calc(var(--vvh, 100dvh) - 48px - env(safe-area-inset-bottom, 0px))',
+        transitionProperty: 'height',
+        transitionDuration: 'var(--vvh-duration, 0ms)',
+        transitionTimingFunction: 'ease-out',
       }}
     >
       {/* Compact Header for Chat Mode */}
@@ -221,7 +222,7 @@ export default function PostDetailPage() {
 
       {/* Members Overlay */}
       {showMembers && (
-        <div className="fixed inset-0 z-[60] bg-white flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
+        <div className="absolute inset-0 z-[60] bg-white flex flex-col animate-in fade-in slide-in-from-bottom duration-200">
           {/* Overlay Header */}
           <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
             <h2 className="text-lg font-bold text-gray-900">Members</h2>

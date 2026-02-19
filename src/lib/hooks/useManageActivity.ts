@@ -18,31 +18,70 @@ export interface JoinedActivity {
     loading: boolean;
 }
 
+export interface IncomingRequestGroup {
+    post: FeedPost;
+    requests: JoinRequestInfo[];
+}
+
 export function useManageActivity() {
     const [myPosts, setMyPosts] = useState<FeedPost[]>([]);
     const [joinedActivities, setJoinedActivities] = useState<JoinedActivity[]>([]);
+    const [incomingRequests, setIncomingRequests] = useState<IncomingRequestGroup[]>([]);
+
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [loadingJoined, setLoadingJoined] = useState(true);
+    const [loadingRequests, setLoadingRequests] = useState(true);
+
     const [error, setError] = useState<string | null>(null);
 
-    const fetchMyPosts = useCallback(async () => {
+    const fetchMyPostsAndRequests = useCallback(async () => {
         try {
             setLoadingPosts(true);
+            setLoadingRequests(true);
             setError(null);
+
+            // 1. Fetch my posts
             const res = await activityPostGetMine({});
-            setMyPosts(res.data.posts);
+            const posts = res.data.posts;
+            setMyPosts(posts);
+            setLoadingPosts(false); // Posts are ready
+
+            // 2. Fetch requests for each post (parallel)
+            // Only fetch for open posts or those that might have pending requests
+            // For simplicity, we check all non-expired posts or just all posts
+            const requestGroups: IncomingRequestGroup[] = [];
+
+            await Promise.all(posts.map(async (post) => {
+                try {
+                    // Skip if post is hopelessly old/closed? No, user might still want to see.
+                    const detailRes = await activityPostGetById({ postId: post.postId });
+                    const pending = detailRes.data.joinRequests?.filter(r => r.status === 'pending') || [];
+
+                    if (pending.length > 0) {
+                        requestGroups.push({ post, requests: pending });
+                    }
+                } catch (e) {
+                    console.warn(`Failed to fetch details for post ${post.postId}`, e);
+                }
+            }));
+
+            setIncomingRequests(requestGroups);
         } catch (err) {
-            console.error('[useManageActivity] Error fetching my posts:', err);
+            console.error('[useManageActivity] Error fetching my posts/requests:', err);
             setError(err instanceof Error ? err.message : 'Failed to load your posts');
-        } finally {
             setLoadingPosts(false);
+        } finally {
+            setLoadingRequests(false);
         }
     }, []);
 
     const fetchJoinedActivities = useCallback(async () => {
         try {
             setLoadingJoined(true);
-            setError(null);
+            // Don't reset error here if we want to preserve previous error? 
+            // Better to clear it if retry.
+            // setError(null); 
+
             const res = await joinRequestGetMine({});
             const requests = res.data.requests;
 
@@ -86,8 +125,9 @@ export function useManageActivity() {
     }, []);
 
     const refresh = useCallback(async () => {
-        await Promise.all([fetchMyPosts(), fetchJoinedActivities()]);
-    }, [fetchMyPosts, fetchJoinedActivities]);
+        setError(null);
+        await Promise.all([fetchMyPostsAndRequests(), fetchJoinedActivities()]);
+    }, [fetchMyPostsAndRequests, fetchJoinedActivities]);
 
     useEffect(() => {
         refresh();
@@ -96,11 +136,13 @@ export function useManageActivity() {
     return {
         myPosts,
         joinedActivities,
+        incomingRequests,
         loadingPosts,
         loadingJoined,
+        loadingRequests,
         error,
         refresh,
-        refreshPosts: fetchMyPosts,
+        refreshPosts: fetchMyPostsAndRequests,
         refreshJoined: fetchJoinedActivities,
     };
 }

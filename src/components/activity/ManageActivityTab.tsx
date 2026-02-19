@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import JoinRequestInbox from '@/components/activity/JoinRequestInbox';
 import {
     Loader2,
     RefreshCw,
@@ -14,6 +15,7 @@ import {
     X,
     FileText,
     UserPlus,
+    Inbox,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useManageActivity, JoinedActivity } from '@/lib/hooks/useManageActivity';
@@ -222,17 +224,24 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
 //  ManageActivityTab
 // ─────────────────────────────────────────────────
 export default function ManageActivityTab() {
-    const [activeSection, setActiveSection] = useState<'my-posts' | 'joined'>('my-posts');
+    const [activeSection, setActiveSection] = useState<'my-posts' | 'joined' | 'requests'>('my-posts');
     const {
         myPosts,
         joinedActivities,
+        incomingRequests,
         loadingPosts,
         loadingJoined,
+        loadingRequests,
         error,
         refresh,
     } = useManageActivity();
 
-    const isLoading = activeSection === 'my-posts' ? loadingPosts : loadingJoined;
+    const isLoading =
+        activeSection === 'my-posts' ? loadingPosts :
+            activeSection === 'joined' ? loadingJoined : loadingRequests;
+
+    // Calculate total incoming requests count
+    const totalRequests = incomingRequests.reduce((acc, g) => acc + g.requests.length, 0);
 
     return (
         <div
@@ -247,7 +256,7 @@ export default function ManageActivityTab() {
                 <div className="flex relative">
                     <button
                         onClick={() => setActiveSection('my-posts')}
-                        className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'my-posts' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'my-posts' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
                         <span>My Posts</span>
@@ -259,7 +268,7 @@ export default function ManageActivityTab() {
                     </button>
                     <button
                         onClick={() => setActiveSection('joined')}
-                        className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'joined' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'joined' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
                         <span>Joined</span>
@@ -269,12 +278,25 @@ export default function ManageActivityTab() {
                             </span>
                         )}
                     </button>
+                    <button
+                        onClick={() => setActiveSection('requests')}
+                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'requests' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                            }`}
+                    >
+                        <span>Requests</span>
+                        {totalRequests > 0 && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeSection === 'requests' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
+                                {totalRequests}
+                            </span>
+                        )}
+                    </button>
+
                     {/* Animated underline indicator */}
                     <motion.div
                         className="absolute bottom-0 h-[3px] bg-violet-600 rounded-full"
                         animate={{
-                            left: activeSection === 'my-posts' ? '0%' : '50%',
-                            width: '50%',
+                            left: activeSection === 'my-posts' ? '0%' : activeSection === 'joined' ? '33.33%' : '66.66%',
+                            width: '33.33%',
                         }}
                         transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
                     />
@@ -353,6 +375,61 @@ export default function ManageActivityTab() {
                             {joinedActivities.map((item) => (
                                 <JoinedActivityCard key={item.request.requestId} item={item} />
                             ))}
+                        </div>
+                    </>
+                )}
+
+                {/* Requests Section */}
+                {activeSection === 'requests' && (
+                    <>
+                        {loadingRequests && incomingRequests.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                                <Loader2 className="w-8 h-8 animate-spin mb-3" />
+                                <p className="text-sm">Checking for requests...</p>
+                            </div>
+                        )}
+
+                        {!loadingRequests && incomingRequests.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                                <Inbox className="w-10 h-10 mb-3 text-gray-300" />
+                                <p className="text-lg font-medium text-gray-600 mb-1">No pending requests</p>
+                                <p className="text-sm text-gray-400">You&apos;re all caught up!</p>
+                            </div>
+                        )}
+
+                        <div className="space-y-4 px-0.5">
+                            {incomingRequests.map((group) => {
+                                const categoryColor = CATEGORY_COLORS[group.post.category] || CATEGORY_COLORS.other;
+                                const categoryLabel = CATEGORY_LABELS[group.post.category as ActivityCategory] || group.post.category;
+
+                                return (
+                                    <div key={group.post.postId} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                                        {/* Post Summary Header */}
+                                        <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
+                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide flex-shrink-0 ${categoryColor}`}>
+                                                    {categoryLabel}
+                                                </span>
+                                                <span className="text-sm text-gray-600 truncate font-medium">
+                                                    {group.post.body}
+                                                </span>
+                                            </div>
+                                            <span className="text-[11px] text-gray-400 flex-shrink-0 ml-2">
+                                                {timeAgo(group.post.createdAt)}
+                                            </span>
+                                        </div>
+
+                                        {/* Request Inbox Component (reusing existing) */}
+                                        <div className="p-1">
+                                            <JoinRequestInbox
+                                                postId={group.post.postId}
+                                                requests={group.requests}
+                                                onRefresh={refresh}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </>
                 )}
