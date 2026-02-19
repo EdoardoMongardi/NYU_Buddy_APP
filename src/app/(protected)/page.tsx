@@ -161,11 +161,11 @@ export default function HomePage() {
 
       {/* ── HEADER GROUP (Sticky/Animated) ── */}
       <div
-        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
+        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
         style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
       >
         {/* Row 1: Title + Action Icons */}
-        <div className={`flex items-center justify-between px-5 ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
+        <div className={`flex items-center justify-between px-4 ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">NYU Buddy</h1>
 
           {/* Notification / Install bubble */}
@@ -244,7 +244,7 @@ export default function HomePage() {
         )}
 
         {/* Row 3: Category Filters */}
-        <div className="py-2 px-4 shadow-sm">
+        <div className="py-2 px-4">
           <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
         </div>
       </div>
@@ -253,7 +253,7 @@ export default function HomePage() {
       {/* Padding top adjusted for header height ≈ 150px */}
       <div
         className="flex-1 w-full"
-        style={{ paddingTop: '150px' }}
+        style={{ paddingTop: '140px' }}
       >
         {!emailVerified ? (
           <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">
