@@ -5,6 +5,7 @@ import { FeedPost } from '@/lib/firebase/functions';
 import { CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
 
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+import FeedVideoPlayer from './FeedVideoPlayer';
 
 const CATEGORY_COLORS: Record<string, string> = {
   coffee: 'text-amber-600 bg-amber-50 border-amber-100',
@@ -160,11 +161,9 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
         {hasMedia && (
           <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-black min-h-[200px] max-h-[600px] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             {isVideoMedia ? (
-              <video
+              <FeedVideoPlayer
                 src={post.imageUrl!}
-                controls
-                className="w-full h-full max-h-[600px] object-contain"
-                onClick={(e) => e.stopPropagation()}
+                className="w-full h-full max-h-[600px]"
               />
             ) : (
               <img
