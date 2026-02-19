@@ -49,6 +49,12 @@ export default function HomePage() {
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
 
+    // Disable scroll-hide on desktop (md breakpoint)
+    if (window.matchMedia('(min-width: 768px)').matches) {
+      if (!showHeader) setShowHeader(true);
+      return;
+    }
+
     const currentScrollY = scrollContainerRef.current.scrollTop;
 
     // Threshold to avoid jitter
@@ -153,7 +159,7 @@ export default function HomePage() {
 
       {/* ── HEADER GROUP (Sticky/Animated) ── */}
       <div
-        className={`absolute top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col`}
+        className={`absolute top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
         style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
       >
         {/* Row 1: Title + Action Icons */}

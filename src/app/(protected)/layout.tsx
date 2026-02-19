@@ -210,7 +210,7 @@ export default function ProtectedLayout({
           style={{ display: isMapVisible ? 'none' : undefined }}
           className="flex-1 min-h-0 overflow-hidden relative z-10 pb-[calc(48px+env(safe-area-inset-bottom,0px))] md:pb-0"
         >
-          <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
+          <div className="h-full md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
             {/* If on root page, render tab content */}
             {isRootPage && activeTab === 'home' && children}
             {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
