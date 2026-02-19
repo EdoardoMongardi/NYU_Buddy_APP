@@ -206,7 +206,7 @@ export default function ProtectedLayout({
       {/* ── Main content area ── */}
       <main
         style={{ display: isMapVisible ? 'none' : undefined }}
-        className="flex-1 min-h-0 overflow-auto relative z-10 pb-[calc(44px+env(safe-area-inset-bottom,0px))] md:pb-0"
+        className="flex-1 min-h-0 overflow-auto relative z-10 pb-[calc(48px+env(safe-area-inset-bottom,0px))] md:pb-0"
       >
         <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
           {/* If on root page, render tab content */}

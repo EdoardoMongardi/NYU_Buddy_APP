@@ -67,6 +67,8 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                         );
                     })}
                 </div>
+                {/* Small padding below icons before safe area, matching X */}
+                <div style={{ height: '4px' }} />
                 {/* Safe area spacer for iPhone home indicator */}
                 <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
             </nav>
@@ -96,8 +98,8 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                                 key={tab.key}
                                 onClick={() => onTabChange(tab.key)}
                                 className={`relative flex items-center gap-3 px-4 py-3 rounded-full text-[15px] transition-colors ${isActive
-                                        ? 'text-gray-900 font-bold'
-                                        : 'text-gray-600 hover:bg-gray-50 font-medium'
+                                    ? 'text-gray-900 font-bold'
+                                    : 'text-gray-600 hover:bg-gray-50 font-medium'
                                     }`}
                             >
                                 <Icon
