@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Download, X, Users } from 'lucide-react';
 
 import ActivityFeed from '@/components/activity/ActivityFeed';
+import CategoryFilter from '@/components/activity/CategoryFilter';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePendingConfirmations } from '@/lib/hooks/usePendingConfirmations';
 import { useNotifications } from '@/lib/hooks/useNotifications';
@@ -16,6 +17,8 @@ import IOSSafariPrompt from '@/components/installation/IOSSafariPrompt';
 import { getIOSBrowserName } from '@/lib/utils/platform';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useActivityFeed } from '@/lib/hooks/useActivityFeed';
+import { useNav } from '@/context/NavContext';
 
 export default function HomePage() {
   const router = useRouter();
@@ -23,6 +26,46 @@ export default function HomePage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pendingMatches } = usePendingConfirmations();
+  const { setNavVisible } = useNav();
+
+  // ── Activity Feed State ──
+  const {
+    posts,
+    loading,
+    error,
+    loadingMore,
+    hasMore,
+    refresh,
+    loadMore,
+    categoryFilter,
+    setCategory,
+  } = useActivityFeed();
+
+  // ── Scroll & Header Visibility ──
+  const [showHeader, setShowHeader] = useState(true);
+  const lastScrollY = useRef(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+
+    const currentScrollY = scrollContainerRef.current.scrollTop;
+
+    // Threshold to avoid jitter
+    if (Math.abs(currentScrollY - lastScrollY.current) < 10) return;
+
+    if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+      // Scrolling Down -> Hide
+      setShowHeader(false);
+      setNavVisible(false);
+    } else if (currentScrollY < lastScrollY.current) {
+      // Scrolling Up -> Show
+      setShowHeader(true);
+      setNavVisible(true);
+    }
+
+    lastScrollY.current = currentScrollY;
+  };
 
   // ── PWA standalone detection ──
   const [isPWA, setIsPWA] = useState(false);
@@ -101,16 +144,19 @@ export default function HomePage() {
 
   return (
     <div
-      className="max-w-md mx-auto h-full overflow-hidden flex flex-col"
-      style={{ overscrollBehavior: 'none', touchAction: 'manipulation' }}
+      className="max-w-md mx-auto h-full overflow-hidden flex flex-col relative bg-white"
     >
       {/* DidYouMeet dialog */}
       {pendingMatches.length > 0 && (
         <DidYouMeetDialog open={true} matchId={pendingMatches[0].matchId} otherUserName={pendingMatches[0].otherDisplayName} otherUserPhotoURL={pendingMatches[0].otherPhotoURL} activity={pendingMatches[0].activity} onComplete={() => { }} />
       )}
 
-      {/* ── Top header: NYU Buddy + notification/install bubble ── */}
-      <div className="shrink-0 bg-white border-b border-gray-100">
+      {/* ── HEADER GROUP (Sticky/Animated) ── */}
+      <div
+        className={`absolute top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col`}
+        style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
+      >
+        {/* Row 1: Title + Action Icons */}
         <div className={`flex items-center justify-between px-5 ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight">NYU Buddy</h1>
 
@@ -159,9 +205,10 @@ export default function HomePage() {
           </AnimatePresence>
         </div>
 
-        {/* ── For You / Following sub-tabs (X-style) ── */}
+        {/* Row 2: Sub-tabs (X-style) */}
+        {/* Note: In previous version this had a verified check, keeping it */}
         {emailVerified && (
-          <div className="flex relative">
+          <div className="flex relative mt-1">
             <button
               onClick={() => setFeedTab('for-you')}
               className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'for-you' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
@@ -187,45 +234,65 @@ export default function HomePage() {
             />
           </div>
         )}
+
+        {/* Row 3: Category Filters */}
+        <div className="py-2 px-4 shadow-sm">
+          <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
+        </div>
       </div>
 
-      {/* ── Email verification ── */}
-      {!emailVerified ? (
-        <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">
-          <h3 className="font-semibold text-amber-800 mb-2">Verify Your Email</h3>
-          <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features. Check your inbox for the verification link.</p>
-        </div>
-      ) : (
-        <div className="flex-1 overflow-hidden min-h-0">
-          <AnimatePresence mode="popLayout" initial={false}>
-            {feedTab === 'for-you' ? (
-              <motion.div
-                key="for-you"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="h-full overflow-y-auto px-5 pt-1"
-              >
-                <ActivityFeed />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="following"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="h-full flex flex-col items-center justify-center px-5"
-              >
-                <Users className="w-12 h-12 text-gray-200 mb-4" />
-                <p className="text-lg font-medium text-gray-600 mb-1">Coming soon</p>
-                <p className="text-sm text-gray-400 text-center">Follow users to see their posts here</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
+      {/* ── SCROLLABLE CONTENT ── */}
+      {/* Padding top adjusted for header height ≈ 150px */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto w-full no-scrollbar"
+        style={{ paddingTop: '150px' }}
+      >
+        {!emailVerified ? (
+          <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">
+            <h3 className="font-semibold text-amber-800 mb-2">Verify Your Email</h3>
+            <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features. Check your inbox for the verification link.</p>
+          </div>
+        ) : (
+          <div className="min-h-full">
+            <AnimatePresence mode="popLayout" initial={false}>
+              {feedTab === 'for-you' ? (
+                <motion.div
+                  key="for-you"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <ActivityFeed
+                    posts={posts}
+                    loading={loading}
+                    error={error}
+                    loadingMore={loadingMore}
+                    hasMore={hasMore}
+                    refresh={refresh}
+                    loadMore={loadMore}
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="following"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex flex-col items-center justify-center py-20 px-5"
+                >
+                  <Users className="w-12 h-12 text-gray-200 mb-4" />
+                  <p className="text-lg font-medium text-gray-600 mb-1">Coming soon</p>
+                  <p className="text-sm text-gray-400 text-center">Follow users to see their posts here</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
 
       {/* Install guide modals */}
       <IOSInstallGuide isOpen={showIOSGuide} onClose={() => setShowIOSGuide(false)} />

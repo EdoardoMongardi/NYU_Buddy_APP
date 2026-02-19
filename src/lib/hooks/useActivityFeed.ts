@@ -59,9 +59,9 @@ export function useActivityFeed({ mine = false }: UseActivityFeedOptions = {}) {
     return fetchFeed(null, categoryFilter);
   }, [fetchFeed, categoryFilter]);
 
-  const loadMore = useCallback(() => {
+  const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
-    return fetchFeed(nextCursor, categoryFilter);
+    await fetchFeed(nextCursor, categoryFilter);
   }, [fetchFeed, nextCursor, loadingMore, categoryFilter]);
 
   const setCategory = useCallback((category: string | null) => {

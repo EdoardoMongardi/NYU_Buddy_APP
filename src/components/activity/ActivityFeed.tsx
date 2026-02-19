@@ -2,23 +2,29 @@
 
 import { useCallback, useRef } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
-import { useActivityFeed } from '@/lib/hooks/useActivityFeed';
 import ActivityPostCard from './ActivityPostCard';
-import CategoryFilter from './CategoryFilter';
 import CreatePostFAB from './CreatePostFAB';
+import { FeedPost } from '@/lib/firebase/functions';
 
-export default function ActivityFeed() {
-  const {
-    posts,
-    loading,
-    error,
-    loadingMore,
-    hasMore,
-    refresh,
-    loadMore,
-    categoryFilter,
-    setCategory,
-  } = useActivityFeed();
+interface ActivityFeedProps {
+  posts: FeedPost[];
+  loading: boolean;
+  error: string | null;
+  loadingMore: boolean;
+  hasMore: boolean;
+  refresh: () => Promise<void>;
+  loadMore: () => Promise<void>;
+}
+
+export default function ActivityFeed({
+  posts,
+  loading,
+  error,
+  loadingMore,
+  hasMore,
+  refresh,
+  loadMore,
+}: ActivityFeedProps) {
 
   const observer = useRef<IntersectionObserver | null>(null);
   const lastPostRef = useCallback(
@@ -36,16 +42,11 @@ export default function ActivityFeed() {
   );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Category Filter */}
-      <div className="shrink-0 py-3">
-        <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
-      </div>
-
+    <div className="flex flex-col h-full bg-white">
       {/* Feed content */}
-      <div className="flex-1 overflow-y-auto min-h-0 pb-20">
+      <div className="flex-1 min-h-0 pb-20">
         {/* Pull-to-refresh button */}
-        <div className="flex justify-center mb-3">
+        <div className="flex justify-center py-3">
           <button
             onClick={refresh}
             disabled={loading}
@@ -66,7 +67,7 @@ export default function ActivityFeed() {
 
         {/* Error state */}
         {error && (
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mx-1 mb-3">
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mx-4 mb-3">
             <p className="text-red-700 text-sm text-center">{error}</p>
             <button
               onClick={refresh}
@@ -86,7 +87,7 @@ export default function ActivityFeed() {
         )}
 
         {/* Posts */}
-        <div className="space-y-3 px-0.5">
+        <div className="space-y-0">
           {posts.map((post, index) => (
             <div
               key={post.postId}

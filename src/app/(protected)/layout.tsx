@@ -15,6 +15,7 @@ import StatusInfoCard from '@/components/map/StatusInfoCard';
 import ManageActivityTab from '@/components/activity/ManageActivityTab';
 import InstantMatchTab from '@/components/matching/InstantMatchTab';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
+import { NavProvider } from '@/context/NavContext';
 
 // Dynamic import — SSR-safe, only loads mapbox-gl on client
 const MapboxMap = dynamic(() => import('@/components/map/MapboxMap'), {
@@ -146,86 +147,88 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-white flex flex-col overflow-hidden"
-      style={{ overscrollBehavior: 'none' }}
-    >
-      {/* ── Persistent Map Layer (always in DOM, CSS toggled) ── */}
+    <NavProvider>
       <div
-        style={{ display: isMapVisible ? 'block' : 'none' }}
-        className="fixed inset-0 z-50"
+        className="fixed inset-0 bg-white flex flex-col overflow-hidden"
+        style={{ overscrollBehavior: 'none' }}
       >
-        {mapError ? (
-          <div className="fixed inset-0 flex items-center justify-center bg-gray-50">
-            <div className="text-center p-6">
-              <p className="text-red-600 text-sm font-medium">{mapError}</p>
-              <button onClick={refresh} className="mt-3 text-violet-600 text-sm font-medium">
-                Try again
-              </button>
+        {/* ── Persistent Map Layer (always in DOM, CSS toggled) ── */}
+        <div
+          style={{ display: isMapVisible ? 'block' : 'none' }}
+          className="fixed inset-0 z-50"
+        >
+          {mapError ? (
+            <div className="fixed inset-0 flex items-center justify-center bg-gray-50">
+              <div className="text-center p-6">
+                <p className="text-red-600 text-sm font-medium">{mapError}</p>
+                <button onClick={refresh} className="mt-3 text-violet-600 text-sm font-medium">
+                  Try again
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <MapboxMap
-            statuses={statuses}
-            currentUid={user?.uid}
-            selectedId={selectedStatus?.uid ?? null}
-            onSelectStatus={setSelectedStatus}
-            visible={isMapVisible}
-          />
-        )}
-
-        {/* Info card */}
-        <AnimatePresence>
-          {selectedStatus && (
-            <StatusInfoCard
-              status={selectedStatus}
+          ) : (
+            <MapboxMap
+              statuses={statuses}
               currentUid={user?.uid}
-              onClose={() => setSelectedStatus(null)}
+              selectedId={selectedStatus?.uid ?? null}
+              onSelectStatus={setSelectedStatus}
+              visible={isMapVisible}
             />
           )}
-        </AnimatePresence>
 
-        {/* Bottom status panel — positioned above the bottom tab bar */}
-        <div
-          className="fixed left-0 right-0 z-[9999] pointer-events-none"
-          style={{ bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))' }}
-        >
-          <div className="px-4 pb-2 md:pb-4 md:max-w-[600px] md:mx-auto">
-            <div className="pointer-events-auto bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-gray-200/50 p-3">
-              <SetStatusSheet
-                myStatus={myStatus}
-                onSet={setStatus}
-                onClear={clearStatus}
-                settingStatus={settingStatus}
+          {/* Info card */}
+          <AnimatePresence>
+            {selectedStatus && (
+              <StatusInfoCard
+                status={selectedStatus}
+                currentUid={user?.uid}
+                onClose={() => setSelectedStatus(null)}
               />
+            )}
+          </AnimatePresence>
+
+          {/* Bottom status panel — positioned above the bottom tab bar */}
+          <div
+            className="fixed left-0 right-0 z-[9999] pointer-events-none"
+            style={{ bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))' }}
+          >
+            <div className="px-4 pb-2 md:pb-4 md:max-w-[600px] md:mx-auto">
+              <div className="pointer-events-auto bg-white/95 backdrop-blur-lg rounded-2xl shadow-lg border border-gray-200/50 p-3">
+                <SetStatusSheet
+                  myStatus={myStatus}
+                  onSet={setStatus}
+                  onClear={clearStatus}
+                  settingStatus={settingStatus}
+                />
+              </div>
             </div>
           </div>
         </div>
+
+        {/* ── Main content area ── */}
+        <main
+          style={{ display: isMapVisible ? 'none' : undefined }}
+          className="flex-1 min-h-0 overflow-auto relative z-10 pb-[calc(48px+env(safe-area-inset-bottom,0px))] md:pb-0"
+        >
+          <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
+            {/* If on root page, render tab content */}
+            {isRootPage && activeTab === 'home' && children}
+            {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
+            {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
+
+            {/* If on a sub-page, render the route children normally */}
+            {isSubPage && children}
+          </div>
+        </main>
+
+        {/* ── Tab Bar (always visible, except on onboarding) ── */}
+        {pathname !== '/onboarding' && (
+          <BottomTabBar
+            activeTab={isSubPage && pathname !== '/profile' ? 'home' : activeTab}
+            onTabChange={handleTabChange}
+          />
+        )}
       </div>
-
-      {/* ── Main content area ── */}
-      <main
-        style={{ display: isMapVisible ? 'none' : undefined }}
-        className="flex-1 min-h-0 overflow-auto relative z-10 pb-[calc(48px+env(safe-area-inset-bottom,0px))] md:pb-0"
-      >
-        <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
-          {/* If on root page, render tab content */}
-          {isRootPage && activeTab === 'home' && children}
-          {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
-          {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
-
-          {/* If on a sub-page, render the route children normally */}
-          {isSubPage && children}
-        </div>
-      </main>
-
-      {/* ── Tab Bar (always visible, except on onboarding) ── */}
-      {pathname !== '/onboarding' && (
-        <BottomTabBar
-          activeTab={isSubPage && pathname !== '/profile' ? 'home' : activeTab}
-          onTabChange={handleTabChange}
-        />
-      )}
-    </div>
+    </NavProvider>
   );
 }

@@ -107,7 +107,8 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
   return (
     <div
       onClick={() => router.push(`/post/${post.postId}`)}
-      className="w-full flex gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer touch-action-manipulation"
+
+      className="w-full flex gap-3 pl-3 pr-4 py-3 border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer touch-action-manipulation"
     >
       {/* Left: Avatar */}
       <div className="flex-shrink-0 pt-1">
@@ -157,19 +158,33 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
 
         {/* Media Attachment */}
         {hasMedia && (
-          <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 max-h-[300px] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-black min-h-[200px] max-h-[600px] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             {isVideoMedia ? (
               <video
                 src={post.imageUrl!}
                 controls
-                className="w-full max-h-[300px] object-cover"
+                className="w-full h-full max-h-[600px] object-contain"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
               <img
                 src={post.imageUrl!}
                 alt="Activity media"
-                className="w-full max-h-[300px] object-cover"
+                className="w-full h-full max-h-[600px] object-cover" // Use object-cover for photos to look premium, or object-contain to see full? User said "Layout... not good looking". Cover usually looks better. But for vertical photos... 
+                // Let's use custom logic? No, object-cover is standard for feed cards to fill the space nicely. 
+                // BUT if it's a vertical photo, we want to show it.
+                // If we set w-full and max-h-[600px], and object-cover, it crops top/bottom if image is too tall.
+                // If image is vertical (portrait), w-full makes it tall.
+                // We want to limit height but show full image if possible?
+                // X shows full image usually.
+                // Let's use object-contain with bg-black to be safe for all aspect ratios, 
+                // OR just let the height be auto up to max?
+                // img className="w-full h-auto max-h-[600px] object-cover" -> this implies cropping if it exceeds 600px.
+                // If I use object-contain it adds black bars.
+                // Let's use `object-contain` inside the black box for now to ensure whole image is seen, as requested "allow verticle photo".
+                // Wait, "layout... not good looking" might mean black bars are ugly.
+                // X uses smart cropping.
+                // For this step, I'll use `w-full h-auto max-h-[600px] object-cover` matching the "fill" look but taller max height.
                 loading="lazy"
               />
             )}
