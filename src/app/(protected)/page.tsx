@@ -44,34 +44,36 @@ export default function HomePage() {
   // ── Scroll & Header Visibility ──
   const [showHeader, setShowHeader] = useState(true);
   const lastScrollY = useRef(0);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
+  useEffect(() => {
+    const handleScroll = () => {
+      // Disable scroll-hide on desktop (md breakpoint)
+      if (window.matchMedia('(min-width: 768px)').matches) {
+        setShowHeader(true);
+        return;
+      }
 
-    // Disable scroll-hide on desktop (md breakpoint)
-    if (window.matchMedia('(min-width: 768px)').matches) {
-      if (!showHeader) setShowHeader(true);
-      return;
-    }
+      const currentScrollY = window.scrollY;
 
-    const currentScrollY = scrollContainerRef.current.scrollTop;
+      // Threshold to avoid jitter
+      if (Math.abs(currentScrollY - lastScrollY.current) < 10) return;
 
-    // Threshold to avoid jitter
-    if (Math.abs(currentScrollY - lastScrollY.current) < 10) return;
+      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+        // Scrolling Down -> Hide
+        setShowHeader(false);
+        setNavVisible(false);
+      } else if (currentScrollY < lastScrollY.current) {
+        // Scrolling Up -> Show
+        setShowHeader(true);
+        setNavVisible(true);
+      }
 
-    if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-      // Scrolling Down -> Hide
-      setShowHeader(false);
-      setNavVisible(false);
-    } else if (currentScrollY < lastScrollY.current) {
-      // Scrolling Up -> Show
-      setShowHeader(true);
-      setNavVisible(true);
-    }
+      lastScrollY.current = currentScrollY;
+    };
 
-    lastScrollY.current = currentScrollY;
-  };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [setNavVisible]);
 
   // ── PWA standalone detection ──
   const [isPWA, setIsPWA] = useState(false);
@@ -150,7 +152,7 @@ export default function HomePage() {
 
   return (
     <div
-      className="max-w-md mx-auto h-full overflow-hidden flex flex-col relative bg-white"
+      className="max-w-md mx-auto min-h-screen flex flex-col relative bg-white"
     >
       {/* DidYouMeet dialog */}
       {pendingMatches.length > 0 && (
@@ -159,7 +161,7 @@ export default function HomePage() {
 
       {/* ── HEADER GROUP (Sticky/Animated) ── */}
       <div
-        className={`absolute top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
+        className={`fixed top-0 left-0 right-0 z-30 max-w-md mx-auto bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
         style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
       >
         {/* Row 1: Title + Action Icons */}
@@ -250,9 +252,7 @@ export default function HomePage() {
       {/* ── SCROLLABLE CONTENT ── */}
       {/* Padding top adjusted for header height ≈ 150px */}
       <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto w-full no-scrollbar"
+        className="flex-1 w-full"
         style={{ paddingTop: '150px' }}
       >
         {!emailVerified ? (

@@ -71,21 +71,28 @@ function LayoutContent({
     }
   }, [isMapVisible]);
 
-  // Prevent body-level scroll on iOS Safari browser mode.
+  // Prevent body-level scroll ONLY when map is visible (modals/map view)
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
-    html.style.overflow = 'hidden';
-    html.style.height = '100%';
-    body.style.overflow = 'hidden';
-    body.style.height = '100%';
+    if (isMapVisible) {
+      html.style.overflow = 'hidden';
+      html.style.height = '100%';
+      body.style.overflow = 'hidden';
+      body.style.height = '100%';
+    } else {
+      html.style.overflow = '';
+      html.style.height = '';
+      body.style.overflow = '';
+      body.style.height = '';
+    }
     return () => {
       html.style.overflow = '';
       html.style.height = '';
       body.style.overflow = '';
       body.style.height = '';
     };
-  }, []);
+  }, [isMapVisible]);
 
   useEffect(() => {
     if (loading) return;
@@ -209,8 +216,8 @@ function LayoutContent({
       <main
         style={{ display: isMapVisible ? 'none' : undefined }}
         className={`flex-1 min-h-0 overflow-hidden relative z-10 transition-[padding] duration-300 ease-in-out md:pb-0 ${isNavVisible
-            ? 'pb-[calc(48px+env(safe-area-inset-bottom,0px))]'
-            : 'pb-[env(safe-area-inset-bottom,0px)]'
+          ? 'pb-[calc(48px+env(safe-area-inset-bottom,0px))]'
+          : 'pb-[env(safe-area-inset-bottom,0px)]'
           }`}
       >
         <div className="h-full md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
