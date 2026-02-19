@@ -159,17 +159,17 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
 
         {/* Media Attachment */}
         {hasMedia && (
-          <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-black min-h-[200px] max-h-[600px] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <div className="mb-3 rounded-xl overflow-hidden border border-gray-100 bg-black min-h-[200px] max-h-[350px] md:max-h-[600px] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             {isVideoMedia ? (
               <FeedVideoPlayer
                 src={post.imageUrl!}
-                className="w-full h-full max-h-[600px]"
+                className="w-full h-full max-h-[350px] md:max-h-[600px]"
               />
             ) : (
               <img
                 src={post.imageUrl!}
                 alt="Activity media"
-                className="w-full h-full max-h-[600px] object-cover" // Use object-cover for photos to look premium, or object-contain to see full? User said "Layout... not good looking". Cover usually looks better. But for vertical photos... 
+                className="w-full h-full max-h-[350px] md:max-h-[600px] object-cover" // Use object-cover for photos to look premium, or object-contain to see full? User said "Layout... not good looking". Cover usually looks better. But for vertical photos... 
                 // Let's use custom logic? No, object-cover is standard for feed cards to fill the space nicely. 
                 // BUT if it's a vertical photo, we want to show it.
                 // If we set w-full and max-h-[600px], and object-cover, it crops top/bottom if image is too tall.
