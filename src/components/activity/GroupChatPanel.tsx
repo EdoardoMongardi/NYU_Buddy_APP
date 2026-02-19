@@ -16,22 +16,63 @@ export default function GroupChatPanel({ groupId, fullScreen = false }: GroupCha
   const { toast } = useToast();
   const { messages, loading, error, sendMessage, sending } = useGroupChat(groupId);
   const [input, setInput] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const wasAtBottomRef = useRef(true);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  // Keep scroll pinned to bottom when container resizes (keyboard)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const checkAtBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      wasAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+    };
+
+    container.addEventListener('scroll', checkAtBottom, { passive: true });
+
+    const observer = new ResizeObserver(() => {
+      if (wasAtBottomRef.current) {
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          }
+        });
+      }
+    });
+    observer.observe(container);
+
+    return () => {
+      container.removeEventListener('scroll', checkAtBottom);
+      observer.disconnect();
+    };
+  }, []);
+
+  const handleInputFocus = () => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+  };
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
     const body = input.trim();
     setInput('');
+
     try {
       await sendMessage(body);
+      // Re-focus input to keep keyboard open if desired
+      if (fullScreen) {
+        inputRef.current?.focus();
+      }
     } catch (err) {
       setInput(body); // Restore input on failure
       toast({
@@ -68,9 +109,10 @@ export default function GroupChatPanel({ groupId, fullScreen = false }: GroupCha
         ref={containerRef}
         className={
           fullScreen
-            ? 'flex-1 overflow-y-auto px-4 py-3 space-y-2'
+            ? 'flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0'
             : 'h-[300px] overflow-y-auto px-4 py-3 space-y-2'
         }
+        style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
       >
         {loading ? (
           <div className="flex items-center justify-center py-8">
@@ -125,19 +167,29 @@ export default function GroupChatPanel({ groupId, fullScreen = false }: GroupCha
       </div>
 
       {/* Input */}
-      <div className="px-3 py-3 border-t border-gray-100 flex gap-2">
-        <input
+      <div
+        className="px-3 py-3 border-t border-gray-100 flex gap-2 flex-shrink-0 bg-white"
+        style={{
+          paddingBottom: fullScreen ? 'var(--safe-bottom, env(safe-area-inset-bottom, 0px))' : '12px',
+          transition: 'padding-bottom 200ms ease-out',
+        }}
+      >
+        <textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
           placeholder="Type a message..."
-          maxLength={500}
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+          rows={1}
+          className="flex-1 resize-none border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 max-h-20 overflow-y-auto bg-white"
+          style={{ minHeight: '40px' }}
         />
         <button
+          onMouseDown={(e) => e.preventDefault()} // Prevent focus loss
           onClick={handleSend}
           disabled={!input.trim() || sending}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${input.trim() && !sending
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${input.trim() && !sending
             ? 'bg-violet-600 text-white hover:bg-violet-700'
             : 'bg-gray-100 text-gray-400'
             }`}
