@@ -29,6 +29,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
 } from 'firebase/storage';
+import Image from 'next/image';
 import * as geofire from 'geofire-common';
 
 import { Button } from '@/components/ui/button';
@@ -459,11 +460,13 @@ export default function AdminSpotsPage() {
 
                 {/* Show existing photo if editing and no new file selected */}
                 {photoUrl && !selectedFile && (
-                  <div className="relative">
-                    <img
+                  <div className="relative w-full h-32">
+                    <Image
                       src={photoUrl}
                       alt="Current place photo"
-                      className="w-full h-32 object-cover rounded-md"
+                      fill
+                      className="object-cover rounded-md"
+                      sizes="(max-width: 768px) 100vw, 300px"
                     />
                     <Button
                       type="button"
@@ -479,11 +482,13 @@ export default function AdminSpotsPage() {
 
                 {/* Show preview of selected file */}
                 {selectedFile && (
-                  <div className="relative">
-                    <img
+                  <div className="relative w-full h-32">
+                    <Image
                       src={URL.createObjectURL(selectedFile)}
                       alt="Preview"
-                      className="w-full h-32 object-cover rounded-md"
+                      fill
+                      className="object-cover rounded-md"
+                      sizes="(max-width: 768px) 100vw, 300px"
                     />
                     <Button
                       type="button"

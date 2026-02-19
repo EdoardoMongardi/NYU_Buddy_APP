@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Clock, MapPin, Users, Loader2, AlertCircle } from 'lucide-react';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useActivityPost } from '@/lib/hooks/useActivityPost';
 import { CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
@@ -93,15 +94,12 @@ export default function PostDetailPage() {
       <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
         {/* Creator info */}
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-            {post.creatorPhotoURL ? (
-              <img src={post.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-medium">
-                {post.creatorDisplayName?.charAt(0)?.toUpperCase() || '?'}
-              </div>
-            )}
-          </div>
+          <ProfileAvatar
+            photoURL={post.creatorPhotoURL}
+            displayName={post.creatorDisplayName}
+            size="sm"
+            className="w-10 h-10 flex-shrink-0"
+          />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900">{post.creatorDisplayName}</p>
             <p className="text-[12px] text-gray-400">
@@ -130,9 +128,8 @@ export default function PostDetailPage() {
             <Clock className="w-4 h-4" />
             {timeUntilExpiry(post.expiresAt)}
           </span>
-          <span className={`flex items-center gap-1 font-medium ${
-            post.status === 'filled' ? 'text-amber-500' : 'text-green-500'
-          }`}>
+          <span className={`flex items-center gap-1 font-medium ${post.status === 'filled' ? 'text-amber-500' : 'text-green-500'
+            }`}>
             <Users className="w-4 h-4" />
             {post.acceptedCount}/{post.maxParticipants} joined
           </span>
