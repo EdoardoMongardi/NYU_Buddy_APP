@@ -27,5 +27,14 @@ service firebase.storage {
         && request.resource.size < 2 * 1024 * 1024  // Max 2MB
         && request.resource.contentType.matches('image/.*');  // Images only
     }
+
+    // New Activity Media (Images & Videos)
+    match /activity_media/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 50 * 1024 * 1024 // Max 50MB for videos
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*'));
+    }
   }
 }
