@@ -152,7 +152,7 @@ export default function HomePage() {
 
   return (
     <div
-      className="max-w-md mx-auto min-h-screen flex flex-col relative bg-white"
+      className="w-full mx-auto min-h-screen flex flex-col relative bg-white"
     >
       {/* DidYouMeet dialog */}
       {pendingMatches.length > 0 && (
@@ -161,7 +161,7 @@ export default function HomePage() {
 
       {/* ── HEADER GROUP (Sticky/Animated) ── */}
       <div
-        className={`fixed top-0 left-0 right-0 z-30 max-w-md mx-auto bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
+        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
         style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
       >
         {/* Row 1: Title + Action Icons */}
