@@ -155,10 +155,7 @@ function LayoutContent({
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-white flex flex-col overflow-hidden"
-      style={{ overscrollBehavior: 'none' }}
-    >
+    <div className="min-h-screen bg-white flex flex-col">
       {/* ── Persistent Map Layer (always in DOM, CSS toggled) ── */}
       <div
         style={{ display: isMapVisible ? 'block' : 'none' }}
@@ -215,12 +212,12 @@ function LayoutContent({
       {/* ── Main content area ── */}
       <main
         style={{ display: isMapVisible ? 'none' : undefined }}
-        className={`flex-1 min-h-0 overflow-hidden relative z-10 transition-[padding] duration-300 ease-in-out md:pb-0 ${isNavVisible
-          ? 'pb-[calc(48px+env(safe-area-inset-bottom,0px))]'
-          : 'pb-[env(safe-area-inset-bottom,0px)]'
+        className={`flex-1 relative z-10 transition-[padding] duration-300 ease-in-out md:pb-0 ${isNavVisible
+            ? 'pb-[calc(48px+env(safe-area-inset-bottom,0px))]'
+            : 'pb-0'
           }`}
       >
-        <div className="h-full md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-full">
+        <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-screen">
           {/* If on root page, render tab content */}
           {isRootPage && activeTab === 'home' && children}
           {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
