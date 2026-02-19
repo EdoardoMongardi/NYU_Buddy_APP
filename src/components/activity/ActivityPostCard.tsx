@@ -5,6 +5,8 @@ import { MapPin, Clock, Users } from 'lucide-react';
 import { FeedPost } from '@/lib/firebase/functions';
 import { CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
 
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+
 const CATEGORY_COLORS: Record<string, string> = {
   coffee: 'bg-amber-100 text-amber-700',
   study: 'bg-blue-100 text-blue-700',
@@ -62,19 +64,12 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
     >
       {/* Header: avatar + name + time */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-          {post.creatorPhotoURL ? (
-            <img
-              src={post.creatorPhotoURL}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-medium">
-              {post.creatorDisplayName?.charAt(0)?.toUpperCase() || '?'}
-            </div>
-          )}
-        </div>
+        <ProfileAvatar
+          photoURL={post.creatorPhotoURL}
+          displayName={post.creatorDisplayName}
+          size="xs"
+          className="w-9 h-9"
+        />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900 truncate">
             {post.creatorDisplayName}
@@ -103,9 +98,8 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
           <Clock className="w-3.5 h-3.5" />
           {timeUntilExpiry(post.expiresAt)}
         </span>
-        <span className={`flex items-center gap-1 ml-auto font-medium ${
-          isFilled ? 'text-amber-500' : 'text-green-500'
-        }`}>
+        <span className={`flex items-center gap-1 ml-auto font-medium ${isFilled ? 'text-amber-500' : 'text-green-500'
+          }`}>
           <Users className="w-3.5 h-3.5" />
           {slots} {isFilled ? 'Full' : 'joined'}
         </span>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import {
     Loader2,
     RefreshCw,
@@ -184,15 +185,12 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
             {/* Creator info */}
             {post && (
                 <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                        {post.creatorPhotoURL ? (
-                            <img src={post.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-[10px] font-medium">
-                                {post.creatorDisplayName?.charAt(0)?.toUpperCase() || '?'}
-                            </div>
-                        )}
-                    </div>
+                    <ProfileAvatar
+                        photoURL={post.creatorPhotoURL}
+                        displayName={post.creatorDisplayName}
+                        size="xs"
+                        className="w-6 h-6 flex-shrink-0"
+                    />
                     <span className="text-[12px] text-gray-500">
                         by {post.creatorDisplayName}
                     </span>

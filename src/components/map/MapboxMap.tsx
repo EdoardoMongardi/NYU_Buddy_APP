@@ -74,15 +74,19 @@ function applyNyuMapStyle(map: mapboxgl.Map): void {
   }
   if (!map.getLayer('nyu-zone-fill')) {
     map.addLayer(
-      { id: 'nyu-zone-fill', type: 'fill', source: 'nyu-zones',
-        paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.06 } },
+      {
+        id: 'nyu-zone-fill', type: 'fill', source: 'nyu-zones',
+        paint: { 'fill-color': '#7c3aed', 'fill-opacity': 0.06 }
+      },
       firstSymbolId,
     );
   }
   if (!map.getLayer('nyu-zone-outline')) {
     map.addLayer(
-      { id: 'nyu-zone-outline', type: 'line', source: 'nyu-zones',
-        paint: { 'line-color': '#7c3aed', 'line-opacity': 0.18, 'line-width': 1.5 } },
+      {
+        id: 'nyu-zone-outline', type: 'line', source: 'nyu-zones',
+        paint: { 'line-color': '#7c3aed', 'line-opacity': 0.18, 'line-width': 1.5 }
+      },
       firstSymbolId,
     );
   }
@@ -348,9 +352,10 @@ export default function MapboxMap({
 
   // ── Cleanup on full unmount ──
   useEffect(() => {
+    const markers = markersRef.current;
     return () => {
-      markersRef.current.forEach(({ marker }) => marker.remove());
-      markersRef.current.clear();
+      markers.forEach(({ marker }) => marker.remove());
+      markers.clear();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;

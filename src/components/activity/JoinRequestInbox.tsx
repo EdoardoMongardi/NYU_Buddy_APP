@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Loader2, Check, X } from 'lucide-react';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { joinRequestRespond, JoinRequestInfo } from '@/lib/firebase/functions';
 import { useToast } from '@/hooks/use-toast';
 
@@ -51,15 +52,12 @@ export default function JoinRequestInbox({
       <div className="space-y-3">
         {requests.map((req) => (
           <div key={req.requestId} className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-              {req.requesterPhotoURL ? (
-                <img src={req.requesterPhotoURL} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-medium">
-                  {req.requesterDisplayName?.charAt(0)?.toUpperCase() || '?'}
-                </div>
-              )}
-            </div>
+            <ProfileAvatar
+              photoURL={req.requesterPhotoURL}
+              displayName={req.requesterDisplayName}
+              size="xs"
+              className="w-9 h-9 flex-shrink-0"
+            />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
                 {req.requesterDisplayName}

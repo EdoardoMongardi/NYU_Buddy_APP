@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2, UserMinus, Crown } from 'lucide-react';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { doc, getDoc } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { groupKick, groupLeave, GroupInfo } from '@/lib/firebase/functions';
@@ -112,15 +113,12 @@ export default function GroupMemberList({
 
           return (
             <div key={member.uid} className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                {member.photoURL ? (
-                  <img src={member.photoURL} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-medium">
-                    {member.displayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
+              <ProfileAvatar
+                photoURL={member.photoURL}
+                displayName={member.displayName}
+                size="xs"
+                className="w-8 h-8 flex-shrink-0"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-900 truncate">
                   {member.displayName}
