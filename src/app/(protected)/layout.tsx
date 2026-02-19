@@ -193,7 +193,7 @@ function LayoutContent({
 
         {/* Bottom status panel — positioned above the bottom tab bar */}
         <div
-          className="fixed left-0 right-0 z-[9999] pointer-events-none"
+          className="fixed left-0 right-0 z-[60] pointer-events-none"
           style={{ bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))' }}
         >
           <div className="px-4 pb-2 md:pb-4 md:max-w-[600px] md:mx-auto">
@@ -213,8 +213,8 @@ function LayoutContent({
       <main
         style={{ display: isMapVisible ? 'none' : undefined }}
         className={`flex-1 relative z-10 transition-[padding] duration-300 ease-in-out md:pb-0 ${isNavVisible
-            ? 'pb-[calc(48px+env(safe-area-inset-bottom,0px))]'
-            : 'pb-0'
+          ? 'pb-[calc(48px+env(safe-area-inset-bottom,0px))]'
+          : 'pb-0'
           }`}
       >
         <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-screen">

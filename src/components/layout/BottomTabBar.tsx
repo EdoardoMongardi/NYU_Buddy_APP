@@ -45,7 +45,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
               - The bar itself has a thin top border
             */}
             <nav
-                className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-transform duration-300 ease-in-out"
+                className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-transform duration-300 ease-in-out"
                 style={{
                     transform: isNavVisible ? 'translateY(0)' : 'translateY(100%)',
                 }}
@@ -78,7 +78,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
 
             {/* ── Desktop left sidebar (≥ md) ── */}
             <nav
-                className="hidden md:flex fixed top-0 bottom-0 z-40 bg-white border-r border-gray-200/60 flex-col w-[220px] transition-all duration-200"
+                className="hidden md:flex fixed top-0 bottom-0 z-50 bg-white border-r border-gray-200/60 flex-col w-[220px] transition-all duration-200"
                 style={{
                     right: isMapActive ? undefined : 'calc(50% + 300px)',
                     left: isMapActive ? '0' : undefined,
