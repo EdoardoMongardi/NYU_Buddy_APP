@@ -67,14 +67,12 @@ const renderLockup = (paths, text, isNYU = false) => {
 // 1) Consistent 12px stroke weight for both the stem and the loops.
 // 2) The core dot is intentionally placed at the intersection (50, 50).
 const getGeometry = (primaryColor, dotColor) => `
-  <!-- Backbone / Pin stem -->
+  <!-- The exact original continuous 'B' shape -->
   <path d="M 30 20 L 30 80" fill="none" stroke="${primaryColor}" stroke-width="12" stroke-linecap="round" />
-  
-  <!-- Outer shell (Original 'B' / Map Path) -->
   <path d="M 30 20 Q 70 20 70 40 Q 70 50 50 50 Q 80 50 80 65 Q 80 80 30 80" fill="none" stroke="${primaryColor}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
   
-  <!-- Core dot / Presence indicator (Centered at the intersection) -->
-  <circle cx="50" cy="50" r="8" fill="${dotColor}" stroke="none" />
+  <!-- Original dot placement with solid accent color -->
+  <circle cx="50" cy="50" r="10" fill="${dotColor}" stroke="none" />
 `;
 
 // 1. mark.svg (Neutral, purely for form)
