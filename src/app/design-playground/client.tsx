@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { campusPacks } from "@/lib/campusPacks";
+import SplashScreen from "@/components/ui/SplashScreen";
 
 const CONCEPTS = ["FINAL", "C1", "C2", "C3", "F1", "F2", "F3"];
 const PRESETS = [
@@ -22,6 +23,7 @@ export default function DesignPlaygroundClient() {
     const [bg, setBg] = useState("light");
     const [campusPack, setCampusPack] = useState<"generic" | "nyu">("generic");
     const [motionSimulated, setMotionSimulated] = useState(false);
+    const [showSplash, setShowSplash] = useState(false);
     const [key, setKey] = useState(0); // Trigger re-render for animation replay
 
     const systemReducedMotion = useReducedMotion();
@@ -116,13 +118,30 @@ export default function DesignPlaygroundClient() {
                         <h1 className="text-2xl font-bold">Design Playground</h1>
                         <p className="text-sm opacity-70">Review logo concepts and animations live.</p>
                     </div>
-                    <button
-                        onClick={copyFeedback}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition"
-                    >
-                        Copy Feedback
-                    </button>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={() => setShowSplash(true)}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition"
+                        >
+                            Play Splash Screen
+                        </button>
+                        <button
+                            onClick={copyFeedback}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition"
+                        >
+                            Copy Feedback
+                        </button>
+                    </div>
                 </header>
+
+                <AnimatePresence>
+                    {showSplash && (
+                        <SplashScreen
+                            campusPack={campusPack}
+                            onComplete={() => setShowSplash(false)}
+                        />
+                    )}
+                </AnimatePresence>
 
                 <div className="grid md:grid-cols-2 gap-8">
                     {/* Controls Column */}
