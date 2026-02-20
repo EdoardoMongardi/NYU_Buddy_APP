@@ -1,0 +1,19 @@
+{
+  "generic": {
+    "primary": "#1e293b",
+    "accent": "#475569",
+    "background": "#f8fafc"
+  },
+  "nyu": {
+    "primary": "#1e293b",
+    "accent": "#8b5cf6",
+    "background": "#f5f3ff"
+  },
+  "neutral": {
+    "white": "#ffffff",
+    "black": "#0f172a"
+  },
+  "typography": {
+    "fontFamily": "'Inter', -apple-system, sans-serif"
+  }
+}

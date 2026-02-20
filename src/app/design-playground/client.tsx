@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { campusPacks } from "@/lib/campusPacks";
 
-const CONCEPTS = ["C1", "C2", "C3", "F1", "F2", "F3"];
+const CONCEPTS = ["FINAL", "C1", "C2", "C3", "F1", "F2", "F3"];
 const PRESETS = [
     { id: "P1", name: "Fade + Scale", desc: "0.92 -> 1.0, 300-450ms" },
     { id: "P2", name: "Pulse Ring", desc: "Expanding ring behind mark, ~900ms" },
@@ -17,7 +17,7 @@ const BACKGROUNDS = [
 ];
 
 export default function DesignPlaygroundClient() {
-    const [concept, setConcept] = useState("C1");
+    const [concept, setConcept] = useState("FINAL");
     const [preset, setPreset] = useState("P1");
     const [bg, setBg] = useState("light");
     const [campusPack, setCampusPack] = useState<"generic" | "nyu">("generic");
@@ -45,7 +45,13 @@ export default function DesignPlaygroundClient() {
     // Render SVG wrapper with animation based on preset
     const AnimatedSVG = ({ baseSrc, type }: { baseSrc: string; type: "mark" | "lockup" | "icon" }) => {
         // Resolve src path based on type and packed campus
-        const src = type === "lockup" ? `${baseSrc}-${campusPack}.svg` : `${baseSrc}.svg`;
+        let src = type === "lockup" ? `${baseSrc}-${campusPack}.svg` : `${baseSrc}.svg`;
+
+        // Rewrite path for FINAL option
+        if (concept === "FINAL") {
+            const finalBase = "/brand/final";
+            src = type === "lockup" ? `${finalBase}/lockup-${campusPack}.svg` : `${finalBase}/${type}.svg`;
+        }
         // If reduced motion, just fade in
         if (prefersReduced) {
             return (
@@ -147,8 +153,9 @@ export default function DesignPlaygroundClient() {
                                     <button
                                         key={c}
                                         onClick={() => setConcept(c)}
-                                        className={`w-10 h-10 rounded-full font-bold transition flex items-center justify-center border-2 
-                      ${concept === c ? "border-blue-500 bg-blue-500/10 text-blue-600" : "border-transparent bg-current/10 hover:bg-current/20"}`}
+                                        className={`h-10 px-4 rounded-full font-bold transition flex items-center justify-center border-2 
+                                            ${concept === c ? "border-blue-500 bg-blue-500/10 text-blue-600" : "border-transparent bg-current/10 hover:bg-current/20"}
+                                            ${c === "FINAL" ? "ring-2 ring-purple-500 shadow-sm" : ""}`}
                                     >
                                         {c}
                                     </button>
@@ -232,10 +239,24 @@ export default function DesignPlaygroundClient() {
                         <div className={`p-8 rounded-xl flex flex-col items-center justify-center gap-12 min-h-[400px] border border-current/10 shadow-inner ${bgClasses.includes('bg-white') || bgClasses.includes('bg-slate-50') ? 'bg-gray-50' : 'bg-black/20'}`}>
 
                             <div className="text-center w-full">
-                                <p className="text-xs uppercase opacity-50 mb-4 tracking-widest">Mark Only (24px - 100px+)</p>
-                                <div className="flex justify-center items-center gap-8">
-                                    <AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" />
-                                    <div className="w-8 h-8 opacity-50 flex items-center justify-center"><AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" /></div>
+                                <p className="text-xs uppercase opacity-50 mb-4 tracking-widest">Mark Only (24px - 48px - 100px+)</p>
+                                <div className="flex justify-center items-end gap-8 pb-4">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="w-6 h-6 flex items-center justify-center"><AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" /></div>
+                                        <span className="text-[10px] opacity-40">24px</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="w-8 h-8 flex items-center justify-center"><AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" /></div>
+                                        <span className="text-[10px] opacity-40">32px</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="w-12 h-12 flex items-center justify-center"><AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" /></div>
+                                        <span className="text-[10px] opacity-40">48px</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-2">
+                                        <AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" />
+                                        <span className="text-[10px] opacity-40">Native</span>
+                                    </div>
                                 </div>
                             </div>
 

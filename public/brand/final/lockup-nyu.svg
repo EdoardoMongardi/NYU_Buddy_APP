@@ -1,0 +1,19 @@
+<svg viewBox="0 0 320 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(15, 10) scale(0.8)">
+    <g stroke-linecap="round" stroke-linejoin="round">
+      
+  <!-- Backbone / Pin stem -->
+  <path d="M 32 24 L 32 76" fill="none" stroke="#1e293b" stroke-width="12" />
+  
+  <!-- Outer shell (Abstract 'B' / Map Path) -->
+  <path d="M 32 24 C 68 20 72 40 54 48 C 84 50 84 76 32 76" fill="none" stroke="#1e293b" stroke-width="12" />
+  
+  <!-- Core dot / Presence indicator (Optically centered in the bottom region at x=50, y=60) -->
+  <circle cx="50" cy="61" r="8" fill="#8b5cf6" stroke="none" />
+
+    </g>
+  </g>
+  <text x="110" y="58" font-family="'Inter', -apple-system, sans-serif" font-weight="700" font-size="34" letter-spacing="-0.03em" fill="#1e293b">
+    NYU Buddy
+  </text>
+</svg>
