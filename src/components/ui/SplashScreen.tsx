@@ -14,9 +14,13 @@ export default function SplashScreen({ onComplete, campusPack = "nyu" }: SplashS
 
     // Colors based on pack
     const isNYU = campusPack === "nyu";
-    const primaryColor = "#1e293b"; // slate-800
-    const dotColor = isNYU ? "#57068c" : "#475569"; // NYU Violet or generic slate
-    const bgColor = isNYU ? "bg-violet-50" : "bg-slate-50";
+    const primaryColor = isNYU ? "#ffffff" : "#1e293b"; // white on NYU, slate-800 on generic
+    const dotColor = isNYU ? "#ffffff" : "#475569"; // solid white on NYU, or generic slate
+    const bgColor = isNYU
+        ? "bg-gradient-to-b from-[#7314B3] to-[#460570] text-white"
+        : "bg-slate-50 text-slate-800";
+    const loaderBg = isNYU ? "bg-white" : "bg-slate-800";
+    const loaderTrack = isNYU ? "bg-white/20" : "bg-black/10";
 
     useEffect(() => {
         // Total animation time before firing onComplete and fading out
@@ -90,9 +94,8 @@ export default function SplashScreen({ onComplete, campusPack = "nyu" }: SplashS
                                         r="10"
                                         fill={dotColor}
                                         stroke="none"
-                                        opacity="0.4"
                                         initial={{ scale: 0, opacity: 0 }}
-                                        animate={{ scale: 1, opacity: 0.4 }}
+                                        animate={{ scale: 1, opacity: isNYU ? 1 : 0.4 }}
                                         transition={{ type: "spring", stiffness: 300, damping: 20, delay: 1.0 }}
                                     />
                                 </g>
@@ -106,20 +109,20 @@ export default function SplashScreen({ onComplete, campusPack = "nyu" }: SplashS
                             transition={{ duration: 0.5, ease: "easeOut", delay: 1.3 }}
                             className="text-center"
                         >
-                            <h1 className="text-3xl font-bold tracking-tight text-slate-800" style={{ letterSpacing: "-0.03em" }}>
+                            <h1 className="text-3xl font-bold tracking-tight" style={{ letterSpacing: "-0.03em" }}>
                                 {isNYU ? "NYU Buddy" : "Buddy"}
                             </h1>
                         </motion.div>
 
                         {/* Simulated Loading Progress Bar at the bottom */}
                         <motion.div
-                            className="absolute bottom-16 w-32 h-1 bg-black/10 rounded-full overflow-hidden"
+                            className={`absolute bottom-16 w-32 h-1 rounded-full overflow-hidden ${loaderTrack}`}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 1.5 }}
                         >
                             <motion.div
-                                className="h-full bg-slate-800 rounded-full"
+                                className={`h-full rounded-full ${loaderBg}`}
                                 initial={{ width: "0%" }}
                                 animate={{ width: "100%" }}
                                 transition={{ duration: 1.2, ease: "easeInOut", delay: 1.5 }}
