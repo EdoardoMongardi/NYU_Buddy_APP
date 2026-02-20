@@ -40,17 +40,22 @@ const renderLockup = (paths, markColor, text, textColor) => `<svg viewBox="0 0 3
 </svg>`;
 
 const geometries = {
-  // A) Overlapping Chevrons (Forward Movement)
+  // A) Friendly Mascot/Robot Face (Literal Buddy)
   A: `
-    <path d="M 30 20 L 50 50 L 30 80" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="M 50 20 L 70 50 L 50 80" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" />
+    <rect x="25" y="25" width="50" height="50" rx="16" fill="none" stroke-width="8" stroke-linejoin="round" />
+    <circle cx="40" cy="45" r="5" fill="currentColor" stroke="none" />
+    <circle cx="60" cy="45" r="5" fill="currentColor" stroke="none" />
+    <path d="M 40 60 Q 50 68 60 60" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 25 40 L 15 40 M 75 40 L 85 40" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 40 25 L 40 15 M 60 25 L 60 15" fill="none" stroke-width="6" stroke-linecap="round" />
   `,
-  // B) Two abstract speech bubbles/nodes overlapping
+  // B) Two Toasting Coffee Cups (Meet up)
   B: `
-    <path d="M 25 35 a 20 20 0 1 0 40 0 a 20 20 0 1 0 -40 0" fill="currentColor" fill-opacity="0.2" stroke="none" />
-    <path d="M 45 65 a 20 20 0 1 0 40 0 a 20 20 0 1 0 -40 0" fill="none" stroke-width="8" />
-    <circle cx="45" cy="35" r="5" fill="currentColor" stroke="none" />
-    <circle cx="65" cy="65" r="5" fill="currentColor" stroke="none" />
+    <path d="M 25 35 L 45 35 L 40 65 C 40 70 30 70 30 65 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
+    <path d="M 45 42 C 52 42 52 52 43 52" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 55 25 L 75 25 L 70 55 C 70 60 60 60 60 55 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
+    <path d="M 75 32 C 82 32 82 42 73 42" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 33 25 C 33 15 36 20 36 10 M 63 15 C 63 5 66 10 66 0" fill="none" stroke-width="4" stroke-linecap="round" opacity="0.5" />
   `,
   // C) Bold geometric letter "B" and location pin fusion
   C: `
@@ -58,15 +63,17 @@ const geometries = {
     <path d="M 30 20 Q 70 20 70 40 Q 70 50 50 50 Q 80 50 80 65 Q 80 80 30 80" fill="none" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
     <circle cx="50" cy="50" r="10" fill="currentColor" stroke="none" opacity="0.4" />
   `,
-  // D) Interlocking Rings (Connection)
+  // D) Open Book (Academic Buddy)
   D: `
-    <circle cx="40" cy="50" r="22" fill="none" stroke-width="10" />
-    <circle cx="65" cy="50" r="22" fill="none" stroke-width="10" opacity="0.6" />
+    <path d="M 50 75 L 50 25 L 50 80" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 50 75 C 35 75 20 70 20 60 L 20 20 C 35 30 50 25 50 25" fill="none" stroke-width="6" stroke-linejoin="round" />
+    <path d="M 50 75 C 65 75 80 70 80 60 L 80 20 C 65 30 50 25 50 25" fill="none" stroke-width="6" stroke-linejoin="round" />
+    <path d="M 30 40 L 40 40 M 30 55 L 40 55 M 60 40 L 70 40 M 60 55 L 70 55" fill="none" stroke-width="4" stroke-linecap="round" opacity="0.5" />
   `,
-  // E) Dynamic star/sparkle map point
+  // E) Two Hands High-Five / Holding
   E: `
-    <path d="M 50 15 Q 50 45 20 50 Q 50 55 50 85 Q 50 55 80 50 Q 50 45 50 15 Z" fill="currentColor" fill-opacity="0.2" stroke-width="6" stroke-linejoin="round" />
-    <path d="M 50 25 Q 50 45 30 50 Q 50 55 50 75 Q 50 55 70 50 Q 50 45 50 25 Z" fill="currentColor" stroke="none" />
+    <path d="M 40 65 L 40 35 Q 40 28 35 28 Q 30 28 30 35 L 30 60 M 35 30 L 35 25 Q 35 20 40 20 C 45 20 50 25 50 35 L 50 55 C 50 65 45 75 35 75 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
+    <path d="M 60 65 L 60 35 Q 60 28 65 28 Q 70 28 70 35 L 70 60 M 65 30 L 65 25 Q 65 20 60 20 C 55 20 50 25 50 35 L 50 55 C 50 65 55 75 65 75 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
   `,
   // F) Rounded-square badge mark
   F: `

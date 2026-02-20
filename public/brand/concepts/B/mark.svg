@@ -1,10 +1,11 @@
 <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
   <g fill="#1e293b" stroke="#1e293b" stroke-linecap="round" stroke-linejoin="round">
     
-    <path d="M 25 35 a 20 20 0 1 0 40 0 a 20 20 0 1 0 -40 0" fill="currentColor" fill-opacity="0.2" stroke="none" />
-    <path d="M 45 65 a 20 20 0 1 0 40 0 a 20 20 0 1 0 -40 0" fill="none" stroke-width="8" />
-    <circle cx="45" cy="35" r="5" fill="currentColor" stroke="none" />
-    <circle cx="65" cy="65" r="5" fill="currentColor" stroke="none" />
+    <path d="M 25 35 L 45 35 L 40 65 C 40 70 30 70 30 65 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
+    <path d="M 45 42 C 52 42 52 52 43 52" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 55 25 L 75 25 L 70 55 C 70 60 60 60 60 55 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
+    <path d="M 75 32 C 82 32 82 42 73 42" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 33 25 C 33 15 36 20 36 10 M 63 15 C 63 5 66 10 66 0" fill="none" stroke-width="4" stroke-linecap="round" opacity="0.5" />
   
   </g>
 </svg>

@@ -2,8 +2,12 @@
   <g transform="translate(10, 10) scale(0.8)">
     <g fill="#8b5cf6" stroke="#8b5cf6" stroke-linecap="round" stroke-linejoin="round">
       
-    <path d="M 30 20 L 50 50 L 30 80" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="M 50 20 L 70 50 L 50 80" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" />
+    <rect x="25" y="25" width="50" height="50" rx="16" fill="none" stroke-width="8" stroke-linejoin="round" />
+    <circle cx="40" cy="45" r="5" fill="currentColor" stroke="none" />
+    <circle cx="60" cy="45" r="5" fill="currentColor" stroke="none" />
+    <path d="M 40 60 Q 50 68 60 60" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 25 40 L 15 40 M 75 40 L 85 40" fill="none" stroke-width="6" stroke-linecap="round" />
+    <path d="M 40 25 L 40 15 M 60 25 L 60 15" fill="none" stroke-width="6" stroke-linecap="round" />
   
     </g>
   </g>
