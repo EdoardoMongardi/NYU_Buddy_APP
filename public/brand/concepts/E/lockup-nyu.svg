@@ -1,0 +1,14 @@
+<svg viewBox="0 0 300 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(10, 10) scale(0.8)">
+    <g fill="#8b5cf6" stroke="#8b5cf6" stroke-linecap="round" stroke-linejoin="round">
+      
+    <path d="M 20 80 C 20 50 80 50 50 20" fill="none" stroke-width="8" />
+    <path d="M 80 80 C 80 50 20 50 50 20" fill="none" stroke-width="8" />
+    <circle cx="50" cy="20" r="10" stroke="none" />
+  
+    </g>
+  </g>
+  <text x="100" y="56" font-family="'Inter', -apple-system, sans-serif" font-weight="700" font-size="32" letter-spacing="-0.02em" fill="#1e293b">
+    NYU Buddy
+  </text>
+</svg>

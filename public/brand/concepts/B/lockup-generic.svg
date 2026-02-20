@@ -1,0 +1,14 @@
+<svg viewBox="0 0 300 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(10, 10) scale(0.8)">
+    <g fill="#1e293b" stroke="#1e293b" stroke-linecap="round" stroke-linejoin="round">
+      
+    <circle cx="25" cy="40" r="12" stroke="none" />
+    <circle cx="75" cy="40" r="12" stroke="none" />
+    <path d="M 25 40 Q 50 90 75 40" fill="none" stroke-width="8" />
+  
+    </g>
+  </g>
+  <text x="100" y="56" font-family="'Inter', -apple-system, sans-serif" font-weight="700" font-size="32" letter-spacing="-0.02em" fill="#1e293b">
+    Buddy
+  </text>
+</svg>
