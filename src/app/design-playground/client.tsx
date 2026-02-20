@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import { campusPacks } from "@/lib/campusPacks";
 import SplashScreen from "@/components/ui/SplashScreen";
 
