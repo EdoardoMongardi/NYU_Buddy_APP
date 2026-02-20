@@ -19,8 +19,6 @@ export default function SplashScreen({ onComplete, campusPack = "nyu" }: SplashS
     const bgColor = isNYU
         ? "bg-gradient-to-b from-[#7314B3] to-[#460570] text-white"
         : "bg-slate-50 text-slate-800";
-    const loaderBg = isNYU ? "bg-white" : "bg-slate-800";
-    const loaderTrack = isNYU ? "bg-white/20" : "bg-black/10";
 
     useEffect(() => {
         // Total animation time before firing onComplete and fading out
@@ -112,21 +110,6 @@ export default function SplashScreen({ onComplete, campusPack = "nyu" }: SplashS
                             <h1 className="text-3xl font-bold tracking-tight" style={{ letterSpacing: "-0.03em" }}>
                                 {isNYU ? "NYU Buddy" : "Buddy"}
                             </h1>
-                        </motion.div>
-
-                        {/* Simulated Loading Progress Bar at the bottom */}
-                        <motion.div
-                            className={`absolute bottom-16 w-32 h-1 rounded-full overflow-hidden ${loaderTrack}`}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 1.5 }}
-                        >
-                            <motion.div
-                                className={`h-full rounded-full ${loaderBg}`}
-                                initial={{ width: "0%" }}
-                                animate={{ width: "100%" }}
-                                transition={{ duration: 1.2, ease: "easeInOut", delay: 1.5 }}
-                            />
                         </motion.div>
 
                     </div>
