@@ -5,10 +5,10 @@
       
   <!-- The exact original continuous 'B' shape -->
   <path d="M 30 20 L 30 80" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" />
-  <path d="M 30 20 Q 70 20 70 40 Q 70 50 50 50 Q 80 50 80 65 Q 80 80 30 80" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 30 20 Q 70 20 70 40 Q 70 50 50 50 Q 80 50 80 65 Q 80 80 30 80" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
   
-  <!-- Original dot placement with solid accent color -->
-  <circle cx="50" cy="50" r="10" fill="#ffffff" stroke="none" />
+  <!-- Original dot placement with 40% opacity -->
+  <circle cx="50" cy="50" r="10" fill="#ffffff" stroke="none" opacity="0.4" />
 
     </g>
   </g>
