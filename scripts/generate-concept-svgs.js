@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const CONCEPTS = ['A', 'B', 'C', 'D', 'E', 'F'];
+const CONCEPTS = ['C1', 'C2', 'C3', 'F1', 'F2', 'F3'];
 const BASE_DIR = path.join(__dirname, '../public/brand/concepts');
 
 const BRAND_COLORS = {
@@ -40,46 +40,43 @@ const renderLockup = (paths, markColor, text, textColor) => `<svg viewBox="0 0 3
 </svg>`;
 
 const geometries = {
-  // A) Friendly Mascot/Robot Face (Literal Buddy)
-  A: `
-    <rect x="25" y="25" width="50" height="50" rx="16" fill="none" stroke-width="8" stroke-linejoin="round" />
-    <circle cx="40" cy="45" r="5" fill="currentColor" stroke="none" />
-    <circle cx="60" cy="45" r="5" fill="currentColor" stroke="none" />
-    <path d="M 40 60 Q 50 68 60 60" fill="none" stroke-width="6" stroke-linecap="round" />
-    <path d="M 25 40 L 15 40 M 75 40 L 85 40" fill="none" stroke-width="6" stroke-linecap="round" />
-    <path d="M 40 25 L 40 15 M 60 25 L 60 15" fill="none" stroke-width="6" stroke-linecap="round" />
+  // C1: Keeps 'destination' feeling but distorts the B shape into abstract folding path
+  C1: `
+    <path d="M 35 20 L 35 80" fill="none" stroke-width="12" stroke-linecap="round" />
+    <path d="M 35 20 Q 75 20 75 40 Q 75 50 55 50 Q 85 50 85 65 Q 85 80 35 80" fill="none" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="55" cy="50" r="8" fill="currentColor" stroke="none" />
   `,
-  // B) Two Toasting Coffee Cups (Meet up)
-  B: `
-    <path d="M 25 35 L 45 35 L 40 65 C 40 70 30 70 30 65 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
-    <path d="M 45 42 C 52 42 52 52 43 52" fill="none" stroke-width="6" stroke-linecap="round" />
-    <path d="M 55 25 L 75 25 L 70 55 C 70 60 60 60 60 55 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
-    <path d="M 75 32 C 82 32 82 42 73 42" fill="none" stroke-width="6" stroke-linecap="round" />
-    <path d="M 33 25 C 33 15 36 20 36 10 M 63 15 C 63 5 66 10 66 0" fill="none" stroke-width="4" stroke-linecap="round" opacity="0.5" />
+  // C2: Abstract geometry resembling a route/map pin cluster without explicit letters
+  C2: `
+    <path d="M 30 75 Q 30 25 50 25 Q 70 25 70 50 Q 70 75 30 75 Z" fill="none" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="50" cy="50" r="12" fill="none" stroke-width="10" />
+    <circle cx="50" cy="50" r="4" fill="currentColor" stroke="none" />
   `,
-  // C) Bold geometric letter "B" and location pin fusion
-  C: `
-    <path d="M 30 20 L 30 80" fill="none" stroke-width="12" stroke-linecap="round" />
-    <path d="M 30 20 Q 70 20 70 40 Q 70 50 50 50 Q 80 50 80 65 Q 80 80 30 80" fill="none" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
-    <circle cx="50" cy="50" r="10" fill="currentColor" stroke="none" opacity="0.4" />
+  // C3: Heavily abstracted "B" resembling two linked map locations
+  C3: `
+    <path d="M 40 20 A 15 15 0 1 1 40 50 A 15 15 0 1 1 40 80" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="40" cy="35" r="5" fill="currentColor" stroke="none" />
+    <circle cx="40" cy="65" r="5" fill="currentColor" stroke="none" />
+    <path d="M 25 20 L 25 80" fill="none" stroke-width="12" stroke-linecap="round" />
   `,
-  // D) Open Book (Academic Buddy)
-  D: `
-    <path d="M 50 75 L 50 25 L 50 80" fill="none" stroke-width="6" stroke-linecap="round" />
-    <path d="M 50 75 C 35 75 20 70 20 60 L 20 20 C 35 30 50 25 50 25" fill="none" stroke-width="6" stroke-linejoin="round" />
-    <path d="M 50 75 C 65 75 80 70 80 60 L 80 20 C 65 30 50 25 50 25" fill="none" stroke-width="6" stroke-linejoin="round" />
-    <path d="M 30 40 L 40 40 M 30 55 L 40 55 M 60 40 L 70 40 M 60 55 L 70 55" fill="none" stroke-width="4" stroke-linecap="round" opacity="0.5" />
+  // F1: Open-ring container with two buddy dots meeting in the center
+  F1: `
+    <path d="M 20 40 A 30 30 0 1 1 20 60" fill="none" stroke-width="10" stroke-linecap="round" />
+    <circle cx="40" cy="50" r="8" fill="currentColor" stroke="none" />
+    <circle cx="60" cy="50" r="8" fill="currentColor" stroke="none" />
   `,
-  // E) Two Hands High-Five / Holding
-  E: `
-    <path d="M 40 65 L 40 35 Q 40 28 35 28 Q 30 28 30 35 L 30 60 M 35 30 L 35 25 Q 35 20 40 20 C 45 20 50 25 50 35 L 50 55 C 50 65 45 75 35 75 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
-    <path d="M 60 65 L 60 35 Q 60 28 65 28 Q 70 28 70 35 L 70 60 M 65 30 L 65 25 Q 65 20 60 20 C 55 20 50 25 50 35 L 50 55 C 50 65 55 75 65 75 Z" fill="none" stroke-width="6" stroke-linejoin="round" />
+  // F2: Geofence frame (dashed/broken squircle) with an expanding pulse center
+  F2: `
+    <rect x="20" y="20" width="60" height="60" rx="20" fill="none" stroke-width="8" stroke-dasharray="15 10" stroke-linecap="round" />
+    <circle cx="50" cy="50" r="15" fill="none" stroke-width="6" opacity="0.5" />
+    <circle cx="50" cy="50" r="6" fill="currentColor" stroke="none" />
   `,
-  // F) Rounded-square badge mark
-  F: `
-    <rect x="20" y="20" width="60" height="60" rx="16" fill="none" stroke-width="8" />
-    <circle cx="50" cy="50" r="12" stroke="none" />
-    <path d="M 20 20 L 35 35 M 80 80 L 65 65" fill="none" stroke-width="6" />
+  // F3: Non-camera squircle proportions + offset buddy encounter dots (dynamic)
+  F3: `
+    <rect x="25" y="15" width="50" height="70" rx="25" fill="none" stroke-width="10" />
+    <circle cx="50" cy="35" r="8" fill="currentColor" stroke="none" />
+    <circle cx="50" cy="65" r="8" fill="currentColor" stroke="none" />
+    <path d="M 50 45 L 50 55" fill="none" stroke-width="6" stroke-linecap="round" opacity="0.5" />
   `
 };
 

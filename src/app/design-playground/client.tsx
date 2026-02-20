@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { campusPacks } from "@/lib/campusPacks";
 
-const CONCEPTS = ["A", "B", "C", "D", "E", "F"];
+const CONCEPTS = ["C1", "C2", "C3", "F1", "F2", "F3"];
 const PRESETS = [
     { id: "P1", name: "Fade + Scale", desc: "0.92 -> 1.0, 300-450ms" },
     { id: "P2", name: "Pulse Ring", desc: "Expanding ring behind mark, ~900ms" },
@@ -12,24 +13,29 @@ const PRESETS = [
 const BACKGROUNDS = [
     { id: "light", name: "Light", classes: "bg-white text-black" },
     { id: "dark", name: "Dark", classes: "bg-slate-950 text-white" },
-    { id: "gradient", name: "Gradient", classes: "bg-gradient-to-br from-indigo-50 to-purple-100 text-slate-900" },
+    { id: "pack", name: "Pack Default", classes: "" }, // Will use pack styles dynamically
 ];
 
 export default function DesignPlaygroundClient() {
-    const [concept, setConcept] = useState("A");
+    const [concept, setConcept] = useState("C1");
     const [preset, setPreset] = useState("P1");
     const [bg, setBg] = useState("light");
+    const [campusPack, setCampusPack] = useState<"generic" | "nyu">("generic");
     const [motionSimulated, setMotionSimulated] = useState(false);
     const [key, setKey] = useState(0); // Trigger re-render for animation replay
 
     const systemReducedMotion = useReducedMotion();
     const prefersReduced = motionSimulated || systemReducedMotion;
+    const currentPack = campusPacks[campusPack];
+
+    // Compute actual background classes
     const currentBg = BACKGROUNDS.find((b) => b.id === bg)!;
+    const bgClasses = bg === "pack" ? currentPack.bgStyles : currentBg.classes;
 
     // Re-trigger animation when settings change
     useEffect(() => {
         setKey((prev) => prev + 1);
-    }, [concept, preset, prefersReduced]);
+    }, [concept, preset, prefersReduced, campusPack]);
 
     const copyFeedback = () => {
         navigator.clipboard.writeText(`Feedback: Logo Concept [${concept}] with Animation [${preset}]`);
@@ -37,7 +43,9 @@ export default function DesignPlaygroundClient() {
     };
 
     // Render SVG wrapper with animation based on preset
-    const AnimatedSVG = ({ src, type }: { src: string; type: "mark" | "lockup" | "icon" }) => {
+    const AnimatedSVG = ({ baseSrc, type }: { baseSrc: string; type: "mark" | "lockup" | "icon" }) => {
+        // Resolve src path based on type and packed campus
+        const src = type === "lockup" ? `${baseSrc}-${campusPack}.svg` : `${baseSrc}.svg`;
         // If reduced motion, just fade in
         if (prefersReduced) {
             return (
@@ -94,7 +102,7 @@ export default function DesignPlaygroundClient() {
     };
 
     return (
-        <div className={`min-h-screen p-4 md:p-8 transition-colors duration-300 ${currentBg.classes}`}>
+        <div className={`min-h-screen p-4 md:p-8 transition-colors duration-300 ${bgClasses}`}>
             <div className="max-w-4xl mx-auto space-y-8">
 
                 <header className="flex items-center justify-between border-b pb-4 border-current/20">
@@ -113,6 +121,24 @@ export default function DesignPlaygroundClient() {
                 <div className="grid md:grid-cols-2 gap-8">
                     {/* Controls Column */}
                     <div className="space-y-6 bg-current/5 p-6 rounded-xl border border-current/10">
+
+                        {/* Section A.0: Campus Pack selector */}
+                        <section>
+                            <h2 className="text-sm font-bold uppercase tracking-wider mb-3 opacity-60">Campus Pack</h2>
+                            <div className="flex gap-2 p-1 rounded-lg border border-current/10 bg-current/5">
+                                {(["generic", "nyu"] as const).map((pack) => (
+                                    <button
+                                        key={pack}
+                                        onClick={() => setCampusPack(pack)}
+                                        className={`flex-1 py-1.5 text-sm font-medium rounded-md transition capitalize
+                                            ${campusPack === pack ? "bg-blue-500 text-white shadow-sm" : "hover:bg-current/10"}`}
+                                    >
+                                        {pack === "generic" ? "Generic" : "NYU Edition"}
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+
                         {/* Section A: Logo selector */}
                         <section>
                             <h2 className="text-sm font-bold uppercase tracking-wider mb-3 opacity-60">A. Logo Concept</h2>
@@ -203,27 +229,27 @@ export default function DesignPlaygroundClient() {
                             </button>
                         </div>
 
-                        <div className={`p-8 rounded-xl flex flex-col items-center justify-center gap-12 min-h-[400px] border border-current/10 shadow-inner ${currentBg.classes === 'bg-white text-black' ? 'bg-gray-50' : 'bg-black/20'}`}>
+                        <div className={`p-8 rounded-xl flex flex-col items-center justify-center gap-12 min-h-[400px] border border-current/10 shadow-inner ${bgClasses.includes('bg-white') || bgClasses.includes('bg-slate-50') ? 'bg-gray-50' : 'bg-black/20'}`}>
 
                             <div className="text-center w-full">
                                 <p className="text-xs uppercase opacity-50 mb-4 tracking-widest">Mark Only (24px - 100px+)</p>
                                 <div className="flex justify-center items-center gap-8">
-                                    <AnimatedSVG src={`/brand/concepts/${concept}/mark.svg`} type="mark" />
-                                    <div className="w-8 h-8 opacity-50 flex items-center justify-center"><AnimatedSVG src={`/brand/concepts/${concept}/mark.svg`} type="mark" /></div>
+                                    <AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" />
+                                    <div className="w-8 h-8 opacity-50 flex items-center justify-center"><AnimatedSVG baseSrc={`/brand/concepts/${concept}/mark`} type="mark" /></div>
                                 </div>
                             </div>
 
                             <div className="text-center w-full border-t border-current/10 pt-8">
                                 <p className="text-xs uppercase opacity-50 mb-4 tracking-widest">Mark + Wordmark Lockup</p>
                                 <div className="flex justify-center">
-                                    <AnimatedSVG src={`/brand/concepts/${concept}/lockup.svg`} type="lockup" />
+                                    <AnimatedSVG baseSrc={`/brand/concepts/${concept}/lockup`} type="lockup" />
                                 </div>
                             </div>
 
                             <div className="text-center w-full border-t border-current/10 pt-8">
                                 <p className="text-xs uppercase opacity-50 mb-4 tracking-widest">App Icon (Square)</p>
                                 <div className="flex justify-center">
-                                    <AnimatedSVG src={`/brand/concepts/${concept}/icon.svg`} type="icon" />
+                                    <AnimatedSVG baseSrc={`/brand/concepts/${concept}/icon`} type="icon" />
                                 </div>
                             </div>
 
