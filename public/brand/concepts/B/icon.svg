@@ -3,9 +3,10 @@
   <g transform="translate(10, 10)">
     <g fill="#1e293b" stroke="#1e293b" stroke-linecap="round" stroke-linejoin="round">
       
-    <circle cx="25" cy="40" r="12" stroke="none" />
-    <circle cx="75" cy="40" r="12" stroke="none" />
-    <path d="M 25 40 Q 50 90 75 40" fill="none" stroke-width="8" />
+    <path d="M 25 35 a 20 20 0 1 0 40 0 a 20 20 0 1 0 -40 0" fill="currentColor" fill-opacity="0.2" stroke="none" />
+    <path d="M 45 65 a 20 20 0 1 0 40 0 a 20 20 0 1 0 -40 0" fill="none" stroke-width="8" />
+    <circle cx="45" cy="35" r="5" fill="currentColor" stroke="none" />
+    <circle cx="65" cy="65" r="5" fill="currentColor" stroke="none" />
   
     </g>
   </g>
