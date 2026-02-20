@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -237,7 +238,7 @@ export default function DesignPlaygroundClient() {
                             </label>
                             {systemReducedMotion && (
                                 <p className="text-xs text-orange-500 mt-2">
-                                    System Settings: "Prefers Reduced Motion" is ON globally.
+                                    System Settings: &quot;Prefers Reduced Motion&quot; is ON globally.
                                 </p>
                             )}
                         </section>

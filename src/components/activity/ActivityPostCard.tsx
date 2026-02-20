@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 // ... imports
 import { useRouter } from 'next/navigation';
 import { MapPin, Clock, Users, MoreHorizontal } from 'lucide-react';
