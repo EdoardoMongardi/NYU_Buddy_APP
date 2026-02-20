@@ -44,7 +44,7 @@ const renderIcon = (paths) => `<svg viewBox="0 0 120 120" width="100%" height="1
       <stop offset="100%" stop-color="#460570" />
     </linearGradient>
   </defs>
-  <rect width="120" height="120" rx="28" fill="url(#nyuGrad)"/>
+  <rect width="120" height="120" fill="url(#nyuGrad)"/>
   <g transform="translate(10, 10)">
     <g stroke-linecap="round" stroke-linejoin="round">
       ${paths}
