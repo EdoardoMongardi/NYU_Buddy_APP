@@ -1,35 +1,39 @@
-# Logo Concepts (Phase 2 - Updated v2)
+# Logo Concepts (Phase 3 - Variations C & F)
 
-This document contains brief notes on the 6 concept families generated for the NYU Buddy app.
+This document contains brief notes on the 6 refined concept variations for the NYU Buddy app based on your selections of C and F.
 
-Each family has been exported with "mark-only", "app-icon safe", and two lockups ("Generic" and "NYU Edition") to support the Campus Pack theme toggle.
+## Concept C: Path & Destination Variations
 
-## Concept A: Friendly Mascot/Robot Face
-A literal "buddy" robot face with a soft geometric structure, conveying a helpful and friendly digital assistant.
-*Mark*: ![Mark](A/mark.svg)
-*Lockup*: ![NYU Lockup](A/lockup-nyu.svg)
+### C1: Abstract Journey Map
+Retaining the feeling of a destination and path, C1 heavily distorts the "B" shape into a continuous route ending at a terminal pin drop. It completely moves away from being a literal letter.
+*Mark*: ![Mark](C1/mark.svg)
+*Lockup*: ![NYU Lockup](C1/lockup-nyu.svg)
 
-## Concept B: Two Toasting Coffee Cups
-A clear visual of two mugs clinking together, symbolizing casual physical meetups and bonding.
-*Mark*: ![Mark](B/mark.svg)
-*Lockup*: ![NYU Lockup](B/lockup-nyu.svg)
+### C2: Route Pin Cluster
+C2 removes the path entirely and focuses on the intersection of travel routes converging on a single, clear destination pin. Clean circular geometry, extremely scalable at 24px and 32px.
+*Mark*: ![Mark](C2/mark.svg)
+*Lockup*: ![NYU Lockup](C2/lockup-nyu.svg)
 
-## Concept C: Bold geometric "B" and location pin fusion (Kept)
-A strong, modern letter "B" interwoven with a location/destination aesthetic.
-*Mark*: ![Mark](C/mark.svg)
-*Lockup*: ![NYU Lockup](C/lockup-nyu.svg)
+### C3: Linked Route Points
+C3 takes the dual loops of the original "B" and reinterprets them as two linked map locations. It's highly abstracted but hints at the start and end of a journey together.
+*Mark*: ![Mark](C3/mark.svg)
+*Lockup*: ![NYU Lockup](C3/lockup-nyu.svg)
 
-## Concept D: Open Book
-A classic academic motif transformed into modern geometry, hinting at study buddies or academic collaboration.
-*Mark*: ![Mark](D/mark.svg)
-*Lockup*: ![NYU Lockup](D/lockup-nyu.svg)
+---
 
-## Concept E: Two Hands High-Five / Holding
-Interlaced geometric hands symbolizing connection, partnership, and agreement.
-*Mark*: ![Mark](E/mark.svg)
-*Lockup*: ![NYU Lockup](E/lockup-nyu.svg)
+## Concept F: Container Variations
 
-## Concept F: Rounded box & target (Kept)
-A modern continuous rounded box enclosing a subtle core shape.
-*Mark*: ![Mark](F/mark.svg)
-*Lockup*: ![NYU Lockup](F/lockup-nyu.svg)
+### F1: Open Ring Meetup
+F1 pulls away from the squircle frame, using an open, embracing ring that gently orbits two solid inner nodes (buddies meeting up in the center).
+*Mark*: ![Mark](F1/mark.svg)
+*Lockup*: ![NYU Lockup](F1/lockup-nyu.svg)
+
+### F2: Expanding Geofence Frame
+F2 utilizes a broken, dashed line forming a soft squircle, suggesting a predefined radius or geofence. The inside contains a radiating pulse around a core meeting point.
+*Mark*: ![Mark](F2/mark.svg)
+*Lockup*: ![NYU Lockup](F2/lockup-nyu.svg)
+
+### F3: Offset Buddy Connections
+F3 uses an elongated pill-squircle frame (distinctly un-camera-like). The internal design features two buddy nodes offset with a faint connecting track sliding between them.
+*Mark*: ![Mark](F3/mark.svg)
+*Lockup*: ![NYU Lockup](F3/lockup-nyu.svg)
