@@ -22,12 +22,13 @@ export default function SplashScreen({ onComplete, campusPack = "nyu" }: SplashS
 
     useEffect(() => {
         // Total animation time before firing onComplete and fading out
+        // Shortened from 2800ms to 1800ms since we removed the loading bar
         const timer = setTimeout(() => {
             setIsVisible(false);
             setTimeout(() => {
                 if (onComplete) onComplete();
             }, 500); // Wait for fade out to complete
-        }, 2800);
+        }, 1800);
 
         return () => clearTimeout(timer);
     }, [onComplete]);
