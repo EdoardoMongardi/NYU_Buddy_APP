@@ -62,9 +62,8 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                                 className="flex items-center justify-center flex-1 h-full"
                             >
                                 <Icon
-                                    className={`w-[24px] h-[24px] transition-colors duration-150 text-violet-600 ${isActive ? 'fill-current' : 'fill-none'
+                                    className={`w-[26px] h-[26px] transition-colors duration-150 ${isActive ? 'fill-violet-600 text-white stroke-[2.5px]' : 'fill-white text-violet-600 stroke-[1.8px]'
                                         }`}
-                                    strokeWidth={isActive ? 2.2 : 1.8}
                                 />
                             </button>
                         );
