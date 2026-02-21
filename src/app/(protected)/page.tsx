@@ -4,34 +4,77 @@ import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Download, X } from 'lucide-react';
 
-import AvailabilitySheet from '@/components/availability/AvailabilitySheet';
-import SuggestionCard from '@/components/matching/SuggestionCard';
-import TabNavigation from '@/components/home/TabNavigation';
-import InvitesTab from '@/components/home/InvitesTab';
-import { ActiveInvitesRow } from '@/components/match/ActiveInvitesRow';
-import { usePresence } from '@/lib/hooks/usePresence';
+import ActivityFeed from '@/components/activity/ActivityFeed';
+import AskedFeed from '@/components/activity/AskedFeed';
+import CategoryFilter from '@/components/activity/CategoryFilter';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useOffers } from '@/lib/hooks/useOffers';
-import { useToast } from '@/hooks/use-toast';
-import MatchOverlay from '@/components/match/MatchOverlay';
-import { DidYouMeetDialog } from '@/components/match/DidYouMeetDialog';
 import { usePendingConfirmations } from '@/lib/hooks/usePendingConfirmations';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useInstallation } from '@/lib/hooks/useInstallation';
+import { DidYouMeetDialog } from '@/components/match/DidYouMeetDialog';
 import IOSInstallGuide from '@/components/installation/IOSInstallGuide';
 import AndroidInstallGuide from '@/components/installation/AndroidInstallGuide';
 import IOSSafariPrompt from '@/components/installation/IOSSafariPrompt';
 import { getIOSBrowserName } from '@/lib/utils/platform';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { useActivityFeed } from '@/lib/hooks/useActivityFeed';
+import { useNav } from '@/context/NavContext';
 
 export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, userProfile } = useAuth();
-  const { isAvailable, presence } = usePresence();
-  const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
+  const { user } = useAuth();
   const { pendingMatches } = usePendingConfirmations();
+  const { setNavVisible } = useNav();
+
+  // ── Activity Feed State ──
+  const {
+    posts,
+    loading,
+    error,
+    loadingMore,
+    hasMore,
+    refresh,
+    loadMore,
+    categoryFilter,
+    setCategory,
+  } = useActivityFeed();
+
+  // ── Scroll & Header Visibility ──
+  const [showHeader, setShowHeader] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Disable scroll-hide on desktop (md breakpoint)
+      if (window.matchMedia('(min-width: 768px)').matches) {
+        setShowHeader(true);
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+
+      // Threshold to avoid jitter
+      if (Math.abs(currentScrollY - lastScrollY.current) < 10) return;
+
+      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+        // Scrolling Down -> Hide
+        setShowHeader(false);
+        setNavVisible(false);
+      } else if (currentScrollY < lastScrollY.current) {
+        // Scrolling Up -> Show
+        setShowHeader(true);
+        setNavVisible(true);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [setNavVisible]);
 
   // ── PWA standalone detection ──
   const [isPWA, setIsPWA] = useState(false);
@@ -41,6 +84,9 @@ export default function HomePage() {
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsPWA(standalone);
   }, []);
+
+  // ── Sub-tab: For You / Asked ──
+  const [feedTab, setFeedTab] = useState<'for-you' | 'asked'>('for-you');
 
   // ── Notification bubble ──
   const { isSupported: notifSupported, permissionStatus, requestPermission } = useNotifications();
@@ -89,9 +135,7 @@ export default function HomePage() {
     if (platform.isAndroid) { setShowAndroidGuide(true); return; }
   };
 
-  // ── Standard page logic ──
-  const isAcceptingRef = useRef(false);
-
+  // ── Cancelled match toast ──
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
       router.replace('/');
@@ -105,157 +149,154 @@ export default function HomePage() {
     }
   }, [searchParams, toast, router]);
 
-  const {
-    inboxOffers, inboxCount, inboxLoading, inboxError,
-    fetchInbox, respondToOffer,
-    outgoingOffers, canSendMore, fetchOutgoing, cancelOutgoingOffer,
-  } = useOffers();
-
-  const [activeTab, setActiveTab] = useState<'discover' | 'invites'>('discover');
   const emailVerified = user?.emailVerified;
-
-  useEffect(() => {
-    if (isAvailable && emailVerified) { fetchInbox(); fetchOutgoing(); }
-  }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
-
-  useEffect(() => {
-    if (!isAvailable || !emailVerified) return;
-    const interval = setInterval(() => { fetchInbox(); fetchOutgoing(); }, 30000);
-    return () => clearInterval(interval);
-  }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
-
-  useEffect(() => {
-    if (isAcceptingRef.current) return;
-    if (presence?.matchId && presence.status === 'matched') {
-      setShowMatchOverlay(presence.matchId);
-    } else if (showMatchOverlay && (!presence || presence.status !== 'matched')) {
-      setShowMatchOverlay(null);
-    }
-  }, [presence, showMatchOverlay]);
-
-  useEffect(() => {
-    if (showMatchOverlay) return;
-    if (isAcceptingRef.current) return;
-    if (!presence?.matchId || presence.status !== 'matched') return;
-    const acceptedOffer = outgoingOffers.find(o => o.status === 'accepted' && o.matchId);
-    if (acceptedOffer) setShowMatchOverlay(acceptedOffer.matchId || null);
-  }, [outgoingOffers, showMatchOverlay, presence]);
-
-  const handleMatchOverlayComplete = () => { if (showMatchOverlay) router.push(`/match/${showMatchOverlay}`); };
-  const handleAcceptOffer = async (offerId: string) => { isAcceptingRef.current = true; try { return await respondToOffer(offerId, 'accept'); } catch (error) { isAcceptingRef.current = false; throw error; } };
-  const handleDeclineOffer = async (offerId: string) => { await respondToOffer(offerId, 'decline'); };
-  const handleCancelOffer = async (offerId: string) => { await cancelOutgoingOffer(offerId); };
 
   return (
     <div
-      className="max-w-md mx-auto h-full overflow-hidden flex flex-col"
-      style={{ overscrollBehavior: 'none', touchAction: 'manipulation' }}
+      className="w-full mx-auto min-h-screen flex flex-col relative bg-white"
     >
-      {showMatchOverlay && user && (
-        <MatchOverlay matchId={showMatchOverlay} currentUserId={user.uid} currentUserPhoto={userProfile?.photoURL} onComplete={handleMatchOverlayComplete} isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)} />
-      )}
-      {!showMatchOverlay && pendingMatches.length > 0 && (
-        <DidYouMeetDialog open={true} matchId={pendingMatches[0].matchId} otherUserName={pendingMatches[0].otherDisplayName} otherUserPhotoURL={pendingMatches[0].otherPhotoURL} activity={pendingMatches[0].activity} onComplete={() => {}} />
+      {/* DidYouMeet dialog */}
+      {pendingMatches.length > 0 && (
+        <DidYouMeetDialog open={true} matchId={pendingMatches[0].matchId} otherUserName={pendingMatches[0].otherDisplayName} otherUserPhotoURL={pendingMatches[0].otherPhotoURL} activity={pendingMatches[0].activity} onComplete={() => { }} />
       )}
 
-      {/* Title row — "Find a Buddy" + notification/install bubble */}
-      <div className={`flex items-center justify-between shrink-0 ${isPWA ? 'pt-1.5 pb-2' : 'pt-1 pb-1.5'}`}>
-        <h1 className="text-[22px] font-bold text-gray-800 tracking-tight">Find a Buddy</h1>
+      {/* ── HEADER GROUP (Sticky/Animated) ── */}
+      <div
+        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
+        style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
+      >
+        {/* Row 1: Title + Action Icons */}
+        <div className={`flex items-center justify-between px-4 ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
+          <h1 className="text-xl font-bold text-gray-900 tracking-tight">NYU Buddy</h1>
 
-        {/* Notification bubble — only one of these shows at a time (mutually exclusive on iOS) */}
-        <AnimatePresence mode="wait">
-          {showNotifBubble && (
-            <motion.div
-              key="notif"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
-            >
-              <Bell className="w-3.5 h-3.5 flex-shrink-0" />
-              <button
-                onClick={handleEnableNotifications}
-                disabled={notifRequesting}
-                className="text-[12px] font-medium whitespace-nowrap"
+          {/* Notification / Install bubble */}
+          <AnimatePresence mode="wait">
+            {showNotifBubble && (
+              <motion.div
+                key="notif"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
               >
-                {notifRequesting ? 'Enabling...' : 'Notifications'}
-              </button>
-              <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
-                <X className="w-3.5 h-3.5 text-violet-400" />
-              </button>
-            </motion.div>
-          )}
-          {!showNotifBubble && showInstallBubble && (
-            <motion.div
-              key="install"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
+                <Bell className="w-3.5 h-3.5 flex-shrink-0" />
+                <button
+                  onClick={handleEnableNotifications}
+                  disabled={notifRequesting}
+                  className="text-[12px] font-medium whitespace-nowrap"
+                >
+                  {notifRequesting ? 'Enabling...' : 'Notifications'}
+                </button>
+                <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
+                  <X className="w-3.5 h-3.5 text-violet-400" />
+                </button>
+              </motion.div>
+            )}
+            {!showNotifBubble && showInstallBubble && (
+              <motion.div
+                key="install"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
+              >
+                <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
+                  Install
+                </button>
+                <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
+                  <X className="w-3.5 h-3.5 text-violet-400" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Row 2: Sub-tabs (X-style) */}
+        {/* Note: In previous version this had a verified check, keeping it */}
+        {emailVerified && (
+          <div className="flex relative mt-1">
+            <button
+              onClick={() => setFeedTab('for-you')}
+              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'for-you' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                }`}
             >
-              <Download className="w-3.5 h-3.5 flex-shrink-0" />
-              <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
-                Install
-              </button>
-              <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
-                <X className="w-3.5 h-3.5 text-violet-400" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              For you
+            </button>
+            <button
+              onClick={() => setFeedTab('asked')}
+              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'asked' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                }`}
+            >
+              Asked
+            </button>
+            {/* Animated underline indicator */}
+            <motion.div
+              className="absolute bottom-0 h-[3px] bg-violet-600 rounded-full"
+              animate={{
+                left: feedTab === 'for-you' ? '0%' : '50%',
+                width: '50%',
+              }}
+              transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+            />
+          </div>
+        )}
+
+        {/* Row 3: Category Filters */}
+        <div className="py-2 px-4">
+          <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
+        </div>
       </div>
 
-      {!emailVerified ? (
-        <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center">
-          <h3 className="font-semibold text-amber-800 mb-2">Verify Your Email</h3>
-          <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features. Check your inbox for the verification link.</p>
-        </div>
-      ) : (
-        <>
-          <div className="shrink-0">
-            <AvailabilitySheet isPWA={isPWA} />
+      {/* ── SCROLLABLE CONTENT ── */}
+      {/* Padding top adjusted for header height ≈ 150px */}
+      <div
+        className="flex-1 w-full"
+        style={{ paddingTop: '140px' }}
+      >
+        {!emailVerified ? (
+          <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">
+            <h3 className="font-semibold text-amber-800 mb-2">Verify Your Email</h3>
+            <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features. Check your inbox for the verification link.</p>
           </div>
-
-          {isAvailable && (
-            <div className={`shrink-0 ${isPWA ? 'mt-2' : 'mt-1.5'}`}>
-              <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} inviteCount={inboxCount} />
-            </div>
-          )}
-
-          <div className={`flex-1 overflow-hidden min-h-0 ${isPWA ? 'mt-1' : ''}`}>
+        ) : (
+          <div className="min-h-full">
             <AnimatePresence mode="popLayout" initial={false}>
-              {activeTab === 'discover' ? (
+              {feedTab === 'for-you' ? (
                 <motion.div
-                  key="discover"
+                  key="for-you"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="h-full"
-                  style={{ touchAction: 'none' }}
                 >
-                  {outgoingOffers.length > 0 && (
-                    <ActiveInvitesRow offers={outgoingOffers} onCancel={handleCancelOffer} />
-                  )}
-                  <SuggestionCard isAvailable={isAvailable} canSendMore={canSendMore} isPWA={isPWA} />
+                  <ActivityFeed
+                    posts={posts}
+                    loading={loading}
+                    error={error}
+                    loadingMore={loadingMore}
+                    hasMore={hasMore}
+                    refresh={refresh}
+                    loadMore={loadMore}
+                  />
                 </motion.div>
               ) : (
                 <motion.div
-                  key="invites"
+                  key="asked"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <InvitesTab offers={inboxOffers} loading={inboxLoading} error={inboxError} onRefresh={fetchInbox} onAccept={handleAcceptOffer} onDecline={handleDeclineOffer} isAvailable={isAvailable} userPhotoURL={userProfile?.photoURL} userDisplayName={userProfile?.displayName} />
+                  <AskedFeed />
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       {/* Install guide modals */}
       <IOSInstallGuide isOpen={showIOSGuide} onClose={() => setShowIOSGuide(false)} />

@@ -109,7 +109,7 @@ export function LocationDecisionPanel({
     }
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-1">
             {/* Header with countdown + info */}
             <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
@@ -168,7 +168,7 @@ export function LocationDecisionPanel({
             )}
 
             {/* Side-by-side choice grid */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
                 {/* LEFT: My Choice */}
                 <div>
                     <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1 px-1">
@@ -186,10 +186,10 @@ export function LocationDecisionPanel({
                             />
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 min-h-[100px]">
+                        <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-xl p-2 min-h-[60px]">
                             <MapPin className="w-5 h-5 text-gray-300 mb-1" />
-                            <p className="text-[10px] text-gray-400 text-center">
-                                Swipe below to pick
+                            <p className="text-[10px] text-gray-400 text-center leading-tight">
+                                Swipe below<br />to pick
                             </p>
                         </div>
                     )}
@@ -213,15 +213,15 @@ export function LocationDecisionPanel({
                                 />
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center bg-gray-50 border border-gray-200 rounded-xl p-4 min-h-[100px]">
+                            <div className="flex flex-col items-center justify-center bg-gray-50 border border-gray-200 rounded-xl p-2 min-h-[60px]">
                                 <p className="text-xs text-gray-500 text-center">
                                     Picked #{otherChoice.placeRank}
                                 </p>
                             </div>
                         )
                     ) : (
-                        <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-xl p-4 min-h-[100px]">
-                            <Loader2 className="w-5 h-5 animate-spin text-gray-300 mb-1" />
+                        <div className="flex flex-col items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-xl p-2 min-h-[60px]">
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-300 mb-1" />
                             <p className="text-[10px] text-gray-400 text-center">
                                 Waiting...
                             </p>
@@ -230,18 +230,9 @@ export function LocationDecisionPanel({
                 </div>
             </div>
 
-            {/* Candidates Swipe Row */}
-            <div>
-                <div className="flex items-center justify-between px-1 mb-1">
-                    <p className="text-xs text-gray-500">
-                        Swipe to see options
-                    </p>
-                    <span className="text-[10px] text-gray-400">
-                        {placeCandidates.length} spots
-                    </span>
-                </div>
-
-                <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-2 px-1 -mx-1 scrollbar-hide">
+            {/* Candidates Swipe Row - compacted */}
+            <div className="pt-1">
+                <div className="flex overflow-x-auto snap-x snap-mandatory gap-2 pb-2 px-1 -mx-1 scrollbar-hide">
                     {placeCandidates.map((place) => (
                         <div key={place.placeId} className="w-[70vw] sm:w-[280px] shrink-0 snap-center">
                             <PlaceCard

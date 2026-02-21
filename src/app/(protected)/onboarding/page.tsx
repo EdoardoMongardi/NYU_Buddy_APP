@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Loader2, User, Heart, Coffee } from 'lucide-react';
+import { Loader2, User, Heart, Coffee, Compass } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import {
   ACTIVITIES,
   INTERESTS,
 } from '@/lib/schemas/user';
+import { ACTIVITY_CATEGORIES, CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
 
 export default function OnboardingPage() {
   const { user, refreshUserProfile } = useAuth();
@@ -38,6 +39,7 @@ export default function OnboardingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [preferredCategories, setPreferredCategories] = useState<ActivityCategory[]>([]);
 
   const {
     register,
@@ -116,6 +118,8 @@ export default function OnboardingPage() {
         displayName: data.displayName,
         interests: data.interests,
         preferredActivities: data.preferredActivities,
+        preferredCategories: preferredCategories,
+        onboardingCompleted: true,
         ...(photoURL && { photoURL }),
         profileCompleted: true,
         updatedAt: serverTimestamp(),
@@ -130,8 +134,16 @@ export default function OnboardingPage() {
     }
   };
 
+  const toggleCategory = (cat: ActivityCategory) => {
+    setPreferredCategories((prev) => {
+      if (prev.includes(cat)) return prev.filter((c) => c !== cat);
+      if (prev.length >= 3) return prev;
+      return [...prev, cat];
+    });
+  };
+
   const nextStep = () => {
-    if (step < 4) setStep(step + 1);
+    if (step < 5) setStep(step + 1);
   };
 
   const prevStep = () => {
@@ -154,7 +166,7 @@ export default function OnboardingPage() {
         <Card className="shadow-xl border-0">
           <CardHeader className="text-center">
             <div className="flex justify-center space-x-2 mb-4">
-              {[1, 2, 3, 4].map((s) => (
+              {[1, 2, 3, 4, 5].map((s) => (
                 <div
                   key={s}
                   className={`w-3 h-3 rounded-full transition-colors ${s <= step ? 'bg-violet-600' : 'bg-gray-200'
@@ -167,12 +179,14 @@ export default function OnboardingPage() {
               {step === 2 && 'Add a Profile Picture'}
               {step === 3 && 'What are you interested in?'}
               {step === 4 && 'What do you like to do?'}
+              {step === 5 && 'Activity Preferences'}
             </CardTitle>
             <CardDescription>
               {step === 1 && "Let's set up your profile"}
               {step === 2 && 'Help others recognize you (optional)'}
               {step === 3 && 'Select your interests to find like-minded buddies'}
               {step === 4 && 'Choose activities you enjoy with others'}
+              {step === 5 && 'What types of group activities interest you? (optional)'}
             </CardDescription>
           </CardHeader>
 
@@ -370,14 +384,68 @@ export default function OnboardingPage() {
                       Back
                     </Button>
                     <Button
+                      type="button"
+                      onClick={nextStep}
+                      className="flex-1 bg-gradient-to-r from-violet-600 to-purple-600"
+                      disabled={!selectedActivities?.length}
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Step 5: Activity Category Preferences (skippable) */}
+              {step === 5 && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  <div className="flex justify-center mb-4">
+                    <Compass className="w-12 h-12 text-violet-600" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ACTIVITY_CATEGORIES.filter((c) => c !== 'other').map((cat) => (
+                      <Badge
+                        key={cat}
+                        variant={
+                          preferredCategories.includes(cat)
+                            ? 'default'
+                            : 'outline'
+                        }
+                        className={`cursor-pointer transition-all px-3 py-2.5 text-sm justify-center ${
+                          preferredCategories.includes(cat)
+                            ? 'bg-violet-600 hover:bg-violet-700'
+                            : 'hover:bg-violet-100'
+                        }`}
+                        onClick={() => toggleCategory(cat)}
+                      >
+                        {CATEGORY_LABELS[cat]}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-500 text-center">
+                    Select 1-3 categories {preferredCategories.length > 0 && `(${preferredCategories.length}/3)`}
+                  </p>
+                  <div className="flex space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={prevStep}
+                      className="flex-1"
+                    >
+                      Back
+                    </Button>
+                    <Button
                       type="submit"
                       className="flex-1 bg-gradient-to-r from-violet-600 to-purple-600"
-                      disabled={isLoading || !selectedActivities?.length}
+                      disabled={isLoading}
                     >
                       {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        'Complete Setup'
+                        preferredCategories.length === 0 ? 'Skip & Finish' : 'Complete Setup'
                       )}
                     </Button>
                   </div>

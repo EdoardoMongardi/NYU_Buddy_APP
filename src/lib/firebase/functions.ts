@@ -328,3 +328,251 @@ export const checkAvailabilityForUser = createCallable<
     };
   }
 >('checkAvailabilityForUser');
+
+// ============================================================================
+// ACTIVITY COMPANION SYSTEM (v2.0)
+// ============================================================================
+
+// Activity Posts
+export const activityPostCreate = createCallable<
+  {
+    body: string;
+    category: string;
+    maxParticipants: number;
+    expiresInHours: number;
+    locationName?: string | null;
+    locationLat?: number | null;
+    locationLng?: number | null;
+    imageUrl?: string | null;
+  },
+  { postId: string; status: string }
+>('activityPostCreate');
+
+export const activityPostUpdate = createCallable<
+  {
+    postId: string;
+    body?: string;
+    locationName?: string | null;
+    locationLat?: number | null;
+    locationLng?: number | null;
+    maxParticipants?: number;
+    expiresAt?: string;
+  },
+  { success: boolean }
+>('activityPostUpdate');
+
+export const activityPostClose = createCallable<
+  { postId: string; reason?: string },
+  { success: boolean }
+>('activityPostClose');
+
+export interface FeedPost {
+  postId: string;
+  creatorUid: string;
+  creatorDisplayName: string;
+  creatorPhotoURL: string | null;
+  body: string;
+  category: string;
+  imageUrl: string | null;
+  maxParticipants: number;
+  acceptedCount: number;
+  locationName: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  status: string;
+  expiresAt: string | null;
+  createdAt: string | null;
+}
+
+export const activityPostGetFeed = createCallable<
+  { cursor?: string | null; category?: string | null; lat?: number | null; lng?: number | null; radiusKm?: number | null },
+  { posts: FeedPost[]; nextCursor: string | null }
+>('activityPostGetFeed');
+
+export const activityPostGetMine = createCallable<
+  { status?: string | null },
+  { posts: FeedPost[] }
+>('activityPostGetMine');
+
+export interface PostDetail {
+  postId: string;
+  creatorUid: string;
+  creatorDisplayName: string;
+  creatorPhotoURL: string | null;
+  body: string;
+  category: string;
+  imageUrl: string | null;
+  maxParticipants: number;
+  acceptedCount: number;
+  locationName: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  status: string;
+  closeReason: string | null;
+  groupId: string | null;
+  editCount: number;
+  expiresAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface JoinRequestInfo {
+  requestId: string;
+  postId: string;
+  requesterUid: string;
+  requesterDisplayName: string;
+  requesterPhotoURL: string | null;
+  message: string | null;
+  status: string;
+  createdAt: string | null;
+}
+
+export interface GroupInfo {
+  groupId: string;
+  postId: string;
+  creatorUid: string;
+  memberUids: string[];
+  memberCount: number;
+  status: string;
+  createdAt: string | null;
+}
+
+export const activityPostGetById = createCallable<
+  { postId: string },
+  {
+    post: PostDetail;
+    joinRequests: JoinRequestInfo[] | null;
+    group: GroupInfo | null;
+    myJoinRequest: { requestId: string; status: string; message: string | null; createdAt: string | null } | null;
+  }
+>('activityPostGetById');
+
+// Join Requests
+export const joinRequestSend = createCallable<
+  { postId: string; message?: string | null },
+  { requestId: string; status: string }
+>('joinRequestSend');
+
+export const joinRequestWithdraw = createCallable<
+  { postId: string },
+  { success: boolean }
+>('joinRequestWithdraw');
+
+export const joinRequestRespond = createCallable<
+  { postId: string; requesterUid: string; action: 'accept' | 'decline' },
+  { success: boolean; action: string; groupId?: string }
+>('joinRequestRespond');
+
+export const joinRequestGetMine = createCallable<
+  { status?: string | null },
+  { requests: JoinRequestInfo[] }
+>('joinRequestGetMine');
+
+// Groups
+export const groupLeave = createCallable<
+  { groupId: string },
+  { success: boolean }
+>('groupLeave');
+
+export const groupKick = createCallable<
+  { groupId: string; targetUid: string },
+  { success: boolean }
+>('groupKick');
+
+export const groupSendMessage = createCallable<
+  { groupId: string; body: string },
+  { success: boolean; messageId: string }
+>('groupSendMessage');
+
+export interface GroupChatMsg {
+  id: string;
+  senderUid: string;
+  senderDisplayName: string;
+  body: string;
+  type: 'user' | 'system';
+  createdAt: string | null;
+}
+
+export const groupGetMessages = createCallable<
+  { groupId: string; cursor?: string | null; limit?: number },
+  { messages: GroupChatMsg[]; nextCursor: string | null }
+>('groupGetMessages');
+
+// Map Status
+export const mapStatusSet = createCallable<
+  { statusText: string; emoji: string; lat: number; lng: number },
+  { success: boolean }
+>('mapStatusSet');
+
+export const mapStatusClear = createCallable<
+  Record<string, never>,
+  { success: boolean }
+>('mapStatusClear');
+
+export interface MapStatusNearby {
+  uid: string;
+  statusText: string;
+  emoji: string;
+  lat: number;
+  lng: number;
+  expiresAt: string | null;
+  createdAt: string | null;
+}
+
+export const mapStatusGetNearby = createCallable<
+  { lat: number; lng: number; radiusKm?: number },
+  { statuses: MapStatusNearby[] }
+>('mapStatusGetNearby');
+
+// Safety
+export const reportSubmit = createCallable<
+  {
+    reportedUid: string;
+    reportType: string;
+    context: string;
+    contextId: string;
+    description?: string | null;
+  },
+  { reportId: string }
+>('reportSubmit');
+
+// ============================================================================
+// ASK SYSTEM (1v1 Chats)
+// ============================================================================
+
+export interface AskThreadInfo {
+  askId: string;
+  postId: string;
+  creatorUid: string;
+  askerUid: string;
+  askerDisplayName: string;
+  askerPhotoURL: string | null;
+  lastMessage: string;
+  lastMessageAt: string | null;
+  lastSenderUid: string;
+  createdAt: string | null;
+  post?: FeedPost | null; // Available when fetched via askGetThreads
+}
+
+export interface AskMessage {
+  id: string;
+  senderUid: string;
+  senderDisplayName: string;
+  body: string;
+  createdAt: string | null;
+}
+
+export const askSendMessage = createCallable<
+  { postId: string; body: string; targetAskerUid?: string },
+  { success: boolean; messageId: string; askId: string }
+>('askSendMessage');
+
+export const askGetThread = createCallable<
+  { postId: string; targetAskerUid?: string; cursor?: string | null; limit?: number },
+  { askThread: AskThreadInfo | null; messages: AskMessage[]; nextCursor: string | null }
+>('askGetThread');
+
+export const askGetThreads = createCallable<
+  { role: 'asker' | 'creator'; postId?: string; cursor?: string | null; limit?: number },
+  { askThreads: AskThreadInfo[]; nextCursor: string | null }
+>('askGetThreads');

@@ -283,7 +283,9 @@ export default function MatchPage() {
                  sm:rounded-xl sm:shadow-2xl sm:border sm:border-gray-200"
       style={{
         top: 'var(--vv-offset-top, 0px)',
-        height: 'var(--vvh, 100dvh)',
+        height: isKbOpen
+          ? 'var(--vvh, 100dvh)'
+          : 'calc(var(--vvh, 100dvh) - 48px - env(safe-area-inset-bottom, 0px))',
         transitionProperty: 'height',
         transitionDuration: 'var(--vvh-duration, 0ms)',
         transitionTimingFunction: 'ease-out',
@@ -418,9 +420,7 @@ export default function MatchPage() {
                   ref={toggleRef}
                   className="flex-shrink-0"
                   style={{
-                    paddingBottom: chatDrawerOpen
-                      ? '0'
-                      : 'var(--safe-bottom, env(safe-area-inset-bottom, 0px))',
+                    paddingBottom: 0
                   }}
                 >
                   <button

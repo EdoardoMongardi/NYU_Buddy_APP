@@ -71,6 +71,23 @@ export interface UserProfile {
   isVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Activity Companion v2.0 fields
+  preferredCategories?: string[];
+  onboardingCompleted?: boolean;
+  firstPostCreatedAt?: Date;
+  firstJoinRequestAt?: Date;
+  reliabilityScore?: number;
+  reliabilityStats?: {
+    activitiesCompleted: number;
+    activitiesCancelled: number;
+    noShows: number;
+  };
+  activityStats?: {
+    postsCreated: number;
+    postsJoined: number;
+    requestsSent: number;
+    requestsAccepted: number;
+  };
 }
 
 // Activity and interest options

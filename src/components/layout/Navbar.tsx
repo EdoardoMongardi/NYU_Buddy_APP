@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Settings, AlertCircle } from 'lucide-react';
+import { Settings, AlertCircle, MapPin } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -33,15 +33,27 @@ export default function Navbar() {
               </span>
             </Link>
 
-            {/* Settings button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.push('/profile')}
-              className="rounded-full hover:bg-gray-100 touch-scale h-10 w-10"
-            >
-              <Settings className="w-5 h-5 text-gray-400" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {/* Map button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.push('/map')}
+                className="rounded-full hover:bg-gray-100 touch-scale h-10 w-10"
+              >
+                <MapPin className="w-5 h-5 text-gray-400" />
+              </Button>
+
+              {/* Settings button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.push('/profile')}
+                className="rounded-full hover:bg-gray-100 touch-scale h-10 w-10"
+              >
+                <Settings className="w-5 h-5 text-gray-400" />
+              </Button>
+            </div>
           </div>
         </div>
       </nav>

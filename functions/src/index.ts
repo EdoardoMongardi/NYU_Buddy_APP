@@ -30,6 +30,34 @@ import { auditPresenceMatchIdHandler } from './migrations/auditPresenceMatchId';
 import { adminForceExpireMatchHandler } from './admin/forceExpireMatch';
 import { idempotencyCleanup } from './idempotency/cleanup';
 
+// Activity Companion System (v2.0)
+import { activityPostCreateHandler } from './activity/createPost';
+import { activityPostUpdateHandler } from './activity/updatePost';
+import { activityPostCloseHandler } from './activity/closePost';
+import { activityPostGetFeedHandler } from './activity/getFeed';
+import { activityPostGetMineHandler } from './activity/getMine';
+import { activityPostGetByIdHandler } from './activity/getById';
+import { joinRequestSendHandler } from './activity/sendJoinRequest';
+import { joinRequestWithdrawHandler } from './activity/withdrawJoinRequest';
+import { joinRequestRespondHandler } from './activity/respondJoinRequest';
+import { joinRequestGetMineHandler } from './activity/getMyJoinRequests';
+import { groupLeaveHandler } from './activity/groupLeave';
+import { groupKickHandler } from './activity/groupKick';
+import { groupSendMessageHandler } from './activity/groupSendMessage';
+import { groupGetMessagesHandler } from './activity/groupGetMessages';
+import { activityPostCleanupExpiredHandler } from './activity/cleanupExpiredPosts';
+import { purgeGroupChatsHandler } from './activity/purgeGroupChats';
+import { purgeActivityDataHandler } from './activity/purgeActivityData';
+import { mapStatusSetHandler } from './map/setStatus';
+import { mapStatusClearHandler } from './map/clearStatus';
+import { mapStatusGetNearbyHandler } from './map/getNearby';
+import { mapStatusCleanupExpiredHandler } from './map/cleanupExpired';
+import { reportSubmitHandler } from './safety/submitReport';
+
+import { askSendMessageHandler } from './activity/askSendMessage';
+import { askGetThreadHandler } from './activity/askGetThread';
+import { askGetThreadsHandler } from './activity/askGetThreads';
+
 // Initialize Firebase Admin
 admin.initializeApp();
 
@@ -185,4 +213,143 @@ export const normalizeOfferUpdatedAt = onCall(
 export const auditPresenceMatchId = onCall(
   { region: 'us-east1' },
   auditPresenceMatchIdHandler
+);
+
+// ============================================================================
+// ACTIVITY COMPANION SYSTEM (v2.0) — Round A
+// ============================================================================
+
+// Activity Posts (6 callable)
+export const activityPostCreate = onCall(
+  { region: 'us-east1' },
+  activityPostCreateHandler
+);
+
+export const activityPostUpdate = onCall(
+  { region: 'us-east1' },
+  activityPostUpdateHandler
+);
+
+export const activityPostClose = onCall(
+  { region: 'us-east1' },
+  activityPostCloseHandler
+);
+
+export const activityPostGetFeed = onCall(
+  { region: 'us-east1' },
+  activityPostGetFeedHandler
+);
+
+export const activityPostGetMine = onCall(
+  { region: 'us-east1' },
+  activityPostGetMineHandler
+);
+
+export const activityPostGetById = onCall(
+  { region: 'us-east1' },
+  activityPostGetByIdHandler
+);
+
+// Join Requests (4 callable)
+export const joinRequestSend = onCall(
+  { region: 'us-east1' },
+  joinRequestSendHandler
+);
+
+export const joinRequestWithdraw = onCall(
+  { region: 'us-east1' },
+  joinRequestWithdrawHandler
+);
+
+export const joinRequestRespond = onCall(
+  { region: 'us-east1' },
+  joinRequestRespondHandler
+);
+
+export const joinRequestGetMine = onCall(
+  { region: 'us-east1' },
+  joinRequestGetMineHandler
+);
+
+// Groups (4 callable)
+export const groupLeave = onCall(
+  { region: 'us-east1' },
+  groupLeaveHandler
+);
+
+export const groupKick = onCall(
+  { region: 'us-east1' },
+  groupKickHandler
+);
+
+export const groupSendMessage = onCall(
+  { region: 'us-east1' },
+  groupSendMessageHandler
+);
+
+export const groupGetMessages = onCall(
+  { region: 'us-east1' },
+  groupGetMessagesHandler
+);
+
+// Map Status (3 callable)
+export const mapStatusSet = onCall(
+  { region: 'us-east1' },
+  mapStatusSetHandler
+);
+
+export const mapStatusClear = onCall(
+  { region: 'us-east1' },
+  mapStatusClearHandler
+);
+
+export const mapStatusGetNearby = onCall(
+  { region: 'us-east1' },
+  mapStatusGetNearbyHandler
+);
+
+// Safety (1 callable)
+export const reportSubmit = onCall(
+  { region: 'us-east1' },
+  reportSubmitHandler
+);
+
+// Asks (3 callable)
+export const askSendMessage = onCall(
+  { region: 'us-east1' },
+  askSendMessageHandler
+);
+
+export const askGetThread = onCall(
+  { region: 'us-east1' },
+  askGetThreadHandler
+);
+
+export const askGetThreads = onCall(
+  { region: 'us-east1' },
+  askGetThreadsHandler
+);
+
+// Scheduled: Expire overdue activity posts every 5 minutes
+export const activityPostCleanupExpired = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  activityPostCleanupExpiredHandler
+);
+
+// Scheduled: Purge old group chat messages daily at 3 AM
+export const groupChatPurge = onSchedule(
+  { schedule: 'every day 03:00', region: 'us-east1' },
+  purgeGroupChatsHandler
+);
+
+// Scheduled: Purge old activity data daily at 4 AM
+export const activityDataPurge = onSchedule(
+  { schedule: 'every day 04:00', region: 'us-east1' },
+  purgeActivityDataHandler
+);
+
+// Scheduled: Cleanup expired map statuses every 5 minutes
+export const mapStatusCleanupExpired = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-east1' },
+  mapStatusCleanupExpiredHandler
 );

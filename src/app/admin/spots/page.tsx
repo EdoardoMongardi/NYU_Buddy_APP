@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+
 import {
   Plus,
   Edit2,
@@ -29,6 +29,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
 } from 'firebase/storage';
+import Image from 'next/image';
 import * as geofire from 'geofire-common';
 
 import { Button } from '@/components/ui/button';
@@ -391,11 +392,10 @@ export default function AdminSpotsPage() {
                     <Badge
                       key={activity}
                       variant={allowedActivities.includes(activity) ? 'default' : 'outline'}
-                      className={`cursor-pointer transition-colors ${
-                        allowedActivities.includes(activity)
-                          ? 'bg-violet-600 hover:bg-violet-700'
-                          : 'hover:bg-gray-100'
-                      }`}
+                      className={`cursor-pointer transition-colors ${allowedActivities.includes(activity)
+                        ? 'bg-violet-600 hover:bg-violet-700'
+                        : 'hover:bg-gray-100'
+                        }`}
                       onClick={() => toggleActivity(activity)}
                     >
                       {activity}
@@ -460,11 +460,13 @@ export default function AdminSpotsPage() {
 
                 {/* Show existing photo if editing and no new file selected */}
                 {photoUrl && !selectedFile && (
-                  <div className="relative">
-                    <img
+                  <div className="relative w-full h-32">
+                    <Image
                       src={photoUrl}
                       alt="Current place photo"
-                      className="w-full h-32 object-cover rounded-md"
+                      fill
+                      className="object-cover rounded-md"
+                      sizes="(max-width: 768px) 100vw, 300px"
                     />
                     <Button
                       type="button"
@@ -480,11 +482,13 @@ export default function AdminSpotsPage() {
 
                 {/* Show preview of selected file */}
                 {selectedFile && (
-                  <div className="relative">
-                    <img
+                  <div className="relative w-full h-32">
+                    <Image
                       src={URL.createObjectURL(selectedFile)}
                       alt="Preview"
-                      className="w-full h-32 object-cover rounded-md"
+                      fill
+                      className="object-cover rounded-md"
+                      sizes="(max-width: 768px) 100vw, 300px"
                     />
                     <Button
                       type="button"
@@ -621,15 +625,12 @@ export default function AdminSpotsPage() {
       ) : (
         <div className="grid gap-4">
           {places.map((place) => (
-            <motion.div
+            <div
               key={place.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
             >
               <Card
-                className={`transition-opacity ${
-                  !place.active ? 'opacity-60' : ''
-                }`}
+                className={`transition-opacity ${!place.active ? 'opacity-60' : ''
+                  }`}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
@@ -703,7 +704,7 @@ export default function AdminSpotsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
