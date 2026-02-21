@@ -224,5 +224,22 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if false;
     }
+
+    // Asks collection (1v1 chats before join request)
+    // Only the asker and the post creator can read the thread
+    // Writes via Cloud Functions only
+    match /asks/{askId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.askerUid == request.auth.uid || 
+         resource.data.creatorUid == request.auth.uid);
+      allow create, update, delete: if false; // All writes via Cloud Functions
+      
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() &&
+          (get(/databases/$(database)/documents/asks/$(askId)).data.askerUid == request.auth.uid ||
+           get(/databases/$(database)/documents/asks/$(askId)).data.creatorUid == request.auth.uid);
+        allow create, update, delete: if false; // All writes via Cloud Functions
+      }
+    }
   }
 }

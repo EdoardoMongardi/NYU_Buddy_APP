@@ -96,7 +96,7 @@ export default function CreatePostPage() {
         setIsUploading(false);
       }
 
-      const result = await activityPostCreate({
+      await activityPostCreate({
         body: body.trim(),
         category,
         maxParticipants,
@@ -112,7 +112,7 @@ export default function CreatePostPage() {
         description: 'Your activity is now visible to others.',
       });
 
-      router.push(`/post/${result.data.postId}`);
+      router.push(`/`);
     } catch (err) {
       console.error('[CreatePost] Error:', err);
       setIsUploading(false);

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Download, X, Users } from 'lucide-react';
+import { Bell, Download, X } from 'lucide-react';
 
 import ActivityFeed from '@/components/activity/ActivityFeed';
+import AskedFeed from '@/components/activity/AskedFeed';
 import CategoryFilter from '@/components/activity/CategoryFilter';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePendingConfirmations } from '@/lib/hooks/usePendingConfirmations';
@@ -84,8 +85,8 @@ export default function HomePage() {
     setIsPWA(standalone);
   }, []);
 
-  // ── Sub-tab: For You / Following ──
-  const [feedTab, setFeedTab] = useState<'for-you' | 'following'>('for-you');
+  // ── Sub-tab: For You / Asked ──
+  const [feedTab, setFeedTab] = useState<'for-you' | 'asked'>('for-you');
 
   // ── Notification bubble ──
   const { isSupported: notifSupported, permissionStatus, requestPermission } = useNotifications();
@@ -225,11 +226,11 @@ export default function HomePage() {
               For you
             </button>
             <button
-              onClick={() => setFeedTab('following')}
-              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'following' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+              onClick={() => setFeedTab('asked')}
+              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'asked' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
                 }`}
             >
-              Following
+              Asked
             </button>
             {/* Animated underline indicator */}
             <motion.div
@@ -283,16 +284,13 @@ export default function HomePage() {
                 </motion.div>
               ) : (
                 <motion.div
-                  key="following"
+                  key="asked"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="flex flex-col items-center justify-center py-20 px-5"
                 >
-                  <Users className="w-12 h-12 text-gray-200 mb-4" />
-                  <p className="text-lg font-medium text-gray-600 mb-1">Coming soon</p>
-                  <p className="text-sm text-gray-400 text-center">Follow users to see their posts here</p>
+                  <AskedFeed />
                 </motion.div>
               )}
             </AnimatePresence>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import JoinRequestInbox from '@/components/activity/JoinRequestInbox';
+import PostAskThreads from '@/components/activity/PostAskThreads';
 import {
     Loader2,
     RefreshCw,
@@ -60,9 +61,8 @@ function MyPostCard({ post }: { post: FeedPost }) {
     const categoryLabel = CATEGORY_LABELS[post.category as ActivityCategory] || post.category;
 
     return (
-        <button
-            onClick={() => router.push(`/post/${post.postId}`)}
-            className="w-full text-left bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-shadow active:scale-[0.99] touch-scale"
+        <div
+            className="w-full text-left bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-shadow"
         >
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
@@ -100,12 +100,18 @@ function MyPostCard({ post }: { post: FeedPost }) {
 
             {/* Chat entry hint */}
             {post.status !== 'expired' && post.status !== 'closed' && post.acceptedCount > 0 && (
-                <div className="mt-3 flex items-center gap-2 text-violet-600 text-[13px] font-medium">
+                <button
+                    onClick={() => router.push(`/post/${post.postId}`)}
+                    className="mt-3 flex items-center gap-2 text-violet-600 text-[13px] font-medium p-2 -ml-2 rounded-lg hover:bg-violet-50 transition-colors active:scale-95"
+                >
                     <MessageCircle className="w-4 h-4" />
                     <span>Open group chat →</span>
-                </div>
+                </button>
             )}
-        </button>
+
+            {/* Inline Ask chats specifically for this post */}
+            <PostAskThreads postId={post.postId} creatorUid={post.creatorUid} />
+        </div>
     );
 }
 
@@ -158,8 +164,8 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
             onClick={handleClick}
             disabled={isDeclined || !!isKicked || (!!isExpired && !isAccepted)}
             className={`w-full text-left bg-white rounded-2xl border p-4 transition-shadow touch-scale ${isDeclined || isKicked || (isExpired && !isAccepted)
-                    ? 'border-gray-100 opacity-60 cursor-default'
-                    : 'border-gray-100 hover:shadow-md active:scale-[0.99]'
+                ? 'border-gray-100 opacity-60 cursor-default'
+                : 'border-gray-100 hover:shadow-md active:scale-[0.99]'
                 }`}
         >
             {/* Header: category + status badge */}

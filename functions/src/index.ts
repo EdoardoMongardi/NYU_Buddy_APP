@@ -54,6 +54,10 @@ import { mapStatusGetNearbyHandler } from './map/getNearby';
 import { mapStatusCleanupExpiredHandler } from './map/cleanupExpired';
 import { reportSubmitHandler } from './safety/submitReport';
 
+import { askSendMessageHandler } from './activity/askSendMessage';
+import { askGetThreadHandler } from './activity/askGetThread';
+import { askGetThreadsHandler } from './activity/askGetThreads';
+
 // Initialize Firebase Admin
 admin.initializeApp();
 
@@ -308,6 +312,22 @@ export const mapStatusGetNearby = onCall(
 export const reportSubmit = onCall(
   { region: 'us-east1' },
   reportSubmitHandler
+);
+
+// Asks (3 callable)
+export const askSendMessage = onCall(
+  { region: 'us-east1' },
+  askSendMessageHandler
+);
+
+export const askGetThread = onCall(
+  { region: 'us-east1' },
+  askGetThreadHandler
+);
+
+export const askGetThreads = onCall(
+  { region: 'us-east1' },
+  askGetThreadsHandler
 );
 
 // Scheduled: Expire overdue activity posts every 5 minutes

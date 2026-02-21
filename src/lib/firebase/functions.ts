@@ -535,3 +535,44 @@ export const reportSubmit = createCallable<
   },
   { reportId: string }
 >('reportSubmit');
+
+// ============================================================================
+// ASK SYSTEM (1v1 Chats)
+// ============================================================================
+
+export interface AskThreadInfo {
+  askId: string;
+  postId: string;
+  creatorUid: string;
+  askerUid: string;
+  askerDisplayName: string;
+  askerPhotoURL: string | null;
+  lastMessage: string;
+  lastMessageAt: string | null;
+  lastSenderUid: string;
+  createdAt: string | null;
+  post?: FeedPost | null; // Available when fetched via askGetThreads
+}
+
+export interface AskMessage {
+  id: string;
+  senderUid: string;
+  senderDisplayName: string;
+  body: string;
+  createdAt: string | null;
+}
+
+export const askSendMessage = createCallable<
+  { postId: string; body: string; targetAskerUid?: string },
+  { success: boolean; messageId: string; askId: string }
+>('askSendMessage');
+
+export const askGetThread = createCallable<
+  { postId: string; targetAskerUid?: string; cursor?: string | null; limit?: number },
+  { askThread: AskThreadInfo | null; messages: AskMessage[]; nextCursor: string | null }
+>('askGetThread');
+
+export const askGetThreads = createCallable<
+  { role: 'asker' | 'creator'; postId?: string; cursor?: string | null; limit?: number },
+  { askThreads: AskThreadInfo[]; nextCursor: string | null }
+>('askGetThreads');

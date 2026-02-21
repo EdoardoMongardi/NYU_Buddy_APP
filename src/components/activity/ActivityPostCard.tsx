@@ -1,12 +1,15 @@
 /* eslint-disable @next/next/no-img-element */
 // ... imports
 import { useRouter } from 'next/navigation';
-import { MapPin, Clock, Users, MoreHorizontal } from 'lucide-react';
+import { MapPin, Clock, Users, MoreHorizontal, MessageCircle, UserPlus } from 'lucide-react';
 import { FeedPost } from '@/lib/firebase/functions';
 import { CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
 
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import FeedVideoPlayer from './FeedVideoPlayer';
+import InlineAskChat from './InlineAskChat';
+import { useState } from 'react';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 const CATEGORY_COLORS: Record<string, string> = {
   coffee: 'text-amber-600 bg-amber-50 border-amber-100',
@@ -49,10 +52,15 @@ function timeUntilExpiry(dateStr: string | null): string {
 
 interface ActivityPostCardProps {
   post: FeedPost;
+  defaultAskExpanded?: boolean;
 }
 
-export default function ActivityPostCard({ post }: ActivityPostCardProps) {
+export default function ActivityPostCard({ post, defaultAskExpanded = false }: ActivityPostCardProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const [isAskExpanded, setIsAskExpanded] = useState(defaultAskExpanded);
+
+  const isCreator = user?.uid === post.creatorUid;
 
   const slots = `${post.acceptedCount}/${post.maxParticipants}`;
   const isFilled = post.status === 'filled';
@@ -108,9 +116,7 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
 
   return (
     <div
-      onClick={() => router.push(`/post/${post.postId}`)}
-
-      className="w-full flex gap-3 pl-3 pr-4 py-3 border-b border-gray-100 hover:bg-gray-50/50 transition-colors cursor-pointer touch-action-manipulation"
+      className="w-full flex gap-3 pl-3 pr-4 py-3 border-b border-gray-100 hover:bg-gray-50/50 transition-colors"
     >
       {/* Left: Avatar */}
       <div className="flex-shrink-0 pt-1">
@@ -209,6 +215,33 @@ export default function ActivityPostCard({ post }: ActivityPostCardProps) {
             </span>
           </div>
         </div>
+
+        {/* Action Buttons */}
+        {!isCreator && post.status === 'open' && (
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={(e) => { e.stopPropagation(); router.push(`/post/${post.postId}/join`) }}
+              className="flex-1 flex items-center justify-center gap-2 bg-violet-600 text-white rounded-xl py-2.5 text-[14px] font-semibold hover:bg-violet-700 active:scale-[0.98] transition-all"
+            >
+              <UserPlus className="w-4 h-4" />
+              Request to join
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setIsAskExpanded(!isAskExpanded) }}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-[14px] font-semibold active:scale-[0.98] transition-all border ${isAskExpanded ? 'bg-violet-50 text-violet-600 border-violet-100' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              Ask
+            </button>
+          </div>
+        )}
+
+        {/* Inline Ask Chat */}
+        {isAskExpanded && !isCreator && (
+          <div className="mt-3">
+            <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} autoFocus />
+          </div>
+        )}
       </div>
     </div>
   );
