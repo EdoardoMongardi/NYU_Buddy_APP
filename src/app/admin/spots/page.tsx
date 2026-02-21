@@ -68,7 +68,10 @@ interface Place {
   priceRange?: string; // U11: e.g., "$20-$50"
   photoUrl?: string; // U11: Custom image URL for the place
   openingHours?: {
-    periods: any[];
+    periods: {
+      open?: { day: number; time: string };
+      close?: { day: number; time: string };
+    }[];
     weekday_text: string[];
   } | null;
 }
@@ -276,7 +279,8 @@ export default function AdminSpotsPage() {
       if (openingHoursJson.trim()) {
         try {
           parsedOpeningHours = JSON.parse(openingHoursJson);
-        } catch (e) {
+        } catch (err) {
+          console.error(err);
           alert('Invalid JSON in Opening Hours field');
           setIsSubmitting(false);
           return;
