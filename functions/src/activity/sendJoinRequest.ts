@@ -77,6 +77,20 @@ export async function joinRequestSendHandler(
   const requestId = `${data.postId}_${uid}`;
   const existingRequest = await db.collection('joinRequests').doc(requestId).get();
 
+  // 5a. Also check if user is already in the group (they might have been accepted but request state got wonky)
+  if (post.groupId) {
+    const groupDoc = await db.collection('groups').doc(post.groupId).get();
+    if (groupDoc.exists) {
+      const g = groupDoc.data()!;
+      if (g.memberUids?.includes(uid)) {
+        throw new HttpsError(
+          'failed-precondition',
+          'You are already part of this activity'
+        );
+      }
+    }
+  }
+
   if (existingRequest.exists) {
     const existing = existingRequest.data()!;
     if (existing.status === JOIN_REQUEST_STATUS.PENDING) {

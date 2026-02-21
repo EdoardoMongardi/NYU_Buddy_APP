@@ -115,6 +115,26 @@ export default function JoinRequestButton({
     );
   }
 
+  const isWithdrawn = myJoinRequest?.status === 'withdrawn';
+
+  // Withdrawn — show withdrawn status + request again option
+  if (isWithdrawn && !showInput) {
+    return (
+      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center mb-4">
+        <div className="flex items-center gap-2 justify-center mb-2">
+          <X className="w-4 h-4 text-gray-500" />
+          <p className="text-gray-600 text-sm">Request withdrawn</p>
+        </div>
+        <button
+          onClick={() => setShowInput(true)}
+          className="w-full py-2 text-sm text-violet-600 hover:text-violet-700 font-medium"
+        >
+          Request Again
+        </button>
+      </div>
+    );
+  }
+
   // Post not open
   if (!isOpen) {
     return (

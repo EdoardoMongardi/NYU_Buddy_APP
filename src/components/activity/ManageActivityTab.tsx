@@ -128,6 +128,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     const isPending = request.status === 'pending';
     const isAccepted = request.status === 'accepted';
     const isDeclined = request.status === 'declined';
+    const isWithdrawn = request.status === 'withdrawn';
 
     // Check if user should be denied access (kicked/blocked) or if post is expired
     // Note: If request is accepted but user was kicked later, they might still show as accepted in request 
@@ -146,7 +147,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     }
 
     const handleClick = () => {
-        if (isDeclined || isKicked || (isExpired && !isAccepted)) return;
+        if (isDeclined || isKicked || isWithdrawn || (isExpired && !isAccepted)) return;
         if (post) {
             router.push(`/post/${post.postId}`);
         }
@@ -162,8 +163,8 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     return (
         <button
             onClick={handleClick}
-            disabled={isDeclined || !!isKicked || (!!isExpired && !isAccepted)}
-            className={`w-full text-left bg-white rounded-2xl border p-4 transition-shadow touch-scale ${isDeclined || isKicked || (isExpired && !isAccepted)
+            disabled={isDeclined || !!isKicked || isWithdrawn || (!!isExpired && !isAccepted)}
+            className={`w-full text-left bg-white rounded-2xl border p-4 transition-shadow touch-scale ${isDeclined || isKicked || isWithdrawn || (isExpired && !isAccepted)
                 ? 'border-gray-100 opacity-60 cursor-default'
                 : 'border-gray-100 hover:shadow-md active:scale-[0.99]'
                 }`}
@@ -189,6 +190,12 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                     <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600 border border-red-100">
                         <X className="w-3 h-3" />
                         Not Available
+                    </span>
+                )}
+                {isWithdrawn && (
+                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-600 border border-gray-100">
+                        <X className="w-3 h-3" />
+                        Withdrawn
                     </span>
                 )}
                 {isKicked && (
