@@ -30,7 +30,7 @@ interface BottomTabBarProps {
 export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarProps) {
     const router = useRouter();
     const { userProfile } = useAuth();
-    const { isNavVisible, navRef } = useNav();
+    const { navRef } = useNav();
 
     // On map tab, sidebar goes to far left; otherwise centered relative to content
     const isMapActive = activeTab === 'map';

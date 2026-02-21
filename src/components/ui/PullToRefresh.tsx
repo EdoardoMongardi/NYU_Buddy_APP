@@ -78,16 +78,16 @@ export default function PullToRefresh({ onRefresh, children }: PullToRefreshProp
         const element = document.getElementById('pull-to-refresh-container');
         if (!element) return;
 
-        element.addEventListener('touchstart', handleTouchStart as any, { passive: true });
-        element.addEventListener('touchmove', handleTouchMove as any, { passive: false });
-        element.addEventListener('touchend', handleTouchEnd as any, { passive: true });
-        element.addEventListener('touchcancel', handleTouchEnd as any, { passive: true });
+        element.addEventListener('touchstart', handleTouchStart as EventListener, { passive: true });
+        element.addEventListener('touchmove', handleTouchMove as EventListener, { passive: false });
+        element.addEventListener('touchend', handleTouchEnd as EventListener, { passive: true });
+        element.addEventListener('touchcancel', handleTouchEnd as EventListener, { passive: true });
 
         return () => {
-            element.removeEventListener('touchstart', handleTouchStart as any);
-            element.removeEventListener('touchmove', handleTouchMove as any);
-            element.removeEventListener('touchend', handleTouchEnd as any);
-            element.removeEventListener('touchcancel', handleTouchEnd as any);
+            element.removeEventListener('touchstart', handleTouchStart as EventListener);
+            element.removeEventListener('touchmove', handleTouchMove as EventListener);
+            element.removeEventListener('touchend', handleTouchEnd as EventListener);
+            element.removeEventListener('touchcancel', handleTouchEnd as EventListener);
         };
     }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 

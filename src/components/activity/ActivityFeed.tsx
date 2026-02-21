@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import { RefreshCw, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import ActivityPostCard from './ActivityPostCard';
 import CreatePostFAB from './CreatePostFAB';
 import { FeedPost } from '@/lib/firebase/functions';
