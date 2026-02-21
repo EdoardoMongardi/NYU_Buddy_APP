@@ -14,9 +14,11 @@
     "generate:footprints": "tsx scripts/generate-nyu-footprints.ts",
     "pipeline:nyu-fetch": "tsx scripts/fetch-nyu-footprints-soda.ts",
     "pipeline:nyu-upload": "tsx scripts/mapbox-upload-tileset.ts",
-    "pipeline:nyu-style": "tsx scripts/fetch-nyu-footprints-soda.ts && tsx scripts/mapbox-upload-tileset.ts && tsx scripts/mapbox-create-style.ts"
+    "pipeline:nyu-style": "tsx scripts/fetch-nyu-footprints-soda.ts && tsx scripts/mapbox-upload-tileset.ts && tsx scripts/mapbox-create-style.ts",
+    "seed:places": "tsx scripts/seed-places.ts"
   },
   "dependencies": {
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -32,7 +34,9 @@
     "@radix-ui/react-toast": "^1.2.15",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dotenv": "^17.3.1",
     "firebase": "^12.8.0",
+    "firebase-admin": "^13.6.1",
     "framer-motion": "^12.29.2",
     "geofire-common": "^6.0.0",
     "leaflet": "^1.9.4",

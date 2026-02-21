@@ -54,3 +54,6 @@ scripts/output/
 
 # Ignore generated export PNGs so repo doesn't bloat
 public/brand/export/*.png
+
+# Firebase Service Account
+service-account.json

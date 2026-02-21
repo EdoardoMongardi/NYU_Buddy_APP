@@ -67,6 +67,10 @@ interface Place {
   active: boolean;
   priceRange?: string; // U11: e.g., "$20-$50"
   photoUrl?: string; // U11: Custom image URL for the place
+  openingHours?: {
+    periods: any[];
+    weekday_text: string[];
+  } | null;
 }
 
 const CATEGORIES = [
@@ -114,6 +118,7 @@ export default function AdminSpotsPage() {
   const [allowedActivities, setAllowedActivities] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState(''); // U11: Price range input
   const [photoUrl, setPhotoUrl] = useState(''); // U11: Photo URL from upload or existing
+  const [openingHoursJson, setOpeningHoursJson] = useState(''); // JSON representation
 
   // File upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -153,6 +158,7 @@ export default function AdminSpotsPage() {
     setAllowedActivities([]);
     setPriceRange(''); // U11
     setPhotoUrl(''); // U11
+    setOpeningHoursJson('');
     setSelectedFile(null); // File upload
     setUploadProgress(0);
     setIsUploading(false);
@@ -216,6 +222,7 @@ export default function AdminSpotsPage() {
     setAllowedActivities(place.allowedActivities || []);
     setPriceRange(place.priceRange || ''); // U11
     setPhotoUrl(place.photoUrl || ''); // U11
+    setOpeningHoursJson(place.openingHours ? JSON.stringify(place.openingHours, null, 2) : '');
     setIsDialogOpen(true);
   };
 
@@ -265,6 +272,17 @@ export default function AdminSpotsPage() {
         }
       }
 
+      let parsedOpeningHours = null;
+      if (openingHoursJson.trim()) {
+        try {
+          parsedOpeningHours = JSON.parse(openingHoursJson);
+        } catch (e) {
+          alert('Invalid JSON in Opening Hours field');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const geohash = geofire.geohashForLocation([latNum, lngNum]);
       const tagsArray = tags
         .split(',')
@@ -283,6 +301,7 @@ export default function AdminSpotsPage() {
         active: editingPlace?.active ?? true,
         priceRange: priceRange.trim() || null, // U11: Save price range (null if empty)
         photoUrl: finalPhotoUrl, // U11: Save uploaded photo URL or existing URL
+        openingHours: parsedOpeningHours,
         updatedAt: serverTimestamp(),
       };
 
@@ -585,6 +604,19 @@ export default function AdminSpotsPage() {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label>Opening Hours (JSON) *Optional*</Label>
+                <textarea
+                  value={openingHoursJson}
+                  onChange={(e) => setOpeningHoursJson(e.target.value)}
+                  placeholder={'{\n  "weekday_text": [\n    "Monday: 8:00 AM – 8:00 PM"\n  ]\n}'}
+                  className="w-full h-32 p-2 border rounded-md text-sm font-mono text-gray-700 focus:ring-2 focus:ring-violet-600 focus:outline-none"
+                />
+                <p className="text-xs text-gray-500">
+                  Paste the Google Places API opening_hours object here (valid JSON required).
+                </p>
+              </div>
+
               <div className="flex space-x-2 pt-4">
                 <Button
                   variant="outline"
@@ -639,6 +671,9 @@ export default function AdminSpotsPage() {
                         <span>{place.name}</span>
                         {!place.active && (
                           <Badge variant="secondary">Inactive</Badge>
+                        )}
+                        {place.openingHours && (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Hours</Badge>
                         )}
                       </CardTitle>
                       <p className="text-sm text-gray-500">{place.address}</p>
