@@ -44,7 +44,6 @@ export function LocationSearchModal({
     userMidpointLng
 }: LocationSearchModalProps) {
     const [query, setQuery] = React.useState('');
-    const [predictions, setPredictions] = React.useState<google.maps.places.AutocompletePrediction[]>([]);
     const [isFetchingDetails, setIsFetchingDetails] = React.useState(false);
     const [errorMsg, setErrorMsg] = React.useState('');
 
@@ -53,27 +52,21 @@ export function LocationSearchModal({
         options: {
             types: ['establishment'],
             input: '',
-            // Bias results to 5km around the midpoint
-            // The typing defines `locationBias` but might be strictly typed or missing if using older lib versions. Let's omit locationBias from options, or pass it if it works.
-            // Wait, the error said input is missing. `getPlacePredictions` expects a full opt.
         },
     });
 
+    const predictions = placePredictions || [];
+
     // Handle typing to get predictions
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getPlacePredictions is unstable (recreated every render by the hook)
     useEffect(() => {
         if (query.length > 2) {
             getPlacePredictions({
                 input: query,
                 types: ['establishment'],
-                locationBias: `circle:5000@${userMidpointLat},${userMidpointLng}`,
             });
         }
-    }, [query, getPlacePredictions, userMidpointLat, userMidpointLng]);
-
-    // Update local predictions state when placePredictions changes
-    useEffect(() => {
-        setPredictions(placePredictions || []);
-    }, [placePredictions]);
+    }, [query, userMidpointLat, userMidpointLng]);
 
     const handleSelectPrediction = async (placeId: string, description: string) => {
         setIsFetchingDetails(true);
