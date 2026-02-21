@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import useGooglePlaces from 'react-google-autocomplete/lib/usePlacesAutocompleteService';
+import { doc, getDoc } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { MapPin, Search, Loader2, AlertTriangle } from 'lucide-react';
 import { PlaceCandidate } from '@/lib/firebase/functions';
+import { getFirebaseDb } from '@/lib/firebase/client';
 
 if (typeof window !== 'undefined' && typeof (window as unknown as Record<string, unknown>).google === 'undefined') {
     (window as unknown as Record<string, unknown>).google = undefined;
@@ -86,11 +88,44 @@ export function LocationSearchModal({
         setErrorMsg('');
 
         try {
+            // 1. Check if this place is already stored in the global places collection.
+            //    If so, use the stored (and potentially admin-curated) data directly —
+            //    no extra Google Places API call, no duplicate DB entry.
+            const storedSnap = await getDoc(doc(getFirebaseDb(), 'places', placeId));
+
+            if (storedSnap.exists()) {
+                const stored = storedSnap.data();
+                const distanceToMidpoint = getDistanceInMeters(userMidpointLat, userMidpointLng, stored.lat, stored.lng);
+                if (distanceToMidpoint > 5000) {
+                    setErrorMsg("This location is too far (>5km) from you and your match to easily commute.");
+                    return;
+                }
+                const customPlace: PlaceCandidate = {
+                    placeId,
+                    name: stored.name,
+                    address: stored.address,
+                    lat: stored.lat,
+                    lng: stored.lng,
+                    distance: Math.round(distanceToMidpoint),
+                    rank: -1,
+                    tags: stored.tags || [],
+                    priceLevel: stored.priceLevel ?? undefined,
+                    priceRange: stored.priceRange || undefined,
+                    photoUrl: stored.photoUrl || undefined,
+                    openingHours: stored.openingHours || null,
+                };
+                onSelectPlace(customPlace);
+                onClose();
+                setQuery('');
+                return;
+            }
+
+            // 2. Not in DB yet — fetch full details from Google Places API.
             if (!placesService) throw new Error("Google Maps not ready");
 
             const details = await new Promise<google.maps.places.PlaceResult>((resolve, reject) => {
                 placesService.getDetails({
-                    placeId: placeId,
+                    placeId,
                     fields: ['name', 'formatted_address', 'geometry', 'types', 'price_level', 'photos', 'opening_hours']
                 }, (res, status) => {
                     if (status === google.maps.places.PlacesServiceStatus.OK && res) resolve(res);
@@ -108,12 +143,8 @@ export function LocationSearchModal({
             const distanceToMidpoint = getDistanceInMeters(userMidpointLat, userMidpointLng, lat, lng);
             if (distanceToMidpoint > 5000) {
                 setErrorMsg("This location is too far (>5km) from you and your match to easily commute.");
-                setIsFetchingDetails(false);
                 return;
             }
-
-            const priceLevelMap: Record<number, string> = { 0: 'Free', 1: '$', 2: '$$', 3: '$$$', 4: '$$$$' };
-            const priceRange = details.price_level != null ? priceLevelMap[details.price_level] : undefined;
 
             const openingHours = details.opening_hours ? {
                 periods: (details.opening_hours.periods || []).map((p) => ({
@@ -124,17 +155,20 @@ export function LocationSearchModal({
             } : null;
 
             const customPlace: PlaceCandidate = {
-                placeId: placeId,
+                placeId,
                 name: details.name || description.split(',')[0],
                 address: details.formatted_address || description,
-                lat: lat,
-                lng: lng,
+                lat,
+                lng,
                 distance: Math.round(distanceToMidpoint),
                 rank: -1,
-                tags: details.types ? details.types.filter((t: string) => !['establishment', 'point_of_interest'].includes(t)).slice(0, 3) : [],
+                tags: details.types
+                    ? details.types.filter((t: string) => !['establishment', 'point_of_interest'].includes(t)).slice(0, 3)
+                    : [],
                 priceLevel: details.price_level,
-                priceRange,
-                photoUrl: details.photos && details.photos.length > 0 ? details.photos[0].getUrl({ maxWidth: 400 }) : undefined,
+                photoUrl: details.photos && details.photos.length > 0
+                    ? details.photos[0].getUrl({ maxWidth: 400 })
+                    : undefined,
                 openingHours,
             };
 

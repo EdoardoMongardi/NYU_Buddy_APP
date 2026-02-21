@@ -41,8 +41,10 @@ export function PlaceCard({
     onSelect,
     compact = false,
 }: PlaceCardProps) {
-    // U11: Prefer priceRange text over priceLevel number. If no priceRange, show just icon (no text)
-    const priceDisplay = place.priceRange || '';
+    // Prefer admin-set priceRange text (e.g. "$20-$50"), then fall back to $ symbols from priceLevel
+    const priceLevelSymbols: Record<number, string> = { 0: 'Free', 1: '$', 2: '$$', 3: '$$$', 4: '$$$$' };
+    const priceDisplay = place.priceRange ||
+        (place.priceLevel != null ? priceLevelSymbols[place.priceLevel] ?? '' : '');
     const tags = place.tags || ['WiFi', 'Outlets'];
     const photoUrl = place.photoUrl || DEFAULT_PLACE_IMAGE;
 
@@ -155,8 +157,8 @@ export function PlaceCard({
                         <p className="text-sm text-gray-500 truncate">{place.address}</p>
                     </div>
                     <div className="flex items-center gap-1 ml-2">
-                        {/* Show icon only when no priceRange set; priceRange text includes $ already */}
-                        {!place.priceRange && <DollarSign className="w-4 h-4 text-green-600" />}
+                        {/* Show bare icon only when no price data at all */}
+                        {!priceDisplay && <DollarSign className="w-4 h-4 text-green-600" />}
                         {priceDisplay && (
                             <span className="text-sm font-medium text-green-700">
                                 {priceDisplay}
