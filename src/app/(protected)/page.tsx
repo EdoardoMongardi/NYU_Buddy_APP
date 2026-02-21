@@ -27,7 +27,7 @@ export default function HomePage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pendingMatches } = usePendingConfirmations();
-  const { setNavVisible } = useNav();
+  const { navRef } = useNav();
 
   // ── Activity Feed State ──
   const {
@@ -43,38 +43,66 @@ export default function HomePage() {
   } = useActivityFeed();
 
   // ── Scroll & Header Visibility ──
-  const [showHeader, setShowHeader] = useState(true);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const headerOffset = useRef(0);
+  const navOffset = useRef(0);
   const lastScrollY = useRef(0);
+  const ticking = useRef(false);
 
   useEffect(() => {
     const handleScroll = () => {
       // Disable scroll-hide on desktop (md breakpoint)
       if (window.matchMedia('(min-width: 768px)').matches) {
-        setShowHeader(true);
+        if (headerRef.current) {
+          headerRef.current.style.transform = 'translateY(0)';
+          headerRef.current.style.opacity = '1';
+        }
+        if (navRef.current) {
+          navRef.current.style.transform = 'translateY(0)';
+        }
         return;
       }
 
       const currentScrollY = window.scrollY;
 
-      // Threshold to avoid jitter
-      if (Math.abs(currentScrollY - lastScrollY.current) < 10) return;
+      // Calculate delta
+      const diff = currentScrollY - lastScrollY.current;
+      lastScrollY.current = currentScrollY;
 
-      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-        // Scrolling Down -> Hide
-        setShowHeader(false);
-        setNavVisible(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling Up -> Show
-        setShowHeader(true);
-        setNavVisible(true);
+      // Ignore overscroll bouncing on iOS
+      if (currentScrollY <= 0) {
+        headerOffset.current = 0;
+        navOffset.current = 0;
+      } else {
+        // Topbar max hide offset ~140px, Bottom bar max hide offset ~100px
+        const maxHeaderOffset = 140;
+        const maxNavOffset = 100;
+
+        headerOffset.current = Math.min(0, Math.max(-maxHeaderOffset, headerOffset.current - diff));
+        navOffset.current = Math.min(maxNavOffset, Math.max(0, navOffset.current + diff));
       }
 
-      lastScrollY.current = currentScrollY;
+      if (!ticking.current) {
+        window.requestAnimationFrame(() => {
+          if (headerRef.current) {
+            headerRef.current.style.transform = `translateY(${headerOffset.current}px)`;
+            const maxHeaderOffset = 140;
+            const opacity = 1 - Math.abs(headerOffset.current) / maxHeaderOffset;
+            headerRef.current.style.opacity = opacity.toString();
+          }
+          if (navRef.current) {
+            navRef.current.style.transform = `translateY(${navOffset.current}px)`;
+          }
+          ticking.current = false;
+        });
+
+        ticking.current = true;
+      }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [setNavVisible]);
+  }, [navRef]);
 
   // ── PWA standalone detection ──
   const [isPWA, setIsPWA] = useState(false);
@@ -162,8 +190,9 @@ export default function HomePage() {
 
       {/* ── HEADER GROUP (Sticky/Animated) ── */}
       <div
-        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
-        style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
+        ref={headerRef}
+        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md border-b border-gray-100 flex flex-col md:!transform-none`}
+        style={{ transform: 'translateY(0)', opacity: 1 }}
       >
         {/* Row 1: Title + Action Icons */}
         <div className={`flex items-center justify-between px-4 ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
@@ -251,10 +280,10 @@ export default function HomePage() {
       </div>
 
       {/* ── SCROLLABLE CONTENT ── */}
-      {/* Padding top adjusted for header height ≈ 150px */}
+      {/* Padding top adjusted for header height ≈ 124px */}
       <div
         className="flex-1 w-full"
-        style={{ paddingTop: '140px' }}
+        style={{ paddingTop: '124px' }}
       >
         {!emailVerified ? (
           <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">

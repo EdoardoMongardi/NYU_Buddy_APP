@@ -30,7 +30,7 @@ interface BottomTabBarProps {
 export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarProps) {
     const router = useRouter();
     const { userProfile } = useAuth();
-    const { isNavVisible } = useNav();
+    const { isNavVisible, navRef } = useNav();
 
     // On map tab, sidebar goes to far left; otherwise centered relative to content
     const isMapActive = activeTab === 'map';
@@ -45,10 +45,8 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
               - The bar itself has a thin top border
             */}
             <nav
-                className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-transform duration-300 ease-in-out"
-                style={{
-                    transform: isNavVisible ? 'translateY(0)' : 'translateY(100%)',
-                }}
+                ref={navRef as React.RefObject<HTMLElement>}
+                className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-200"
             >
                 <div
                     className="flex items-center justify-around"
