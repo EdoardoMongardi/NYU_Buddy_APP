@@ -87,8 +87,14 @@ export async function matchSearchCustomPlaceHandler(
     const db = admin.firestore();
     const matchRef = db.collection('matches').doc(matchId);
 
+    const globalPlaceRef = db.collection('places').doc(customPlace.placeId);
+
     return await db.runTransaction(async (transaction) => {
-        const matchDoc = await transaction.get(matchRef);
+        // --- ALL READS FIRST (Firestore transaction requirement) ---
+        const [matchDoc, globalPlaceSnap] = await Promise.all([
+            transaction.get(matchRef),
+            transaction.get(globalPlaceRef),
+        ]);
 
         if (!matchDoc.exists) {
             throw new HttpsError('not-found', 'Match not found');
@@ -113,25 +119,20 @@ export async function matchSearchCustomPlaceHandler(
 
         let finalPlaceId = customPlace.placeId;
 
-        if (existingIndex === -1) {
-            // Add the new custom place
-            placeCandidates.push(customPlace);
+        // --- ALL WRITES BELOW ---
 
+        if (existingIndex === -1) {
+            placeCandidates.push(customPlace);
             transaction.update(matchRef, {
                 placeCandidates,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 [`telemetry.customPlacesAddedByUser.${uid}`]: admin.firestore.FieldValue.increment(1),
             });
         } else {
-            // Use the existing one
             finalPlaceId = placeCandidates[existingIndex].placeId;
         }
 
         // Upsert into the global places collection so it appears in admin/spots
-        // and can be reused in future algorithmic suggestions.
-        const globalPlaceRef = db.collection('places').doc(customPlace.placeId);
-        const globalPlaceSnap = await transaction.get(globalPlaceRef);
-
         const category = deriveCategoryFromTypes(customPlace.tags || []);
 
         if (!globalPlaceSnap.exists) {
@@ -157,7 +158,6 @@ export async function matchSearchCustomPlaceHandler(
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
         } else {
-            // Increment timesSelected counter so popular user-submitted places can be promoted
             transaction.update(globalPlaceRef, {
                 timesSelected: admin.firestore.FieldValue.increment(1),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
