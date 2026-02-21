@@ -173,8 +173,8 @@ async function runSeeding() {
                         photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${GOOGLE_PLACES_API_KEY}`;
                     }
 
-                    // Price Range string mapping (U11)
-                    const priceRangeMapping = ['$', '$$', '$$$', '$$$$'];
+                    // Price Range string mapping (U11) - actual dollar bounds instead of dollar signs
+                    const priceRangeMapping = ['Under $10', '$10-$20', '$20-$50', '$50+'];
                     let priceString = null;
                     if (details.price_level !== undefined && details.price_level >= 0) {
                         priceString = priceRangeMapping[details.price_level] || '$$';
