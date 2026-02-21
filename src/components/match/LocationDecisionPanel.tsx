@@ -8,10 +8,12 @@ import {
     Check,
     Loader2,
     MapPin,
+    Search,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { PlaceCard } from './PlaceCard';
+import { LocationSearchModal } from './LocationSearchModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
@@ -32,6 +34,7 @@ interface LocationDecisionPanelProps {
     formattedCountdown: string | null;
     isSettingChoice: boolean;
     onSelectPlace: (placeId: string, placeRank: number) => void;
+    onSelectCustomPlace: (place: PlaceCandidate) => void;
     onGoWithTheirChoice: () => void;
     onCancel: () => void;
     isCancelling: boolean;
@@ -47,15 +50,21 @@ export function LocationDecisionPanel({
     formattedCountdown,
     isSettingChoice,
     onSelectPlace,
+    onSelectCustomPlace,
     onGoWithTheirChoice,
     onCancel,
     isCancelling,
     isLoading = false,
 }: LocationDecisionPanelProps) {
     const [infoOpen, setInfoOpen] = useState(false);
+    const [searchModalOpen, setSearchModalOpen] = useState(false);
 
     const bothChoseSame = myChoice && otherChoice && myChoice.placeId === otherChoice.placeId;
     const currentSelection = myChoice?.placeId;
+
+    // Derived user midpoint (approximate from first place candidate if available)
+    const userMidpointLat = placeCandidates.length > 0 ? placeCandidates[0].lat : 40.730610;
+    const userMidpointLng = placeCandidates.length > 0 ? placeCandidates[0].lng : -73.992323;
 
     // My chosen candidate
     const myChosenCandidate = myChoice
@@ -249,8 +258,34 @@ export function LocationDecisionPanel({
                             )}
                         </div>
                     ))}
+
+                    {/* Custom Search Option */}
+                    <div className="w-[70vw] sm:w-[280px] shrink-0 snap-center px-1">
+                        <button
+                            onClick={() => setSearchModalOpen(true)}
+                            className="w-full h-[180px] flex flex-col items-center justify-center bg-gray-50 hover:bg-violet-50 border-2 border-dashed border-gray-200 hover:border-violet-300 rounded-2xl transition-all group"
+                        >
+                            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                <Search className="w-5 h-5 text-violet-500" />
+                            </div>
+                            <span className="text-sm font-semibold text-gray-700 group-hover:text-violet-700">
+                                Search for a Place
+                            </span>
+                            <span className="text-xs text-gray-500 mt-1 max-w-[200px] text-center">
+                                Have a specific spot in mind? Find it here.
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            <LocationSearchModal
+                isOpen={searchModalOpen}
+                onClose={() => setSearchModalOpen(false)}
+                onSelectPlace={onSelectCustomPlace}
+                userMidpointLat={userMidpointLat}
+                userMidpointLng={userMidpointLng}
+            />
         </div>
     );
 }

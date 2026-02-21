@@ -83,6 +83,7 @@ export default function MatchPage() {
     formattedCountdown,
     isSettingChoice,
     handleSetChoice,
+    handleSelectCustomPlace,
     handleGoWithTheirChoice,
   } = useLocationDecision(matchId);
 
@@ -394,6 +395,7 @@ export default function MatchPage() {
                   formattedCountdown={formattedCountdown}
                   isSettingChoice={isSettingChoice}
                   onSelectPlace={handleSetChoice}
+                  onSelectCustomPlace={handleSelectCustomPlace}
                   onGoWithTheirChoice={handleGoWithTheirChoice}
                   onCancel={handleCancelClick}
                   isCancelling={isCancelling}

@@ -18,6 +18,7 @@ import { updateMatchStatusHandler } from './matches/updateStatus';
 import { matchSendMessageHandler } from './matches/sendMessage';
 import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
 import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
+import { matchSearchCustomPlaceHandler } from './matches/searchCustomPlace';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
 import { matchResolveExpiredHandler } from './matches/resolveExpired';
 import { matchCleanupStalePendingHandler } from './matches/cleanupStalePending';
@@ -147,6 +148,11 @@ export const matchFetchAllPlaces = onCall(
 export const matchSetPlaceChoice = onCall(
   { region: 'us-east1' },
   matchSetPlaceChoiceHandler
+);
+
+export const matchSearchCustomPlace = onCall(
+  { region: 'us-east1' },
+  matchSearchCustomPlaceHandler
 );
 
 export const matchResolvePlaceIfNeeded = onCall(

@@ -288,6 +288,17 @@ export const matchSetPlaceChoice = createCallable<
   }
 >('matchSetPlaceChoice');
 
+export const matchSearchCustomPlace = createCallable<
+  {
+    matchId: string;
+    customPlace: PlaceCandidate;
+  },
+  {
+    success: boolean;
+    placeId: string;
+  }
+>('matchSearchCustomPlace');
+
 export const matchResolvePlaceIfNeeded = createCallable<
   { matchId: string },
   {
