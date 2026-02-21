@@ -16,6 +16,7 @@ import ManageActivityTab from '@/components/activity/ManageActivityTab';
 import InstantMatchTab from '@/components/matching/InstantMatchTab';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
 import { NavProvider, useNav } from '@/context/NavContext';
+import { usePresence } from '@/lib/hooks/usePresence';
 
 // Dynamic import — SSR-safe, only loads mapbox-gl on client
 const MapboxMap = dynamic(() => import('@/components/map/MapboxMap'), {
@@ -33,6 +34,7 @@ function LayoutContent({
   children: React.ReactNode;
 }) {
   const { user, userProfile, loading } = useAuth();
+  const { presence } = usePresence();
   const router = useRouter();
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
@@ -121,6 +123,14 @@ function LayoutContent({
       router.push('/profile');
       return;
     }
+
+    // Phase 6: By-pass the home tab redirect if switching to the match tab while already matched
+    if (tab === 'search' && presence?.matchId && presence.status === 'matched') {
+      router.push(`/match/${presence.matchId}`);
+      setActiveTab('search');
+      return;
+    }
+
     // If on a sub-page (post detail, match, profile, etc.), navigate back to root
     if (pathname !== '/') {
       router.push('/');
@@ -231,7 +241,13 @@ function LayoutContent({
       {/* ── Tab Bar (always visible, except on onboarding) ── */}
       {pathname !== '/onboarding' && (
         <BottomTabBar
-          activeTab={isSubPage && pathname !== '/profile' ? 'home' : activeTab}
+          activeTab={
+            isSubPage && pathname !== '/profile'
+              ? pathname.startsWith('/match/')
+                ? 'search'
+                : 'home'
+              : activeTab
+          }
           onTabChange={handleTabChange}
         />
       )}

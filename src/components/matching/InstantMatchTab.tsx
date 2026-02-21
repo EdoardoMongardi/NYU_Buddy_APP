@@ -46,14 +46,31 @@ export default function InstantMatchTab({ isPWA }: InstantMatchTabProps) {
         return () => clearInterval(interval);
     }, [isAvailable, emailVerified, fetchInbox, fetchOutgoing]);
 
+    const isMatched = presence?.matchId && presence.status === 'matched';
+
     useEffect(() => {
         if (isAcceptingRef.current) return;
-        if (presence?.matchId && presence.status === 'matched') {
-            setShowMatchOverlay(presence.matchId);
-        } else if (showMatchOverlay && (!presence || presence.status !== 'matched')) {
+
+        if (isMatched && presence.matchId) {
+            // Check if we've already shown the overlay for this specific match.
+            // Using sessionStorage means it resets if they fully close and reopen the app,
+            // but persists cleanly during a single app session.
+            const sessionKey = `seen_overlay_${presence.matchId}`;
+            const hasSeen = sessionStorage.getItem(sessionKey);
+
+            if (!hasSeen) {
+                // First time seeing this match -> trigger celebration overlay
+                sessionStorage.setItem(sessionKey, 'true');
+                setShowMatchOverlay(presence.matchId);
+            } else if (!showMatchOverlay) {
+                // Already saw the overlay for this match -> skip celebration, go straight to chat
+                // Only push if we aren't currently showing the overlay to prevent interrupting it
+                router.push(`/match/${presence.matchId}`);
+            }
+        } else if (showMatchOverlay && !isMatched) {
             setShowMatchOverlay(null);
         }
-    }, [presence, showMatchOverlay]);
+    }, [isMatched, presence, showMatchOverlay, router]);
 
     useEffect(() => {
         if (showMatchOverlay) return;
@@ -105,7 +122,11 @@ export default function InstantMatchTab({ isPWA }: InstantMatchTabProps) {
 
             <div className="flex-1 overflow-hidden min-h-0 mt-1">
                 <AnimatePresence mode="popLayout" initial={false}>
-                    {subTab === 'discover' ? (
+                    {isMatched ? (
+                        <div className="h-full flex items-center justify-center">
+                            <div className="animate-spin text-gray-400 w-8 h-8 rounded-full border-2 border-t-violet-500 border-r-transparent border-b-transparent border-l-transparent"></div>
+                        </div>
+                    ) : subTab === 'discover' ? (
                         <motion.div
                             key="discover"
                             initial={{ opacity: 0 }}
