@@ -3,8 +3,14 @@ import useGooglePlaces from 'react-google-autocomplete/lib/usePlacesAutocomplete
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { MapPin, Search, Loader2 } from 'lucide-react';
-
 import { PlaceCandidate } from '@/lib/firebase/functions';
+
+// Safety polyfill to prevent `react-google-autocomplete` from crashing
+// with "ReferenceError: google is not defined" if the component mounts
+// before the script finishes injecting into the window object.
+if (typeof window !== 'undefined' && typeof (window as unknown as Record<string, unknown>).google === 'undefined') {
+    (window as unknown as Record<string, unknown>).google = undefined;
+}
 
 interface LocationSearchModalProps {
     isOpen: boolean;
@@ -43,7 +49,7 @@ export function LocationSearchModal({
     const [errorMsg, setErrorMsg] = React.useState('');
 
     const { placesService, placePredictions, getPlacePredictions } = useGooglePlaces({
-        apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+        apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
         options: {
             types: ['establishment'],
             input: '',

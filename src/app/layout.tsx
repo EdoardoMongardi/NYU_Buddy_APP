@@ -33,6 +33,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "NYU Buddy",
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  }
 };
 
 export default function RootLayout({
