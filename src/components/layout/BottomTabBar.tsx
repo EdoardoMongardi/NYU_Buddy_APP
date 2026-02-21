@@ -46,7 +46,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
             */}
             <nav
                 ref={navRef as React.RefObject<HTMLElement>}
-                className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-200"
+                className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200"
             >
                 <div
                     className="flex items-center justify-around"
@@ -62,9 +62,9 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                                 className="flex items-center justify-center flex-1 h-full"
                             >
                                 <Icon
-                                    className={`w-[24px] h-[24px] transition-colors duration-150 ${isActive ? 'text-gray-900' : 'text-gray-400'
+                                    className={`w-[24px] h-[24px] transition-colors duration-150 text-violet-600 ${isActive ? 'fill-current' : 'fill-none'
                                         }`}
-                                    strokeWidth={isActive ? 2.2 : 1.6}
+                                    strokeWidth={isActive ? 2.2 : 1.8}
                                 />
                             </button>
                         );

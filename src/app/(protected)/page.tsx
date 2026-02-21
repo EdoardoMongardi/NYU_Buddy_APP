@@ -44,6 +44,7 @@ export default function HomePage() {
 
   // ── Scroll & Header Visibility ──
   const headerRef = useRef<HTMLDivElement>(null);
+  const headerContentRef = useRef<HTMLDivElement>(null);
   const headerOffset = useRef(0);
   const navOffset = useRef(0);
   const lastScrollY = useRef(0);
@@ -55,7 +56,9 @@ export default function HomePage() {
       if (window.matchMedia('(min-width: 768px)').matches) {
         if (headerRef.current) {
           headerRef.current.style.transform = 'translateY(0)';
-          headerRef.current.style.opacity = '1';
+        }
+        if (headerContentRef.current) {
+          headerContentRef.current.style.opacity = '1';
         }
         if (navRef.current) {
           navRef.current.style.transform = 'translateY(0)';
@@ -86,9 +89,11 @@ export default function HomePage() {
         window.requestAnimationFrame(() => {
           if (headerRef.current) {
             headerRef.current.style.transform = `translateY(${headerOffset.current}px)`;
+          }
+          if (headerContentRef.current) {
             const maxHeaderOffset = 140;
             const opacity = 1 - Math.abs(headerOffset.current) / maxHeaderOffset;
-            headerRef.current.style.opacity = opacity.toString();
+            headerContentRef.current.style.opacity = opacity.toString();
           }
           if (navRef.current) {
             navRef.current.style.transform = `translateY(${navOffset.current}px)`;
@@ -191,99 +196,106 @@ export default function HomePage() {
       {/* ── HEADER GROUP (Sticky/Animated) ── */}
       <div
         ref={headerRef}
-        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md border-b border-gray-100 flex flex-col md:!transform-none`}
-        style={{ transform: 'translateY(0)', opacity: 1 }}
+        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white border-b border-gray-100 flex flex-col md:!transform-none`}
+        style={{ transform: 'translateY(0)' }}
       >
-        {/* Row 1: Title + Action Icons */}
-        <div className={`flex items-center justify-between px-4 ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">NYU Buddy</h1>
+        <div ref={headerContentRef} className="flex flex-col w-full h-full" style={{ opacity: 1 }}>
+          {/* Row 1: Title + Action Icons */}
+          <div className={`flex items-center justify-between px-4 relative ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
+            <div className="w-[100px]" /> {/* Spacer to balance layout if needed */}
 
-          {/* Notification / Install bubble */}
-          <AnimatePresence mode="wait">
-            {showNotifBubble && (
-              <motion.div
-                key="notif"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
-              >
-                <Bell className="w-3.5 h-3.5 flex-shrink-0" />
-                <button
-                  onClick={handleEnableNotifications}
-                  disabled={notifRequesting}
-                  className="text-[12px] font-medium whitespace-nowrap"
+            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 mt-1">
+              {/* Using native img to avoid Next.js warnings about unconfigured domains if user changes it */}
+              <img src="/brand/final/mark.svg" alt="NYU Buddy" className="w-7 h-7" />
+            </div>
+
+            {/* Notification / Install bubble */}
+            <AnimatePresence mode="wait">
+              {showNotifBubble && (
+                <motion.div
+                  key="notif"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
                 >
-                  {notifRequesting ? 'Enabling...' : 'Notifications'}
-                </button>
-                <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
-                  <X className="w-3.5 h-3.5 text-violet-400" />
-                </button>
-              </motion.div>
-            )}
-            {!showNotifBubble && showInstallBubble && (
-              <motion.div
-                key="install"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
-              >
-                <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
-                  Install
-                </button>
-                <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
-                  <X className="w-3.5 h-3.5 text-violet-400" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Row 2: Sub-tabs (X-style) */}
-        {/* Note: In previous version this had a verified check, keeping it */}
-        {emailVerified && (
-          <div className="flex relative mt-1">
-            <button
-              onClick={() => setFeedTab('for-you')}
-              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'for-you' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                }`}
-            >
-              For you
-            </button>
-            <button
-              onClick={() => setFeedTab('asked')}
-              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'asked' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                }`}
-            >
-              Asked
-            </button>
-            {/* Animated underline indicator */}
-            <motion.div
-              className="absolute bottom-0 h-[3px] bg-violet-600 rounded-full"
-              animate={{
-                left: feedTab === 'for-you' ? '0%' : '50%',
-                width: '50%',
-              }}
-              transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
-            />
+                  <Bell className="w-3.5 h-3.5 flex-shrink-0" />
+                  <button
+                    onClick={handleEnableNotifications}
+                    disabled={notifRequesting}
+                    className="text-[12px] font-medium whitespace-nowrap"
+                  >
+                    {notifRequesting ? 'Enabling...' : 'Notifications'}
+                  </button>
+                  <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
+                    <X className="w-3.5 h-3.5 text-violet-400" />
+                  </button>
+                </motion.div>
+              )}
+              {!showNotifBubble && showInstallBubble && (
+                <motion.div
+                  key="install"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
+                >
+                  <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                  <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
+                    Install
+                  </button>
+                  <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
+                    <X className="w-3.5 h-3.5 text-violet-400" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        )}
 
-        {/* Row 3: Category Filters */}
-        <div className="py-2 px-4">
-          <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
+          {/* Row 2: Sub-tabs (X-style) */}
+          {/* Note: In previous version this had a verified check, keeping it */}
+          {emailVerified && (
+            <div className="flex relative mt-1">
+              <button
+                onClick={() => setFeedTab('for-you')}
+                className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'for-you' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+              >
+                For you
+              </button>
+              <button
+                onClick={() => setFeedTab('asked')}
+                className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'asked' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+              >
+                Asked
+              </button>
+              {/* Animated underline indicator */}
+              <motion.div
+                className="absolute bottom-0 h-[3px] bg-violet-600 rounded-full"
+                animate={{
+                  left: feedTab === 'for-you' ? '0%' : '50%',
+                  width: '50%',
+                }}
+                transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+              />
+            </div>
+          )}
+
+          {/* Row 3: Category Filters */}
+          <div className="py-2 px-4">
+            <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
+          </div>
         </div>
       </div>
 
       {/* ── SCROLLABLE CONTENT ── */}
-      {/* Padding top adjusted for header height ≈ 124px */}
+      {/* Padding top adjusted for header height ≈ 138px */}
       <div
         className="flex-1 w-full"
-        style={{ paddingTop: '124px' }}
+        style={{ paddingTop: '138px' }}
       >
         {!emailVerified ? (
           <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">
