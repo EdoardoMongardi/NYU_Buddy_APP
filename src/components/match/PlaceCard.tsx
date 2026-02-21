@@ -1,15 +1,15 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { MapPin, Check, Loader2, DollarSign, Wifi, Zap, Volume2 } from 'lucide-react';
+import { MapPin, Check, Loader2, DollarSign, Wifi, Zap, Volume2, Search } from 'lucide-react';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PlaceCandidate } from '@/lib/firebase/functions';
 
-// Default placeholder image for locations
 const DEFAULT_PLACE_IMAGE = 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400&h=200&fit=crop&auto=format';
+const isCustomPlace = (rank: number) => rank < 0;
 
 interface PlaceCardProps {
     place: PlaceCandidate & {
@@ -46,6 +46,8 @@ export function PlaceCard({
     const tags = place.tags || ['WiFi', 'Outlets'];
     const photoUrl = place.photoUrl || DEFAULT_PLACE_IMAGE;
 
+    const custom = isCustomPlace(place.rank);
+
     // Compact mode for side-by-side grid
     if (compact) {
         return (
@@ -58,8 +60,8 @@ export function PlaceCard({
                     }`}
             >
                 <div className="flex items-start gap-2">
-                    <Badge className="bg-black/70 text-white border-0 text-[10px] shrink-0">
-                        #{place.rank}
+                    <Badge className={`border-0 text-[10px] shrink-0 ${custom ? 'bg-violet-600 text-white' : 'bg-black/70 text-white'}`}>
+                        {custom ? <><Search className="w-2.5 h-2.5 mr-0.5 inline" />Custom</> : `#${place.rank}`}
                     </Badge>
                     <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-gray-900 text-xs leading-tight truncate">
@@ -114,8 +116,8 @@ export function PlaceCard({
                 />
                 {/* Rank badge */}
                 <div className="absolute top-2 left-2">
-                    <Badge className="bg-black/70 text-white border-0 text-xs">
-                        #{place.rank}
+                    <Badge className={`border-0 text-xs ${custom ? 'bg-violet-600 text-white' : 'bg-black/70 text-white'}`}>
+                        {custom ? 'Custom' : `#${place.rank}`}
                     </Badge>
                 </div>
                 {/* Distance badge */}

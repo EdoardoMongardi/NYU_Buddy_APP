@@ -142,14 +142,14 @@ export function LocationSearchModal({
         }}>
             <DialogContent
                 className="
-                    sm:max-w-md w-full rounded-none p-0 overflow-hidden bg-white
+                    w-full max-w-[100vw] rounded-none p-0 overflow-hidden bg-white
                     top-0 translate-y-0 h-[100dvh]
-                    sm:w-[95vw] sm:rounded-2xl sm:top-[50%] sm:translate-y-[-50%] sm:h-auto sm:max-h-[85vh]
+                    sm:max-w-md sm:w-[95vw] sm:rounded-2xl sm:top-[50%] sm:translate-y-[-50%] sm:h-auto sm:max-h-[85vh]
                 "
             >
-                <div className="flex flex-col h-full sm:h-auto sm:max-h-[85vh]">
+                <div className="flex flex-col h-full sm:h-auto sm:max-h-[85vh] min-w-0 overflow-hidden">
                     {/* Sticky header with search input */}
-                    <div className="flex-shrink-0 p-4 pt-12 sm:pt-4 border-b">
+                    <div className="flex-shrink-0 p-4 pt-12 sm:pt-4 border-b min-w-0">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
                                 Search for a Place
@@ -175,7 +175,7 @@ export function LocationSearchModal({
                     </div>
 
                     {/* Scrollable results area */}
-                    <div className="flex-1 overflow-y-auto min-h-0 w-full p-2 bg-gray-50/50">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 min-w-0 w-full p-2 bg-gray-50/50">
                         {/* API not ready warning */}
                         {!apiReady && (
                             <div className="flex flex-col items-center justify-center p-8 space-y-3">
@@ -201,13 +201,13 @@ export function LocationSearchModal({
                                 {predictions.map((p) => (
                                     <button
                                         key={p.place_id}
-                                        className="w-full text-left p-3 rounded-xl hover:bg-violet-50 active:bg-violet-100 transition-colors flex items-start space-x-3 group"
+                                        className="w-full text-left p-3 rounded-xl hover:bg-violet-50 active:bg-violet-100 transition-colors flex items-start gap-3 group overflow-hidden"
                                         onClick={() => handleSelectPrediction(p.place_id, p.description)}
                                     >
                                         <div className="bg-gray-100 p-2 rounded-full group-hover:bg-violet-100 transition-colors shrink-0 mt-0.5">
                                             <MapPin className="h-4 w-4 text-gray-500 group-hover:text-violet-600" />
                                         </div>
-                                        <div className="flex-1 min-w-0 pr-2">
+                                        <div className="flex-1 min-w-0 overflow-hidden">
                                             <p className="text-sm font-semibold text-gray-900 truncate">
                                                 {p.structured_formatting?.main_text || p.description}
                                             </p>

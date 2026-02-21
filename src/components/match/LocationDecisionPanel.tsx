@@ -222,9 +222,10 @@ export function LocationDecisionPanel({
                                 />
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center bg-gray-50 border border-gray-200 rounded-xl p-2 min-h-[60px]">
-                                <p className="text-xs text-gray-500 text-center">
-                                    Picked #{otherChoice.placeRank}
+                            <div className="flex flex-col items-center justify-center bg-orange-50 border border-orange-200 rounded-xl p-2 min-h-[60px]">
+                                <Loader2 className="w-4 h-4 animate-spin text-orange-400 mb-1" />
+                                <p className="text-[10px] text-orange-600 text-center">
+                                    Loading pick...
                                 </p>
                             </div>
                         )
