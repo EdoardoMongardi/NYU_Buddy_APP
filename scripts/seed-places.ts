@@ -51,9 +51,10 @@ const CATEGORY_MAPPINGS = [
  * Determine 'allowedActivities' based on Category and Google's opening_hours.
  */
 function determineActivities(category: string, openingHours: any): string[] {
-    if (category === 'Park') return ['Walk'];
-    if (category === 'Cafe') return ['Coffee', 'Study'];
+    if (category === 'Park') return ['Walk', 'Hangout'];
+    if (category === 'Cafe' || category === 'Cafe/Tea') return ['Drink'];
     if (category === 'Study Space') return ['Study'];
+    if (category === 'Library') return ['Study'];
 
     if (category === 'Restaurant') {
         const activities = new Set<string>();
@@ -93,7 +94,7 @@ function determineActivities(category: string, openingHours: any): string[] {
         return Array.from(activities);
     }
 
-    return [];
+    return ['Hangout'];
 }
 
 /**

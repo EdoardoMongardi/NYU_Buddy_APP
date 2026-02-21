@@ -81,7 +81,7 @@ interface Place {
 }
 
 const CATEGORIES = [
-  'Cafe',
+  'Cafe/Tea',
   'Restaurant',
   'Library',
   'Park',
@@ -91,21 +91,22 @@ const CATEGORIES = [
 
 // Activities users can choose when setting availability
 const ACTIVITIES = [
-  'Coffee',
+  'Drink',
   'Lunch',
   'Dinner',
   'Study',
   'Walk',
+  'Hangout',
 ];
 
 // Default activity mapping based on category
 const CATEGORY_DEFAULT_ACTIVITIES: Record<string, string[]> = {
-  'Cafe': ['Coffee', 'Study', 'Lunch'],
+  'Cafe/Tea': ['Drink'],
   'Restaurant': ['Lunch', 'Dinner'],
   'Library': ['Study'],
-  'Park': ['Walk'],
+  'Park': ['Walk', 'Hangout'],
   'Study Space': ['Study'],
-  'Other': [],
+  'Other': ['Hangout'],
 };
 
 export default function AdminSpotsPage() {

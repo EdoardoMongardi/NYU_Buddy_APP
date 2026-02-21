@@ -27,28 +27,44 @@ interface PlaceCandidate {
 }
 
 const GOOGLE_TYPE_TO_CATEGORY: Record<string, string> = {
-    cafe: 'Cafe',
-    coffee_shop: 'Cafe',
+    // Cafe / Tea / Drink shops
+    cafe: 'Cafe/Tea',
+    coffee_shop: 'Cafe/Tea',
+    tea_house: 'Cafe/Tea',
+    bubble_tea_shop: 'Cafe/Tea',
+    juice_bar: 'Cafe/Tea',
+    smoothie_shop: 'Cafe/Tea',
+    ice_cream_shop: 'Cafe/Tea',
+    dessert_shop: 'Cafe/Tea',
+    dessert_restaurant: 'Cafe/Tea',
+    bakery: 'Cafe/Tea',
+    // Restaurants
     restaurant: 'Restaurant',
     food: 'Restaurant',
-    bar: 'Restaurant',
     meal_takeaway: 'Restaurant',
     meal_delivery: 'Restaurant',
+    // Bars — drink venues, not food
+    bar: 'Cafe/Tea',
+    night_club: 'Cafe/Tea',
+    wine_bar: 'Cafe/Tea',
+    cocktail_bar: 'Cafe/Tea',
+    // Study / Academic
     library: 'Library',
-    park: 'Park',
     university: 'Study Space',
     school: 'Study Space',
     secondary_school: 'Study Space',
     primary_school: 'Study Space',
+    // Outdoors
+    park: 'Park',
 };
 
 const CATEGORY_DEFAULT_ACTIVITIES: Record<string, string[]> = {
-    Cafe: ['Coffee', 'Study', 'Lunch'],
+    'Cafe/Tea': ['Drink'],
     Restaurant: ['Lunch', 'Dinner'],
     Library: ['Study'],
-    Park: ['Walk'],
+    Park: ['Walk', 'Hangout'],
     'Study Space': ['Study'],
-    Other: [],
+    Other: ['Hangout'],
 };
 
 function deriveCategoryFromTypes(types: string[]): string {
@@ -56,6 +72,47 @@ function deriveCategoryFromTypes(types: string[]): string {
         if (GOOGLE_TYPE_TO_CATEGORY[t]) return GOOGLE_TYPE_TO_CATEGORY[t];
     }
     return 'Other';
+}
+
+/**
+ * Determine allowedActivities using category + opening hours.
+ * For restaurants, checks opening_hours periods to decide Lunch vs Dinner.
+ */
+function determineActivities(category: string, openingHours?: OpeningHours | null): string[] {
+    if (category !== 'Restaurant') {
+        return CATEGORY_DEFAULT_ACTIVITIES[category] || ['Hangout'];
+    }
+
+    // Restaurant — use opening hours to determine Lunch/Dinner
+    if (!openingHours || !openingHours.periods || openingHours.periods.length === 0) {
+        return ['Lunch', 'Dinner'];
+    }
+
+    let servesLunch = false;
+    let servesDinner = false;
+
+    for (const period of openingHours.periods) {
+        if (period.open && period.close) {
+            const openTime = parseInt(period.open.time, 10);
+            const closeTime = parseInt(period.close.time, 10);
+
+            // Open spanning 11 AM – 2 PM → serves Lunch
+            if (openTime <= 1400 && closeTime >= 1100) servesLunch = true;
+            // Open spanning 5 PM – 8 PM → serves Dinner
+            if (openTime <= 2000 && closeTime >= 1700) servesDinner = true;
+        } else if (period.open && period.open.day === 0 && period.open.time === '0000' && !period.close) {
+            // 24-hour place
+            servesLunch = true;
+            servesDinner = true;
+        }
+    }
+
+    const activities: string[] = [];
+    if (servesLunch) activities.push('Lunch');
+    if (servesDinner) activities.push('Dinner');
+
+    // Fallback: if heuristic couldn't determine, assume Dinner
+    return activities.length > 0 ? activities : ['Dinner'];
 }
 
 interface MatchSearchCustomPlaceData {
@@ -145,7 +202,7 @@ export async function matchSearchCustomPlaceHandler(
                 geohash,
                 category,
                 tags: customPlace.tags || [],
-                allowedActivities: CATEGORY_DEFAULT_ACTIVITIES[category] || [],
+                allowedActivities: determineActivities(category, customPlace.openingHours),
                 active: true,
                 priceRange: customPlace.priceRange || null,
                 priceLevel: customPlace.priceLevel ?? null,

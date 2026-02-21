@@ -87,6 +87,71 @@ export async function getPlaceCandidates(
 }
 
 /**
+ * Returns { day, timeNum } in NYC local time.
+ * day: 0=Sunday … 6=Saturday (matches Google Places API period.open.day)
+ * timeNum: HHMM integer, e.g. 1430 for 2:30 PM
+ */
+function getNYCTimeInfo(): { day: number; timeNum: number } {
+    const now = new Date();
+    const dayStr = now.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+    const timeStr = now.toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const day = dayMap[dayStr] ?? 0;
+    const [rawH, rawM] = timeStr.split(':').map(Number);
+    // toLocaleTimeString hour12:false may return "24" for midnight
+    const timeNum = (rawH >= 24 ? 0 : rawH) * 100 + (rawM || 0);
+    return { day, timeNum };
+}
+
+/**
+ * Returns true if the place is currently open based on stored openingHours.
+ * Defaults to true (open) when no data is available.
+ */
+function isOpenNow(openingHours: unknown): boolean {
+    const oh = openingHours as {
+        periods?: {
+            open?: { day: number; time: string };
+            close?: { day: number; time: string };
+        }[];
+    } | null | undefined;
+
+    // No data → assume open
+    if (!oh || !oh.periods || oh.periods.length === 0) return true;
+
+    const { day: currentDay, timeNum: currentTime } = getNYCTimeInfo();
+
+    for (const period of oh.periods) {
+        const { open, close } = period;
+
+        // 24-hour place: open.day=0, open.time="0000", no close entry
+        if (open && open.day === 0 && open.time === '0000' && !close) return true;
+
+        if (!open || !close) continue;
+
+        const openDay  = open.day;
+        const closeDay = close.day;
+        const openTime  = parseInt(open.time,  10);
+        const closeTime = parseInt(close.time, 10);
+
+        if (openDay === closeDay) {
+            // Normal same-day period
+            if (currentDay === openDay && currentTime >= openTime && currentTime < closeTime) return true;
+        } else {
+            // Overnight period (e.g. Fri 22:00 → Sat 02:00)
+            if (currentDay === openDay  && currentTime >= openTime)  return true;
+            if (currentDay === closeDay && currentTime <  closeTime) return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Inner function to fetch places within a specific radius
  */
 async function fetchPlacesWithinRadius(
@@ -134,6 +199,12 @@ async function fetchPlacesWithinRadius(
             const allowedActivities: string[] = data.allowedActivities || [];
             if (activityType && allowedActivities.length > 0) {
                 if (!allowedActivities.includes(activityType)) continue;
+            }
+
+            // Filter out places that are currently closed (default open if no hours data)
+            if (!isOpenNow(data.openingHours)) {
+                console.log(`[fetchPlacesWithinRadius] Skipping closed place: ${data.name}`);
+                continue;
             }
 
             places.push({

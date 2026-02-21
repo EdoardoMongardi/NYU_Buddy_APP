@@ -93,11 +93,12 @@ export interface UserProfile {
 // Activity and interest options
 // Note: Must match admin-configured place activities (see src/app/admin/spots/page.tsx)
 export const ACTIVITIES = [
-  'Coffee',
+  'Drink',
   'Lunch',
   'Dinner',
   'Study',
   'Walk',
+  'Hangout',
 ] as const;
 
 export const INTERESTS = [
