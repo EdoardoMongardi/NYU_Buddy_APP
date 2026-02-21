@@ -279,13 +279,15 @@ export function LocationDecisionPanel({
                 </div>
             </div>
 
-            <LocationSearchModal
-                isOpen={searchModalOpen}
-                onClose={() => setSearchModalOpen(false)}
-                onSelectPlace={onSelectCustomPlace}
-                userMidpointLat={userMidpointLat}
-                userMidpointLng={userMidpointLng}
-            />
+            {searchModalOpen && (
+                <LocationSearchModal
+                    isOpen={searchModalOpen}
+                    onClose={() => setSearchModalOpen(false)}
+                    onSelectPlace={onSelectCustomPlace}
+                    userMidpointLat={userMidpointLat}
+                    userMidpointLng={userMidpointLng}
+                />
+            )}
         </div>
     );
 }
