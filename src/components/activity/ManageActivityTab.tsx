@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import JoinRequestInbox from '@/components/activity/JoinRequestInbox';
-import PostAskThreads from '@/components/activity/PostAskThreads';
+import InlineAskChat from '@/components/activity/InlineAskChat';
 import {
     Loader2,
     RefreshCw,
@@ -110,7 +110,7 @@ function MyPostCard({ post }: { post: FeedPost }) {
             )}
 
             {/* Inline Ask chats specifically for this post */}
-            <PostAskThreads postId={post.postId} creatorUid={post.creatorUid} />
+            <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} />
         </div>
     );
 }

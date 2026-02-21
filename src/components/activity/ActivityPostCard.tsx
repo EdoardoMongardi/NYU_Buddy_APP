@@ -237,9 +237,9 @@ export default function ActivityPostCard({ post, defaultAskExpanded = false }: A
         )}
 
         {/* Inline Ask Chat */}
-        {isAskExpanded && !isCreator && (
-          <div className="mt-3">
-            <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} autoFocus />
+        {(isCreator || isAskExpanded) && (
+          <div className="mt-2 text-[14px]">
+            <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} autoFocus={isAskExpanded} />
           </div>
         )}
       </div>

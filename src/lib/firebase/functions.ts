@@ -560,6 +560,7 @@ export interface AskMessage {
   senderDisplayName: string;
   body: string;
   createdAt: string | null;
+  askerUid?: string;
 }
 
 export const askSendMessage = createCallable<

@@ -35,8 +35,54 @@ export async function askGetThreadHandler(
     const isCreator = uid === post.creatorUid;
     const askerUid = isCreator ? data.targetAskerUid : uid;
 
+    if (isCreator && !askerUid) {
+        // Fetch ALL ask threads for this post
+        const asksSnap = await db.collection('asks')
+            .where('postId', '==', data.postId)
+            .where('creatorUid', '==', uid)
+            .get();
+
+        const messagePromises = asksSnap.docs.map(askDoc => {
+            return db.collection('asks')
+                .doc(askDoc.id)
+                .collection('messages')
+                .get();
+        });
+
+        const messagesSnaps = await Promise.all(messagePromises);
+        let allMessages: any[] = [];
+
+        for (let i = 0; i < messagesSnaps.length; i++) {
+            const snap = messagesSnaps[i];
+            const askDoc = asksSnap.docs[i];
+            // askId is formatted as postId_askerUid
+            const currentAskerUid = askDoc.id.split('_')[1];
+
+            snap.docs.forEach(doc => {
+                const d = doc.data();
+                allMessages.push({
+                    id: doc.id,
+                    senderUid: d.senderUid,
+                    senderDisplayName: d.senderDisplayName,
+                    body: d.body,
+                    createdAt: d.createdAt?.toDate?.()?.toISOString() || null,
+                    askerUid: currentAskerUid,
+                });
+            });
+        }
+
+        // Sort chronologically
+        allMessages.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+        return {
+            askThread: null,
+            messages: allMessages,
+            nextCursor: null,
+        };
+    }
+
     if (!askerUid) {
-        throw new HttpsError('invalid-argument', 'targetAskerUid is required when the creator fetches the thread');
+        throw new HttpsError('invalid-argument', 'targetAskerUid is required');
     }
 
     const askId = `${data.postId}_${askerUid}`;
@@ -85,6 +131,7 @@ export async function askGetThreadHandler(
             senderDisplayName: d.senderDisplayName,
             body: d.body,
             createdAt: d.createdAt?.toDate?.()?.toISOString() || null,
+            askerUid: askerUid,
         };
     });
 
