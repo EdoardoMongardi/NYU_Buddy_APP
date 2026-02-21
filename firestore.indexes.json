@@ -467,6 +467,70 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "asks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "askerUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "asks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "creatorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "asks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "creatorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "postId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "asks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "askerUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "postId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
