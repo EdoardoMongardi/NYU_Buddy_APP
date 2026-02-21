@@ -202,20 +202,7 @@ export default function HomePage() {
         <div ref={headerContentRef} className="flex flex-col w-full h-full" style={{ opacity: 1 }}>
           {/* Row 1: Title + Action Icons */}
           <div className={`flex items-center justify-between px-4 relative ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
-            <div className="w-[100px]" /> {/* Spacer to balance layout if needed */}
-            <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 mt-1 flex items-center justify-center">
-              <svg
-                viewBox="0 0 100 100"
-                className="w-10 h-10 text-violet-600"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <g strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M 30 20 L 30 80" fill="none" stroke="currentColor" strokeWidth="12" />
-                  <path d="M 30 20 Q 70 20 70 40 Q 70 50 50 50 Q 80 50 80 65 Q 80 80 30 80" fill="none" stroke="currentColor" strokeWidth="10" />
-                  <circle cx="50" cy="50" r="10" fill="currentColor" stroke="none" />
-                </g>
-              </svg>
-            </div>
+            <h1 className="text-xl font-bold text-violet-600 tracking-tight">NYU Buddy</h1>
 
             {/* Notification / Install bubble */}
             <AnimatePresence mode="wait">
