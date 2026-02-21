@@ -1,10 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import useGooglePlaces from 'react-google-autocomplete/lib/usePlacesAutocompleteService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { MapPin, Search, Loader2 } from 'lucide-react';
-import * as geofire from 'geofire-common';
 
 import { PlaceCandidate } from '@/lib/firebase/functions';
 
@@ -40,43 +38,49 @@ export function LocationSearchModal({
     userMidpointLng
 }: LocationSearchModalProps) {
     const [query, setQuery] = React.useState('');
-    const [predictions, setPredictions] = React.useState<any[]>([]);
+    const [predictions, setPredictions] = React.useState<google.maps.places.AutocompletePrediction[]>([]);
     const [isFetchingDetails, setIsFetchingDetails] = React.useState(false);
     const [errorMsg, setErrorMsg] = React.useState('');
 
-    const { ref, getPlacePredictions, getPlaceDetails } = useGooglePlaces({
+    const { placesService, placePredictions, getPlacePredictions } = useGooglePlaces({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
         options: {
             types: ['establishment'],
+            input: '',
             // Bias results to 5km around the midpoint
-            locationBias: `circle:5000@${userMidpointLat},${userMidpointLng}`,
+            // The typing defines `locationBias` but might be strictly typed or missing if using older lib versions. Let's omit locationBias from options, or pass it if it works.
+            // Wait, the error said input is missing. `getPlacePredictions` expects a full opt.
         },
-        onPlaceSelected: (place: any) => {
-            // This won't be used since we manually fetch details on predict click
-        }
     });
 
     // Handle typing to get predictions
     useEffect(() => {
         if (query.length > 2) {
-            getPlacePredictions({ input: query }, (results: any[]) => {
-                if (results) setPredictions(results);
+            getPlacePredictions({
+                input: query,
+                types: ['establishment'],
+                locationBias: `circle:5000@${userMidpointLat},${userMidpointLng}`,
             });
-        } else {
-            setPredictions([]);
         }
-    }, [query, getPlacePredictions]);
+    }, [query, getPlacePredictions, userMidpointLat, userMidpointLng]);
+
+    // Update local predictions state when placePredictions changes
+    useEffect(() => {
+        setPredictions(placePredictions || []);
+    }, [placePredictions]);
 
     const handleSelectPrediction = async (placeId: string, description: string) => {
         setIsFetchingDetails(true);
         setErrorMsg('');
 
         try {
+            if (!placesService) throw new Error("Google Maps not ready");
+
             const details = await new Promise<google.maps.places.PlaceResult>((resolve, reject) => {
-                getPlaceDetails({
+                placesService.getDetails({
                     placeId: placeId,
                     fields: ['name', 'formatted_address', 'geometry', 'types', 'price_level', 'photos']
-                }, (res: any, status: any) => {
+                }, (res, status) => {
                     if (status === google.maps.places.PlacesServiceStatus.OK && res) resolve(res);
                     else reject(status);
                 });
@@ -108,13 +112,13 @@ export function LocationSearchModal({
                 rank: -1, // Denotes custom choice
                 tags: details.types ? details.types.filter((t: string) => !['establishment', 'point_of_interest'].includes(t)).slice(0, 3) : [],
                 priceLevel: details.price_level,
-                photoUrl: details.photos && details.photos.length > 0 ? details.photos[0].getUrl({ maxWidth: 400 }) : null,
+                photoUrl: details.photos && details.photos.length > 0 ? details.photos[0].getUrl({ maxWidth: 400 }) : undefined,
             };
 
             onSelectPlace(customPlace);
             onClose();
             setQuery('');
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Failed to fetch custom place details:", err);
             setErrorMsg("Failed to load details for that location. Please try another.");
         } finally {
@@ -139,8 +143,6 @@ export function LocationSearchModal({
                     <div className="relative mt-4">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                         <Input
-                            ref={ref as any}
-                            placeholder="Search cafes, restaurants..."
                             className="pl-10 h-12 rounded-xl border-gray-200 focus:border-violet-500 focus:ring-violet-500"
                             value={query}
                             onChange={(e) => {
@@ -195,4 +197,3 @@ export function LocationSearchModal({
         </Dialog>
     );
 }
-```
