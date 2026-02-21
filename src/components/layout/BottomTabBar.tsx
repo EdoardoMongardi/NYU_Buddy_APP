@@ -1,10 +1,11 @@
 'use client';
 
-import { Home, ClipboardList, Zap, Map, Settings } from 'lucide-react';
+import { ClipboardList, Zap, Map, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useNav } from '@/context/NavContext';
+import { useUnreadBadges } from '@/lib/hooks/useUnreadBadges';
 
 export type TabKey = 'home' | 'manage' | 'search' | 'map' | 'settings';
 
@@ -14,8 +15,31 @@ interface Tab {
     icon: React.ElementType;
 }
 
+const XHome = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => {
+    // Check if the generic CSS means it is active based on the scale property
+    const isActive = className?.includes('scale-105');
+
+    // We override the generic CSS to force a pure fill for X's solid/outline path design 
+    const svgClass = `w-[26px] h-[26px] flex-shrink-0 transition-transform duration-150 ${className?.includes('text-gray-') ? 'fill-gray-600' : 'fill-black'} ${isActive ? 'scale-105' : ''}`;
+
+    if (isActive) {
+        // Active solid house
+        return (
+            <svg viewBox="0 0 24 24" aria-hidden="true" className={svgClass} {...props}>
+                <path d="M12 1.696L.622 8.807l1.06 1.696L3 9.679V19.5C3 20.881 4.119 22 5.5 22h13c1.381 0 2.5-1.119 2.5-2.5V9.679l1.318.824 1.06-1.696L12 1.696zM13 20h-2v-5.5c0-.552.448-1 1-1s1 .448 1 1V20z" />
+            </svg>
+        );
+    }
+    // Inactive hollow house
+    return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" className={svgClass} {...props}>
+            <path d="M12 1.696L.622 8.807l1.06 1.696L3 9.679V19.5C3 20.881 4.119 22 5.5 22h13c1.381 0 2.5-1.119 2.5-2.5V9.679l1.318.824 1.06-1.696L12 1.696zM5 19.5V8.428l7-4.375 7 4.375V19.5c0 .276-.224.5-.5.5h-5v-5.5c0-1.381-1.119-2.5-2.5-2.5s-2.5 1.119-2.5 2.5V20H5.5c-.276 0-.5-.224-.5-.5z" />
+        </svg>
+    );
+};
+
 const TABS: Tab[] = [
-    { key: 'home', label: 'Home', icon: Home },
+    { key: 'home', label: 'Home', icon: XHome },
     { key: 'manage', label: 'Activity', icon: ClipboardList },
     { key: 'search', label: 'Match', icon: Zap },
     { key: 'map', label: 'Map', icon: Map },
@@ -31,6 +55,9 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
     const router = useRouter();
     const { userProfile } = useAuth();
     const { navRef } = useNav();
+
+    // Mount custom unread badges
+    const unreadBadges = useUnreadBadges(activeTab);
 
     // On map tab, sidebar goes to far left; otherwise centered relative to content
     const isMapActive = activeTab === 'map';
@@ -61,10 +88,15 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                                 onClick={() => onTabChange(tab.key)}
                                 className="flex items-center justify-center flex-1 h-full"
                             >
-                                <Icon
-                                    className={`w-[26px] h-[26px] transition-all duration-150 ${isActive ? 'scale-110 fill-violet-600 text-white stroke-[2.5px]' : 'fill-white text-violet-600 stroke-[1.8px]'
-                                        }`}
-                                />
+                                <div className="relative inline-flex items-center justify-center">
+                                    <Icon
+                                        className={`w-[26px] h-[26px] transition-all duration-150 ${isActive ? 'scale-105 fill-black text-white stroke-[1.5px]' : 'fill-white text-black stroke-[1.8px]'
+                                            }`}
+                                    />
+                                    {(unreadBadges as Record<string, boolean>)[tab.key] && (
+                                        <div className="absolute top-0 right-0 w-[10px] h-[10px] bg-violet-500 border-[2px] border-white rounded-full -translate-y-[2px] translate-x-[2px]" />
+                                    )}
+                                </div>
                             </button>
                         );
                     })}
@@ -83,7 +115,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
             >
                 {/* Branding */}
                 <div className="px-5 pt-5 pb-4">
-                    <span className="text-xl font-bold text-gray-900 tracking-tight">
+                    <span className="text-xl font-bold text-violet-600 tracking-tight">
                         NYU Buddy
                     </span>
                 </div>
@@ -102,10 +134,15 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
                                     : 'text-gray-600 hover:bg-gray-50 font-medium'
                                     }`}
                             >
-                                <Icon
-                                    className="w-[24px] h-[24px] flex-shrink-0"
-                                    strokeWidth={isActive ? 2.4 : 1.8}
-                                />
+                                <div className="relative inline-flex items-center justify-center">
+                                    <Icon
+                                        className={`w-[26px] h-[26px] flex-shrink-0 transition-all duration-150 ${isActive ? 'scale-105 fill-black text-white stroke-[1.5px]' : 'fill-white text-black stroke-[1.8px]'
+                                            }`}
+                                    />
+                                    {(unreadBadges as Record<string, boolean>)[tab.key] && (
+                                        <div className="absolute top-0 right-0 w-[10px] h-[10px] bg-violet-500 border-[2px] border-white rounded-full -translate-y-[2px] translate-x-[2px]" />
+                                    )}
+                                </div>
                                 <span>{tab.label}</span>
                             </button>
                         );

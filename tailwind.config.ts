@@ -10,19 +10,6 @@ const config: Config = {
 	theme: {
 		extend: {
 			colors: {
-				violet: {
-					50: '#f6eeff',
-					100: '#ead9ff',
-					200: '#d4afff',
-					300: '#b97af5',
-					400: '#9c43e0',
-					500: '#7b1dc2',
-					600: '#57068c', // Primary NYU Violet
-					700: '#42036c',
-					800: '#2c014b',
-					900: '#19002e',
-					950: '#0e001a',
-				},
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				card: {

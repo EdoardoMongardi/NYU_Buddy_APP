@@ -200,53 +200,54 @@ export default function HomePage() {
         style={{ transform: 'translateY(0)' }}
       >
         <div ref={headerContentRef} className="flex flex-col w-full h-full" style={{ opacity: 1 }}>
-          {/* Row 1: Title + Action Icons */}
-          <div className={`flex items-center justify-between px-4 relative ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
-            <h1 className="text-xl font-bold text-violet-600 tracking-tight">NYU Buddy</h1>
+          {/* Row 1: Title (Mobile) + Action Icons */}
+          <div className={`flex items-center justify-between px-4 relative ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'} ${!showNotifBubble && !showInstallBubble ? 'md:hidden' : ''}`}>
+            <h1 className="md:hidden text-xl font-bold text-violet-600 tracking-tight">NYU Buddy</h1>
 
-            {/* Notification / Install bubble */}
-            <AnimatePresence mode="wait">
-              {showNotifBubble && (
-                <motion.div
-                  key="notif"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
-                >
-                  <Bell className="w-3.5 h-3.5 flex-shrink-0" />
-                  <button
-                    onClick={handleEnableNotifications}
-                    disabled={notifRequesting}
-                    className="text-[12px] font-medium whitespace-nowrap"
+            <div className="flex-1 flex justify-end">
+              <AnimatePresence mode="wait">
+                {showNotifBubble && (
+                  <motion.div
+                    key="notif"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
                   >
-                    {notifRequesting ? 'Enabling...' : 'Notifications'}
-                  </button>
-                  <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
-                    <X className="w-3.5 h-3.5 text-violet-400" />
-                  </button>
-                </motion.div>
-              )}
-              {!showNotifBubble && showInstallBubble && (
-                <motion.div
-                  key="install"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
-                >
-                  <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                  <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
-                    Install
-                  </button>
-                  <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
-                    <X className="w-3.5 h-3.5 text-violet-400" />
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <Bell className="w-3.5 h-3.5 flex-shrink-0" />
+                    <button
+                      onClick={handleEnableNotifications}
+                      disabled={notifRequesting}
+                      className="text-[12px] font-medium whitespace-nowrap"
+                    >
+                      {notifRequesting ? 'Enabling...' : 'Notifications'}
+                    </button>
+                    <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
+                      <X className="w-3.5 h-3.5 text-violet-400" />
+                    </button>
+                  </motion.div>
+                )}
+                {!showNotifBubble && showInstallBubble && (
+                  <motion.div
+                    key="install"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
+                  >
+                    <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                    <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
+                      Install
+                    </button>
+                    <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
+                      <X className="w-3.5 h-3.5 text-violet-400" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Row 2: Sub-tabs (X-style) */}
