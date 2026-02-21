@@ -34,6 +34,7 @@ export function useUnreadBadges(activeTab: string) {
             let isFirstFeedSnapshot = true;
             let isFirstManageSnapshot = true;
             let isFirstMatchSnapshot = true;
+            let isFirstOfferSnapshot = true;
 
             // 1. Home Badge (New global Feed Posts)
             const feedQuery = query(collection(db, 'activityPosts'), orderBy('createdAt', 'desc'), limit(1));
@@ -67,7 +68,8 @@ export function useUnreadBadges(activeTab: string) {
                 const changes = snapshot.docChanges();
                 for (const change of changes) {
                     if (change.type === 'added' || change.type === 'modified') {
-                        if (activeTab !== 'manage') {
+                        const data = change.doc.data();
+                        if ((change.type === 'added' || data.lastSenderUid !== user.uid) && activeTab !== 'manage') {
                             setBadges(prev => ({ ...prev, manage: true }));
                         }
                     }
@@ -87,7 +89,28 @@ export function useUnreadBadges(activeTab: string) {
                 const changes = snapshot.docChanges();
                 for (const change of changes) {
                     if (change.type === 'added' || change.type === 'modified') {
-                        // Optional: ignore if the last message was sent by me, but simplest is to pulse dot
+                        const data = change.doc.data();
+                        if ((change.type === 'added' || data.lastSenderUid !== user.uid) && activeTab !== 'search') {
+                            setBadges(prev => ({ ...prev, search: true }));
+                        }
+                    }
+                }
+            });
+
+            // 4. Search Badge Extension (Actionable Offers)
+            const offersQuery = query(
+                collection(db, 'offers'),
+                where('toUid', '==', user.uid),
+                where('status', '==', 'pending')
+            );
+            const unsubOffers = onSnapshot(offersQuery, (snapshot) => {
+                if (isFirstOfferSnapshot) {
+                    isFirstOfferSnapshot = false;
+                    return;
+                }
+                const changes = snapshot.docChanges();
+                for (const change of changes) {
+                    if (change.type === 'added') {
                         if (activeTab !== 'search') {
                             setBadges(prev => ({ ...prev, search: true }));
                         }
@@ -99,6 +122,7 @@ export function useUnreadBadges(activeTab: string) {
                 unsubFeed();
                 unsubManage();
                 unsubMatch();
+                unsubOffers();
             };
         } catch (e) {
             console.error('Failed to setup badge listeners', e);

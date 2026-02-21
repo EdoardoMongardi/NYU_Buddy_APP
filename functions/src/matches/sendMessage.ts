@@ -109,6 +109,13 @@ export async function matchSendMessageHandler(
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    // Update the parent match document to trigger client snapshot listeners
+    await matchRef.update({
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastSenderUid: uid,
+    });
+
     console.log(`[matchSendMessage] Message ${messageDoc.id} sent by ${uid} in match ${matchId}`);
 
     return { success: true, messageId: messageDoc.id };

@@ -127,7 +127,7 @@ function LayoutContent({
     // Phase 6: By-pass the home tab redirect if switching to the match tab while already matched
     if (tab === 'search' && presence?.matchId && presence.status === 'matched') {
       router.push(`/match/${presence.matchId}`);
-      setActiveTab('search');
+      // Deliberately NOT calling setActiveTab here to avoid flashing the InstantMatchTab Availability sheet on the root page.
       return;
     }
 
