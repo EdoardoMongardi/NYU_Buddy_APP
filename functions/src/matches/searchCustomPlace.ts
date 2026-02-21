@@ -19,7 +19,8 @@ interface PlaceCandidate {
     lng: number;
     distance: number;
     rank: number;
-    tags?: string[];
+    tags?: string[];        // Human-readable display labels (e.g. "Bubble Tea")
+    rawTypes?: string[];    // Raw Google Place API types (e.g. "bubble_tea_shop") — used for category derivation
     priceLevel?: number;
     priceRange?: string;
     photoUrl?: string;
@@ -190,7 +191,9 @@ export async function matchSearchCustomPlaceHandler(
         }
 
         // Upsert into the global places collection so it appears in admin/spots
-        const category = deriveCategoryFromTypes(customPlace.tags || []);
+        // Use rawTypes (raw Google API keys) for accurate category derivation.
+        // tags are human-readable display labels and do NOT match GOOGLE_TYPE_TO_CATEGORY keys.
+        const category = deriveCategoryFromTypes(customPlace.rawTypes || customPlace.tags || []);
 
         if (!globalPlaceSnap.exists) {
             const geohash = geofire.geohashForLocation([customPlace.lat, customPlace.lng]);
@@ -202,6 +205,7 @@ export async function matchSearchCustomPlaceHandler(
                 geohash,
                 category,
                 tags: customPlace.tags || [],
+                rawTypes: customPlace.rawTypes || [],
                 allowedActivities: determineActivities(category, customPlace.openingHours),
                 active: true,
                 priceRange: customPlace.priceRange || null,

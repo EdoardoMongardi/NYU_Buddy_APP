@@ -215,6 +215,7 @@ export function LocationSearchModal({
                     distance: Math.round(distanceToMidpoint),
                     rank: -1,
                     tags: stored.tags || [],
+                    rawTypes: stored.rawTypes || [],
                     priceLevel: stored.priceLevel ?? undefined,
                     priceRange: stored.priceRange || undefined,
                     photoUrl: stored.photoUrl || undefined,
@@ -272,6 +273,7 @@ export function LocationSearchModal({
                 distance: Math.round(distanceToMidpoint),
                 rank: -1,
                 tags: details.types ? deriveTagsFromTypes(details.types) : [],
+                rawTypes: details.types || [],  // raw Google types for backend category derivation
                 priceLevel: details.price_level,
                 photoUrl: details.photos && details.photos.length > 0
                     ? details.photos[0].getUrl({ maxWidth: 400 })
