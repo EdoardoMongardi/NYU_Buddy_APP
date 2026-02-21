@@ -1,6 +1,15 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { requireEmailVerification } from '../utils/verifyEmail';
+import * as geofire from 'geofire-common';
+
+interface OpeningHours {
+    periods: {
+        open?: { day: number; time: string };
+        close?: { day: number; time: string };
+    }[];
+    weekday_text: string[];
+}
 
 interface PlaceCandidate {
     placeId: string;
@@ -14,6 +23,39 @@ interface PlaceCandidate {
     priceLevel?: number;
     priceRange?: string;
     photoUrl?: string;
+    openingHours?: OpeningHours | null;
+}
+
+const GOOGLE_TYPE_TO_CATEGORY: Record<string, string> = {
+    cafe: 'Cafe',
+    coffee_shop: 'Cafe',
+    restaurant: 'Restaurant',
+    food: 'Restaurant',
+    bar: 'Restaurant',
+    meal_takeaway: 'Restaurant',
+    meal_delivery: 'Restaurant',
+    library: 'Library',
+    park: 'Park',
+    university: 'Study Space',
+    school: 'Study Space',
+    secondary_school: 'Study Space',
+    primary_school: 'Study Space',
+};
+
+const CATEGORY_DEFAULT_ACTIVITIES: Record<string, string[]> = {
+    Cafe: ['Coffee', 'Study', 'Lunch'],
+    Restaurant: ['Lunch', 'Dinner'],
+    Library: ['Study'],
+    Park: ['Walk'],
+    'Study Space': ['Study'],
+    Other: [],
+};
+
+function deriveCategoryFromTypes(types: string[]): string {
+    for (const t of types) {
+        if (GOOGLE_TYPE_TO_CATEGORY[t]) return GOOGLE_TYPE_TO_CATEGORY[t];
+    }
+    return 'Other';
 }
 
 interface MatchSearchCustomPlaceData {
@@ -83,6 +125,43 @@ export async function matchSearchCustomPlaceHandler(
         } else {
             // Use the existing one
             finalPlaceId = placeCandidates[existingIndex].placeId;
+        }
+
+        // Upsert into the global places collection so it appears in admin/spots
+        // and can be reused in future algorithmic suggestions.
+        const globalPlaceRef = db.collection('places').doc(customPlace.placeId);
+        const globalPlaceSnap = await transaction.get(globalPlaceRef);
+
+        const category = deriveCategoryFromTypes(customPlace.tags || []);
+
+        if (!globalPlaceSnap.exists) {
+            const geohash = geofire.geohashForLocation([customPlace.lat, customPlace.lng]);
+            transaction.set(globalPlaceRef, {
+                name: customPlace.name,
+                address: customPlace.address,
+                lat: customPlace.lat,
+                lng: customPlace.lng,
+                geohash,
+                category,
+                tags: customPlace.tags || [],
+                allowedActivities: CATEGORY_DEFAULT_ACTIVITIES[category] || [],
+                active: true,
+                priceRange: customPlace.priceRange || null,
+                priceLevel: customPlace.priceLevel ?? null,
+                photoUrl: customPlace.photoUrl || null,
+                openingHours: customPlace.openingHours || null,
+                source: 'user_custom',
+                submittedBy: uid,
+                timesSelected: 1,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } else {
+            // Increment timesSelected counter so popular user-submitted places can be promoted
+            transaction.update(globalPlaceRef, {
+                timesSelected: admin.firestore.FieldValue.increment(1),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
         }
 
         return {

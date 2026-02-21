@@ -151,7 +151,7 @@ export const matchSetPlaceChoice = onCall(
 );
 
 export const matchSearchCustomPlace = onCall(
-  { region: 'us-east1' },
+  { region: 'us-east1', cors: true },
   matchSearchCustomPlaceHandler
 );
 

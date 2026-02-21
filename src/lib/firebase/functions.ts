@@ -260,6 +260,13 @@ export interface PlaceCandidate {
   priceLevel?: number;
   priceRange?: string; // U11: e.g., "$20-$50" (preferred over priceLevel)
   photoUrl?: string;
+  openingHours?: {
+    periods: {
+      open?: { day: number; time: string };
+      close?: { day: number; time: string };
+    }[];
+    weekday_text: string[];
+  } | null;
 }
 
 export const matchFetchAllPlaces = createCallable<

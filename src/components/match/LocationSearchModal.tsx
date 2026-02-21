@@ -91,7 +91,7 @@ export function LocationSearchModal({
             const details = await new Promise<google.maps.places.PlaceResult>((resolve, reject) => {
                 placesService.getDetails({
                     placeId: placeId,
-                    fields: ['name', 'formatted_address', 'geometry', 'types', 'price_level', 'photos']
+                    fields: ['name', 'formatted_address', 'geometry', 'types', 'price_level', 'photos', 'opening_hours']
                 }, (res, status) => {
                     if (status === google.maps.places.PlacesServiceStatus.OK && res) resolve(res);
                     else reject(status);
@@ -112,6 +112,17 @@ export function LocationSearchModal({
                 return;
             }
 
+            const priceLevelMap: Record<number, string> = { 0: 'Free', 1: '$', 2: '$$', 3: '$$$', 4: '$$$$' };
+            const priceRange = details.price_level != null ? priceLevelMap[details.price_level] : undefined;
+
+            const openingHours = details.opening_hours ? {
+                periods: (details.opening_hours.periods || []).map((p) => ({
+                    open: p.open ? { day: p.open.day, time: p.open.time } : undefined,
+                    close: p.close ? { day: p.close.day, time: p.close.time } : undefined,
+                })),
+                weekday_text: details.opening_hours.weekday_text || [],
+            } : null;
+
             const customPlace: PlaceCandidate = {
                 placeId: placeId,
                 name: details.name || description.split(',')[0],
@@ -122,7 +133,9 @@ export function LocationSearchModal({
                 rank: -1,
                 tags: details.types ? details.types.filter((t: string) => !['establishment', 'point_of_interest'].includes(t)).slice(0, 3) : [],
                 priceLevel: details.price_level,
+                priceRange,
                 photoUrl: details.photos && details.photos.length > 0 ? details.photos[0].getUrl({ maxWidth: 400 }) : undefined,
+                openingHours,
             };
 
             onSelectPlace(customPlace);

@@ -12,6 +12,7 @@ import {
   ToggleRight,
   Upload,
   X,
+  Users,
 } from 'lucide-react';
 import {
   collection,
@@ -74,6 +75,9 @@ interface Place {
     }[];
     weekday_text: string[];
   } | null;
+  source?: string; // 'user_custom' for user-submitted places
+  timesSelected?: number; // How many times this place has been chosen by users
+  submittedBy?: string; // UID of the user who first submitted this place
 }
 
 const CATEGORIES = [
@@ -671,13 +675,24 @@ export default function AdminSpotsPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-lg flex items-center space-x-2">
+                      <CardTitle className="text-lg flex items-center flex-wrap gap-1.5">
                         <span>{place.name}</span>
                         {!place.active && (
                           <Badge variant="secondary">Inactive</Badge>
                         )}
+                        {place.source === 'user_custom' && (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            User Submitted
+                          </Badge>
+                        )}
                         {place.openingHours && (
                           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Hours</Badge>
+                        )}
+                        {(place.timesSelected ?? 0) > 0 && (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            {place.timesSelected}× chosen
+                          </Badge>
                         )}
                       </CardTitle>
                       <p className="text-sm text-gray-500">{place.address}</p>
