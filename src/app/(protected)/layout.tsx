@@ -147,13 +147,13 @@ function LayoutContent({
     }
   }, [pathname]);
 
-  // Is user on a sub-page (post detail, match, feedback, etc.)?
-  const isSubPage = pathname !== '/' && pathname !== '/onboarding';
+  // Is user on a sub-page (post detail, match, onboarding, profile, etc.)?
+  const isSubPage = pathname !== '/';
 
   // Is user on the root page? (where we show tab content)
   const isRootPage = pathname === '/';
 
-  if (loading || isChecking || !userProfile) {
+  if (loading || isChecking) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-white">
         <div className="text-center">
