@@ -280,8 +280,9 @@ export default function MatchPage() {
 
   return (
     <div
-      className="fixed inset-x-0 mx-auto w-full max-w-lg flex flex-col bg-white overflow-hidden z-50
-                 sm:rounded-xl sm:shadow-2xl sm:border sm:border-gray-200"
+      className="fixed inset-x-0 mx-auto w-full max-w-lg md:max-w-[600px] flex flex-col bg-white overflow-hidden z-50
+                 sm:rounded-xl sm:shadow-2xl sm:border sm:border-gray-200
+                 md:rounded-none md:shadow-none md:border-0"
       style={{
         top: 'var(--vv-offset-top, 0px)',
         height: isKbOpen

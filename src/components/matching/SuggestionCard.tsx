@@ -577,6 +577,9 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
           isPWA={isPWA}
         />
       </motion.div>
+      <p className="mt-2 text-center text-xs text-gray-500">
+        Swipe left or right to see other available users.
+      </p>
     </div>
   );
 }
