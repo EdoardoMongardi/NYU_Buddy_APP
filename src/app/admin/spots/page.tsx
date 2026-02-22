@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import useGooglePlaces from 'react-google-autocomplete/lib/usePlacesAutocompleteService';
 
 import {
   Plus,
@@ -16,6 +17,8 @@ import {
   Search,
   List,
   Map,
+  Sparkles,
+  ChevronDown,
 } from 'lucide-react';
 
 // Leaflet requires the browser DOM — load only on client
@@ -117,6 +120,41 @@ const CATEGORY_DEFAULT_ACTIVITIES: Record<string, string[]> = {
   'Other': ['Hangout'],
 };
 
+// ── Google Places helpers ────────────────────────────────────────────────────
+
+const GOOGLE_TYPE_TO_CATEGORY: Record<string, string> = {
+  cafe: 'Cafe/Tea', coffee_shop: 'Cafe/Tea', tea_house: 'Cafe/Tea',
+  bubble_tea_shop: 'Cafe/Tea', juice_bar: 'Cafe/Tea', smoothie_shop: 'Cafe/Tea',
+  ice_cream_shop: 'Cafe/Tea', dessert_shop: 'Cafe/Tea', bakery: 'Cafe/Tea',
+  bar: 'Cafe/Tea', night_club: 'Cafe/Tea', wine_bar: 'Cafe/Tea', cocktail_bar: 'Cafe/Tea',
+  restaurant: 'Restaurant', food: 'Restaurant', meal_takeaway: 'Restaurant', meal_delivery: 'Restaurant',
+  library: 'Library',
+  university: 'Study Space', school: 'Study Space',
+  park: 'Park',
+};
+
+const SKIP_TAG_TYPES = new Set([
+  'establishment', 'point_of_interest', 'food', 'store', 'locality',
+  'political', 'geocode', 'premise', 'subpremise',
+]);
+
+const PRICE_RANGE_MAP: Record<number, string> = {
+  0: 'Under $10', 1: '$10-$20', 2: '$20-$50', 3: '$50+', 4: '$50+',
+};
+
+function deriveCategoryFromTypes(types: string[]): string {
+  for (const t of types) {
+    if (GOOGLE_TYPE_TO_CATEGORY[t]) return GOOGLE_TYPE_TO_CATEGORY[t];
+  }
+  return 'Other';
+}
+
+function deriveTagsFromTypes(types: string[]): string[] {
+  return types.filter(t => !SKIP_TAG_TYPES.has(t)).slice(0, 4);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AdminSpotsPage() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,6 +185,18 @@ export default function AdminSpotsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Google Places search (for auto-fill)
+  const [googleSearchQuery, setGoogleSearchQuery] = useState('');
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [googleFillMsg, setGoogleFillMsg] = useState('');
+  const [showGoogleSearch, setShowGoogleSearch] = useState(true);
+  const googleSearchRef = useRef<HTMLInputElement>(null);
+
+  const { placesService, placePredictions, getPlacePredictions } = useGooglePlaces({
+    apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+    options: { types: ['establishment'], input: '' },
+  });
 
   // Listen for places
   useEffect(() => {
@@ -179,13 +229,80 @@ export default function AdminSpotsPage() {
     setLng('');
     setTags('');
     setAllowedActivities([]);
-    setPriceRange(''); // U11
-    setPhotoUrl(''); // U11
+    setPriceRange('');
+    setPhotoUrl('');
     setOpeningHoursJson('');
-    setSelectedFile(null); // File upload
+    setSelectedFile(null);
     setUploadProgress(0);
     setIsUploading(false);
     setEditingPlace(null);
+    setGoogleSearchQuery('');
+    setGoogleFillMsg('');
+    setShowGoogleSearch(true);
+  };
+
+  // Trigger predictions as the user types in the Google search box
+  useEffect(() => {
+    if (googleSearchQuery.length > 2) {
+      getPlacePredictions({ input: googleSearchQuery, types: ['establishment'] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleSearchQuery]);
+
+  const handleGoogleSelect = async (placeId: string) => {
+    if (!placesService) { setGoogleFillMsg('Google Maps not ready yet — try again in a moment.'); return; }
+    setIsFetchingDetails(true);
+    setGoogleFillMsg('');
+    setGoogleSearchQuery('');
+    try {
+      const details = await new Promise<google.maps.places.PlaceResult>((resolve, reject) => {
+        placesService.getDetails({
+          placeId,
+          fields: ['name', 'formatted_address', 'geometry', 'types', 'price_level', 'photos', 'opening_hours'],
+        }, (res, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && res) resolve(res);
+          else reject(status);
+        });
+      });
+
+      const placeLat = details.geometry?.location?.lat();
+      const placeLng = details.geometry?.location?.lng();
+      if (!placeLat || !placeLng) throw new Error('No coordinates');
+
+      const types = details.types || [];
+      const derivedCategory = deriveCategoryFromTypes(types);
+      const derivedTags = deriveTagsFromTypes(types);
+
+      const openingHours = details.opening_hours ? {
+        periods: (details.opening_hours.periods || []).map(p => ({
+          open:  p.open  ? { day: p.open.day,  time: p.open.time  } : undefined,
+          close: p.close ? { day: p.close.day, time: p.close.time } : undefined,
+        })),
+        weekday_text: details.opening_hours.weekday_text || [],
+      } : null;
+
+      const photo = details.photos?.[0]?.getUrl({ maxWidth: 800 }) ?? '';
+      const price = details.price_level != null ? (PRICE_RANGE_MAP[details.price_level] ?? '') : '';
+
+      // Fill all form fields
+      setName(details.name || '');
+      setAddress(details.formatted_address || '');
+      setLat(placeLat.toString());
+      setLng(placeLng.toString());
+      setTags(derivedTags.join(', '));
+      setPhotoUrl(photo);
+      setPriceRange(price);
+      setOpeningHoursJson(openingHours ? JSON.stringify(openingHours, null, 2) : '');
+      handleCategoryChange(derivedCategory); // also sets default allowedActivities
+
+      setShowGoogleSearch(false);
+      setGoogleFillMsg(`✓ Filled from Google — review and adjust before saving.`);
+    } catch (err) {
+      console.error('Google Places details error:', err);
+      setGoogleFillMsg('Failed to fetch details. Please fill in manually.');
+    } finally {
+      setIsFetchingDetails(false);
+    }
   };
 
   // Handle file upload to Firebase Storage
@@ -435,6 +552,80 @@ export default function AdminSpotsPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4 overflow-y-auto pr-1">
+
+              {/* ── Google Places auto-fill ── */}
+              {!editingPlace && (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 space-y-2">
+                  <button
+                    type="button"
+                    className="flex items-center justify-between w-full text-sm font-semibold text-violet-700"
+                    onClick={() => setShowGoogleSearch(v => !v)}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4" />
+                      Auto-fill from Google Places
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showGoogleSearch ? '' : '-rotate-90'}`} />
+                  </button>
+
+                  {showGoogleSearch && (
+                    <div className="space-y-1.5">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Input
+                          ref={googleSearchRef}
+                          className="pl-9 bg-white"
+                          placeholder="Search any place…"
+                          value={googleSearchQuery}
+                          onChange={e => setGoogleSearchQuery(e.target.value)}
+                        />
+                      </div>
+
+                      {isFetchingDetails && (
+                        <div className="flex items-center gap-2 text-xs text-violet-600 pl-1">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Fetching details…
+                        </div>
+                      )}
+
+                      {!isFetchingDetails && googleSearchQuery.length > 2 && placePredictions && placePredictions.length > 0 && (
+                        <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100 shadow-sm max-h-48 overflow-y-auto">
+                          {placePredictions.map(p => (
+                            <button
+                              key={p.place_id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 hover:bg-violet-50 transition-colors"
+                              onClick={() => handleGoogleSelect(p.place_id)}
+                            >
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {p.structured_formatting?.main_text || p.description}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {p.structured_formatting?.secondary_text || ''}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {googleFillMsg && (
+                    <p className={`text-xs font-medium pl-1 ${googleFillMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>
+                      {googleFillMsg}
+                      {!showGoogleSearch && (
+                        <button
+                          type="button"
+                          className="ml-2 underline text-violet-600"
+                          onClick={() => { setShowGoogleSearch(true); setGoogleFillMsg(''); }}
+                        >
+                          Search again
+                        </button>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Name *</Label>
                 <Input
