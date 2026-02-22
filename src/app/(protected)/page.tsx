@@ -25,7 +25,7 @@ export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, needsVerification } = useAuth();
   const { pendingMatches } = usePendingConfirmations();
   const { navRef } = useNav();
 
@@ -182,7 +182,7 @@ export default function HomePage() {
     }
   }, [searchParams, toast, router]);
 
-  const emailVerified = user?.emailVerified;
+  const emailVerified = !needsVerification;
 
   return (
     <div

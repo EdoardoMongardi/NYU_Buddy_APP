@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function Navbar() {
-  const { user, sendVerificationCode } = useAuth();
+  const { user, needsVerification, sendVerificationCode } = useAuth();
   const router = useRouter();
   const [verificationSent, setVerificationSent] = useState(false);
 
@@ -24,7 +24,7 @@ export default function Navbar() {
     }
   };
 
-  const showVerificationBanner = user && !user.emailVerified;
+  const showVerificationBanner = user && needsVerification;
 
   return (
     <>

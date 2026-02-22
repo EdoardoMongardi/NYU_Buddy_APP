@@ -21,12 +21,12 @@ interface InstantMatchTabProps {
 
 export default function InstantMatchTab({ isPWA }: InstantMatchTabProps) {
     const router = useRouter();
-    const { user, userProfile } = useAuth();
+    const { user, userProfile, needsVerification } = useAuth();
     const { isAvailable, presence } = usePresence();
     const isAcceptingRef = useRef(false);
     const [showMatchOverlay, setShowMatchOverlay] = useState<string | null>(null);
 
-    const emailVerified = user?.emailVerified;
+    const emailVerified = !needsVerification;
 
     const {
         inboxOffers, inboxCount, inboxLoading, inboxError,
