@@ -25,7 +25,7 @@ export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, needsVerification } = useAuth();
+  const { needsVerification } = useAuth();
   const { pendingMatches } = usePendingConfirmations();
   const { navRef } = useNav();
 
