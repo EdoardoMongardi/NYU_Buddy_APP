@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 
 import {
   Plus,
@@ -13,7 +13,15 @@ import {
   Upload,
   X,
   Users,
+  Search,
+  List,
+  Map,
 } from 'lucide-react';
+
+// Leaflet requires the browser DOM — load only on client
+const PlacesMap = lazy(() =>
+  import('@/components/admin/PlacesMap').then(m => ({ default: m.PlacesMap }))
+);
 import {
   collection,
   query,
@@ -115,6 +123,13 @@ export default function AdminSpotsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<Place | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Search / filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('All');
+
+  // View mode: 'list' or 'map'
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // Form state
   const [name, setName] = useState('');
@@ -361,6 +376,15 @@ export default function AdminSpotsPage() {
     }
   };
 
+  // Derived filtered list — computed from current state, no extra fetch needed
+  const filteredPlaces = places.filter((p) => {
+    const matchesSearch = searchQuery.trim() === '' ||
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.address.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = filterCategory === 'All' || p.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -371,9 +395,33 @@ export default function AdminSpotsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Manage Spots</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex items-center gap-2">
+          {/* List / Map toggle */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <List className="h-4 w-4" /> List
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === 'map'
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Map className="h-4 w-4" /> Map
+            </button>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
@@ -653,115 +701,151 @@ export default function AdminSpotsPage() {
               </div>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
-      {places.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No spots yet. Add your first one!</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {places.map((place) => (
-            <div
-              key={place.id}
-            >
-              <Card
-                className={`transition-opacity ${!place.active ? 'opacity-60' : ''
-                  }`}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg flex items-center flex-wrap gap-1.5">
-                        <span>{place.name}</span>
-                        {!place.active && (
-                          <Badge variant="secondary">Inactive</Badge>
-                        )}
-                        {place.source === 'user_custom' && (
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            User Submitted
-                          </Badge>
-                        )}
-                        {place.openingHours && (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Hours</Badge>
-                        )}
-                        {(place.timesSelected ?? 0) > 0 && (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            {place.timesSelected}× chosen
-                          </Badge>
-                        )}
-                      </CardTitle>
-                      <p className="text-sm text-gray-500">{place.address}</p>
-                    </div>
-                    <Badge variant="outline">{place.category}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Allowed Activities */}
-                    <div className="flex flex-wrap gap-1">
-                      {(place.allowedActivities || []).map((activity) => (
-                        <Badge key={activity} className="text-xs bg-violet-100 text-violet-700">
-                          {activity}
-                        </Badge>
-                      ))}
-                      {(!place.allowedActivities || place.allowedActivities.length === 0) && (
-                        <span className="text-xs text-gray-400">No activities set</span>
-                      )}
-                    </div>
+      {/* ── Map view ───────────────────────────────────────────── */}
+      {viewMode === 'map' && (
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-[520px] rounded-xl border border-gray-200 bg-gray-50">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+          </div>
+        }>
+          <PlacesMap places={places} />
+        </Suspense>
+      )}
 
-                    {/* Tags */}
-                    {place.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {place.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-end mt-3">
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleActive(place)}
-                      >
-                        {place.active ? (
-                          <ToggleRight className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <ToggleLeft className="h-5 w-5 text-gray-400" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(place)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(place)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+      {/* ── List view ──────────────────────────────────────────── */}
+      {viewMode === 'list' && (
+        <>
+          {/* Search + filter bar */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Input
+                className="pl-9"
+                placeholder="Search by name or address…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          ))}
-        </div>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="sm:w-44">
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All categories</SelectItem>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(searchQuery || filterCategory !== 'All') && (
+              <p className="text-sm text-gray-500 self-center whitespace-nowrap">
+                {filteredPlaces.length} / {places.length} spots
+              </p>
+            )}
+          </div>
+
+          {/* Place cards */}
+          {places.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No spots yet. Add your first one!</p>
+              </CardContent>
+            </Card>
+          ) : filteredPlaces.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No spots match your search.</p>
+                <button
+                  className="mt-2 text-sm text-violet-600 hover:underline"
+                  onClick={() => { setSearchQuery(''); setFilterCategory('All'); }}
+                >
+                  Clear filters
+                </button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {filteredPlaces.map((place) => (
+                <div key={place.id}>
+                  <Card className={`transition-opacity ${!place.active ? 'opacity-60' : ''}`}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg flex items-center flex-wrap gap-1.5">
+                            <span>{place.name}</span>
+                            {!place.active && (
+                              <Badge variant="secondary">Inactive</Badge>
+                            )}
+                            {place.source === 'user_custom' && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                User Submitted
+                              </Badge>
+                            )}
+                            {place.openingHours && (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Hours</Badge>
+                            )}
+                            {(place.timesSelected ?? 0) > 0 && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                {place.timesSelected}× chosen
+                              </Badge>
+                            )}
+                          </CardTitle>
+                          <p className="text-sm text-gray-500">{place.address}</p>
+                        </div>
+                        <Badge variant="outline">{place.category}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-1">
+                          {(place.allowedActivities || []).map((activity) => (
+                            <Badge key={activity} className="text-xs bg-violet-100 text-violet-700">
+                              {activity}
+                            </Badge>
+                          ))}
+                          {(!place.allowedActivities || place.allowedActivities.length === 0) && (
+                            <span className="text-xs text-gray-400">No activities set</span>
+                          )}
+                        </div>
+                        {place.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {place.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-end mt-3">
+                        <div className="flex items-center space-x-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleToggleActive(place)}>
+                            {place.active
+                              ? <ToggleRight className="h-5 w-5 text-green-600" />
+                              : <ToggleLeft  className="h-5 w-5 text-gray-400" />}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => openEditDialog(place)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(place)} className="text-red-600 hover:text-red-700">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
