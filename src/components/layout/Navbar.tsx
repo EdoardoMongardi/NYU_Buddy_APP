@@ -10,14 +10,18 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function Navbar() {
-  const { user, sendVerificationEmail } = useAuth();
+  const { user, sendVerificationCode } = useAuth();
   const router = useRouter();
   const [verificationSent, setVerificationSent] = useState(false);
 
   const handleResendVerification = async () => {
-    await sendVerificationEmail();
-    setVerificationSent(true);
-    setTimeout(() => setVerificationSent(false), 5000);
+    try {
+      await sendVerificationCode();
+      setVerificationSent(true);
+      setTimeout(() => setVerificationSent(false), 5000);
+    } catch {
+      // Silently handle — user can retry
+    }
   };
 
   const showVerificationBanner = user && !user.emailVerified;
@@ -75,7 +79,7 @@ export default function Navbar() {
                   disabled={verificationSent}
                   className="border-amber-300 text-amber-700 hover:bg-amber-100"
                 >
-                  {verificationSent ? 'Sent!' : 'Resend verification email'}
+                  {verificationSent ? 'Code sent!' : 'Resend verification code'}
                 </Button>
               </AlertDescription>
             </Alert>

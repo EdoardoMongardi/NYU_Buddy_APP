@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   ReactNode,
 } from 'react';
 import {
@@ -13,20 +14,22 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  sendEmailVerification,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/client';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '@/lib/firebase/client';
 import { UserProfile } from '@/lib/schemas/user';
 
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  needsVerification: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  sendVerificationEmail: () => Promise<void>;
+  sendVerificationCode: () => Promise<void>;
+  verifyCode: (code: string) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
 }
 
@@ -36,8 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
-  const fetchUserProfile = async (uid: string, firebaseUser?: User | null) => {
+  const fetchUserProfile = useCallback(async (uid: string, firebaseUser?: User | null) => {
     if (!db) return;
     const userDocRef = doc(db, 'users', uid);
     const userDoc = await getDoc(userDocRef);
@@ -47,43 +51,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Sync Firebase Auth emailVerified status to Firestore
       const authUser = firebaseUser || user;
       if (authUser?.emailVerified && !profile.isVerified) {
-        await updateDoc(userDocRef, {
-          isVerified: true,
-          updatedAt: serverTimestamp(),
-        });
-        profile.isVerified = true;
+        try {
+          await updateDoc(userDocRef, {
+            isVerified: true,
+            updatedAt: serverTimestamp(),
+          });
+          profile.isVerified = true;
+        } catch {
+          // Non-critical: Firestore sync can be retried later
+        }
       }
 
       setUserProfile(profile);
     } else {
       setUserProfile(null);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    // If auth is not configured, stop loading
     if (!auth) {
       setLoading(false);
       return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
+      try {
+        setUser(firebaseUser);
 
-      if (firebaseUser) {
-        // Reload user to get latest emailVerified status
-        await firebaseUser.reload();
-        await fetchUserProfile(firebaseUser.uid, firebaseUser);
-      } else {
-        setUserProfile(null);
+        if (firebaseUser) {
+          try {
+            await firebaseUser.reload();
+          } catch {
+            // reload() can fail on network issues — continue with cached state
+          }
+          await fetchUserProfile(firebaseUser.uid, firebaseUser);
+          setNeedsVerification(!firebaseUser.emailVerified);
+        } else {
+          setUserProfile(null);
+          setNeedsVerification(false);
+        }
+      } catch {
+        // Ensure app doesn't get stuck on loading screen
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchUserProfile]);
 
   const signIn = async (email: string, password: string) => {
     if (!auth) throw new Error('Firebase not configured');
@@ -92,7 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password
     );
-    await fetchUserProfile(signedInUser.uid);
+    await fetchUserProfile(signedInUser.uid, signedInUser);
+    setNeedsVerification(!signedInUser.emailVerified);
   };
 
   const signUp = async (email: string, password: string) => {
@@ -103,7 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password
     );
 
-    // Create initial user document
     await setDoc(doc(db, 'users', newUser.uid), {
       uid: newUser.uid,
       email: newUser.email,
@@ -116,29 +132,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatedAt: serverTimestamp(),
     });
 
-    // Send verification email
-    await sendEmailVerification(newUser);
-
-    await fetchUserProfile(newUser.uid);
+    await fetchUserProfile(newUser.uid, newUser);
+    setNeedsVerification(true);
   };
 
   const signOut = async () => {
     if (!auth) throw new Error('Firebase not configured');
     await firebaseSignOut(auth);
     setUserProfile(null);
+    setNeedsVerification(false);
   };
 
-  const sendVerificationEmail = async () => {
-    if (user && !user.emailVerified) {
-      await sendEmailVerification(user);
+  const sendVerificationCode = async () => {
+    if (!functions || !user) throw new Error('Not authenticated');
+    const fn = httpsCallable(functions, 'sendVerificationCode');
+    await fn();
+  };
+
+  const verifyCode = async (code: string) => {
+    if (!functions || !user) throw new Error('Not authenticated');
+    const fn = httpsCallable<{ code: string }, { success: boolean }>(functions, 'verifyCode');
+    const result = await fn({ code });
+    if (result.data.success) {
+      // Refresh the token so emailVerified is up-to-date client-side
+      await user.getIdToken(true);
+      await user.reload();
+      setUser({ ...user } as User);
+      setNeedsVerification(false);
+
+      // Sync to Firestore
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            isVerified: true,
+            updatedAt: serverTimestamp(),
+          });
+        } catch {
+          // Non-critical
+        }
+      }
+      await fetchUserProfile(user.uid, user);
     }
   };
 
   const refreshUserProfile = async () => {
     if (user) {
-      // Reload user to get latest emailVerified status from Firebase Auth
-      await user.reload();
+      try {
+        await user.reload();
+      } catch {
+        // Continue with cached state
+      }
       await fetchUserProfile(user.uid, user);
+      setNeedsVerification(!user.emailVerified);
     }
   };
 
@@ -148,10 +193,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         userProfile,
         loading,
+        needsVerification,
         signIn,
         signUp,
         signOut,
-        sendVerificationEmail,
+        sendVerificationCode,
+        verifyCode,
         refreshUserProfile,
       }}
     >

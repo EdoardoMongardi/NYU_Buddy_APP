@@ -296,7 +296,7 @@ export default function HomePage() {
         {!emailVerified ? (
           <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">
             <h3 className="font-semibold text-amber-800 mb-2">Verify Your Email</h3>
-            <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features. Check your inbox for the verification link.</p>
+            <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features.</p>
           </div>
         ) : (
           <div className="min-h-full">

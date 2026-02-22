@@ -58,6 +58,8 @@ import { reportSubmitHandler } from './safety/submitReport';
 import { askSendMessageHandler } from './activity/askSendMessage';
 import { askGetThreadHandler } from './activity/askGetThread';
 import { askGetThreadsHandler } from './activity/askGetThreads';
+import { sendVerificationCodeHandler } from './verification/sendCode';
+import { verifyCodeHandler } from './verification/verifyCode';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -358,4 +360,26 @@ export const activityDataPurge = onSchedule(
 export const mapStatusCleanupExpired = onSchedule(
   { schedule: 'every 5 minutes', region: 'us-east1' },
   mapStatusCleanupExpiredHandler
+);
+
+// ============================================================================
+// EMAIL VERIFICATION (OTP)
+// ============================================================================
+
+const EMAIL_SECRETS = [
+  'EMAIL_SMTP_HOST',
+  'EMAIL_SMTP_PORT',
+  'EMAIL_SMTP_USER',
+  'EMAIL_SMTP_PASS',
+  'EMAIL_FROM_NAME',
+];
+
+export const sendVerificationCode = onCall(
+  { region: 'us-east1', secrets: EMAIL_SECRETS },
+  sendVerificationCodeHandler
+);
+
+export const verifyCode = onCall(
+  { region: 'us-east1' },
+  verifyCodeHandler
 );

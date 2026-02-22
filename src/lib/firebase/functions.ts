@@ -596,3 +596,17 @@ export const askGetThreads = createCallable<
   { role: 'asker' | 'creator'; postId?: string; cursor?: string | null; limit?: number },
   { askThreads: AskThreadInfo[]; nextCursor: string | null }
 >('askGetThreads');
+
+// ============================================================================
+// EMAIL VERIFICATION (OTP)
+// ============================================================================
+
+export const sendVerificationCode = createCallable<
+  void,
+  { success: boolean; message: string }
+>('sendVerificationCode');
+
+export const verifyCodeFn = createCallable<
+  { code: string },
+  { success: boolean }
+>('verifyCode');
