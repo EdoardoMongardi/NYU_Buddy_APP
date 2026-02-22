@@ -87,15 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // reload() can fail on network issues — continue with cached state
           }
           const freshUser = auth?.currentUser ?? firebaseUser;
-          setUser(freshUser);
-          await fetchUserProfile(freshUser.uid, freshUser);
 
-          // Only update needsVerification if we haven't just verified via OTP.
-          // The server has already set emailVerified=true, but the client token
-          // may still cache the old value until it naturally refreshes.
+          // Set both user AND needsVerification together before any further
+          // awaits so React batches them into a single render. Without this,
+          // setUser alone would flush a render where needsVerification is still
+          // false, causing the login page to prematurely redirect to /.
           if (!verifiedLockRef.current) {
             setNeedsVerification(!freshUser.emailVerified);
           }
+          setUser(freshUser);
+
+          await fetchUserProfile(freshUser.uid, freshUser);
         } else {
           setUser(null);
           setUserProfile(null);
@@ -120,8 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password
     );
-    await fetchUserProfile(signedInUser.uid, signedInUser);
     setNeedsVerification(!signedInUser.emailVerified);
+    await fetchUserProfile(signedInUser.uid, signedInUser);
   }, [fetchUserProfile]);
 
   const signUp = useCallback(async (email: string, password: string) => {
@@ -132,6 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password
     );
+
+    // Set immediately so the login page sees needsVerification=true
+    // in the same render cycle as the new user, preventing a redirect to /.
+    setNeedsVerification(true);
 
     await setDoc(doc(db, 'users', newUser.uid), {
       uid: newUser.uid,
@@ -146,7 +152,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     await fetchUserProfile(newUser.uid, newUser);
-    setNeedsVerification(true);
   }, [fetchUserProfile]);
 
   const signOut = useCallback(async () => {
