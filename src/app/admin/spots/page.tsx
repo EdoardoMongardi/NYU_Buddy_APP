@@ -428,13 +428,13 @@ export default function AdminSpotsPage() {
               Add Spot
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
+          <DialogContent className="max-w-md flex flex-col max-h-[90vh]">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>
                 {editingPlace ? 'Edit Spot' : 'Add New Spot'}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-4">
+            <div className="space-y-4 pt-4 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label>Name *</Label>
                 <Input
