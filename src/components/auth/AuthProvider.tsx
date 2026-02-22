@@ -77,17 +77,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
-        setUser(firebaseUser);
-
         if (firebaseUser) {
           try {
             await firebaseUser.reload();
           } catch {
             // reload() can fail on network issues — continue with cached state
           }
-          await fetchUserProfile(firebaseUser.uid, firebaseUser);
-          setNeedsVerification(!firebaseUser.emailVerified);
+          // Use auth.currentUser after reload so emailVerified is fresh
+          const freshUser = auth?.currentUser ?? firebaseUser;
+          setUser(freshUser);
+          await fetchUserProfile(freshUser.uid, freshUser);
+          setNeedsVerification(!freshUser.emailVerified);
         } else {
+          setUser(null);
           setUserProfile(null);
           setNeedsVerification(false);
         }
@@ -150,14 +152,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const verifyCode = async (code: string) => {
-    if (!functions || !user) throw new Error('Not authenticated');
+    if (!functions || !user || !auth) throw new Error('Not authenticated');
     const fn = httpsCallable<{ code: string }, { success: boolean }>(functions, 'verifyCode');
     const result = await fn({ code });
     if (result.data.success) {
-      // Refresh the token so emailVerified is up-to-date client-side
-      await user.getIdToken(true);
+      // Reload user from Firebase Auth servers to get updated emailVerified = true.
+      // Do NOT call getIdToken(true) here — it can trigger onAuthStateChanged with
+      // a stale cached token that still has emailVerified: false, causing a redirect loop.
       await user.reload();
-      setUser({ ...user } as User);
+
+      // Use auth.currentUser after reload — this is the live object with updated properties
+      const freshUser = auth.currentUser;
+      if (freshUser) {
+        setUser(freshUser);
+      }
       setNeedsVerification(false);
 
       // Sync to Firestore
@@ -171,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Non-critical
         }
       }
-      await fetchUserProfile(user.uid, user);
+      await fetchUserProfile(user.uid, freshUser ?? user);
     }
   };
 
