@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -153,7 +153,7 @@ function LayoutContent({
   // Is user on the root page? (where we show tab content)
   const isRootPage = pathname === '/';
 
-  if (loading || isChecking) {
+  if (loading || isChecking || !userProfile) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-white">
         <div className="text-center">
@@ -228,13 +228,15 @@ function LayoutContent({
           }`}
       >
         <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-screen">
-          {/* If on root page, render tab content */}
-          {isRootPage && activeTab === 'home' && children}
-          {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
-          {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
+          <Suspense fallback={null}>
+            {/* If on root page, render tab content */}
+            {isRootPage && activeTab === 'home' && children}
+            {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
+            {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
 
-          {/* If on a sub-page, render the route children normally */}
-          {isSubPage && children}
+            {/* If on a sub-page, render the route children normally */}
+            {isSubPage && children}
+          </Suspense>
         </div>
       </main>
 

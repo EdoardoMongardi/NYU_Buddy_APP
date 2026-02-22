@@ -28,20 +28,21 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
 
-  const { user, needsVerification, signIn, signUp } = useAuth();
+  const { user, needsVerification, loading: authLoading, signIn, signUp } = useAuth();
   const router = useRouter();
 
   // If user is signed in and verified, redirect to app.
   // If signed in but unverified, show OTP screen.
+  // Gate on authLoading to avoid acting on stale/default state.
   useEffect(() => {
-    if (!user) return;
+    if (authLoading || !user) return;
     if (!needsVerification) {
       router.replace('/');
     } else if (mode !== 'verify') {
       setPendingEmail(user.email || '');
       setMode('verify');
     }
-  }, [user, needsVerification, router, mode]);
+  }, [authLoading, user, needsVerification, router, mode]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -87,7 +88,8 @@ export default function LoginPage() {
   };
 
   const handleVerified = () => {
-    router.push('/');
+    // Navigation is handled by the useEffect above reacting to
+    // needsVerification becoming false. No explicit push needed.
   };
 
   const handleBackFromVerify = () => {
