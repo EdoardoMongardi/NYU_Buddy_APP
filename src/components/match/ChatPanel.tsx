@@ -183,7 +183,7 @@ export function ChatPanel({
     const mapsDestination = confirmedPlaceAddress || confirmedPlaceName || '';
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden relative">
             {/* ── Confirmed place bar (Step 2) ── */}
             {confirmedPlaceName && (
                 <>
@@ -221,23 +221,24 @@ export function ChatPanel({
                 <AnimatePresence>
                 {showMapsSheet && (
                     <>
-                    {/* Backdrop */}
+                    {/* Backdrop — absolute so it's contained to the chat column */}
                     <motion.div
                         key="backdrop"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/40 z-40"
+                        className="absolute inset-0 bg-black/40 z-40"
                         onClick={() => setShowMapsSheet(false)}
                     />
-                    {/* Sheet */}
+                    {/* Sheet — absolute so it stays within the content column */}
                     <motion.div
                         key="sheet"
                         initial={{ y: '100%' }}
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
                         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                        className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl p-5 space-y-4"
+                        className="absolute bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl p-5 space-y-4"
+                        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
                     >
                         {/* Handle + header */}
                         <div className="flex items-start justify-between">
