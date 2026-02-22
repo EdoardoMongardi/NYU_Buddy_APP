@@ -183,7 +183,7 @@ export function ChatPanel({
     const mapsDestination = confirmedPlaceAddress || confirmedPlaceName || '';
 
     return (
-        <div className="flex flex-col h-full overflow-hidden relative">
+        <div className="flex flex-col h-full overflow-hidden">
             {/* ── Confirmed place bar (Step 2) ── */}
             {confirmedPlaceName && (
                 <>
@@ -221,24 +221,25 @@ export function ChatPanel({
                 <AnimatePresence>
                 {showMapsSheet && (
                     <>
-                    {/* Backdrop — absolute so it's contained to the chat column */}
+                    {/* Backdrop — full screen, below the sheet but above the tab bar */}
                     <motion.div
                         key="backdrop"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/40 z-40"
+                        className="fixed inset-0 bg-black/40 z-[59]"
                         onClick={() => setShowMapsSheet(false)}
                     />
-                    {/* Sheet — absolute so it stays within the content column */}
+                    {/* Sheet — matches the match page column width; z-[60] floats above the
+                        tab bar (z-50). Content is padded so buttons clear the tab bar. */}
                     <motion.div
                         key="sheet"
                         initial={{ y: '100%' }}
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
                         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                        className="absolute bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl p-5 space-y-4"
-                        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
+                        className="fixed bottom-0 inset-x-0 mx-auto w-full max-w-lg z-[60] bg-white rounded-t-2xl shadow-2xl p-5 space-y-4"
+                        style={{ paddingBottom: 'calc(48px + env(safe-area-inset-bottom, 0px) + 16px)' }}
                     >
                         {/* Handle + header */}
                         <div className="flex items-start justify-between">
