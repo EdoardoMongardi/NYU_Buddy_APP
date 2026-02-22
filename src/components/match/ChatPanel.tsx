@@ -233,7 +233,7 @@ export function ChatPanel({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/40 z-[59]"
+                        className="md:hidden fixed inset-0 bg-black/40 z-[59]"
                         onClick={() => setShowMapsSheet(false)}
                     />
                     {/* Sheet — matches the match page column width; z-[60] floats above the
@@ -244,7 +244,7 @@ export function ChatPanel({
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
                         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                        className="fixed bottom-0 inset-x-0 mx-auto w-full max-w-lg z-[60] bg-white rounded-t-2xl shadow-2xl p-5 space-y-4"
+                        className="md:hidden fixed bottom-0 inset-x-0 mx-auto w-full max-w-lg z-[60] bg-white rounded-t-2xl shadow-2xl p-5 space-y-4"
                         style={{ paddingBottom: 'calc(48px + env(safe-area-inset-bottom, 0px) + 16px)' }}
                     >
                         {/* Handle + header */}
@@ -299,10 +299,59 @@ export function ChatPanel({
                 )}
                 </AnimatePresence>
                 {showMapsSheet && isMounted && createPortal(
-                    <div
-                        className="hidden md:block fixed inset-0 bg-black/40 z-40"
-                        onClick={() => setShowMapsSheet(false)}
-                    />,
+                    <>
+                        <div
+                            className="hidden md:block fixed inset-0 bg-black/40 z-[99990]"
+                            onClick={() => setShowMapsSheet(false)}
+                        />
+                        <div
+                            className="hidden md:block fixed bottom-0 inset-x-0 mx-auto w-full max-w-[600px] z-[99991] bg-white rounded-t-2xl shadow-2xl p-5 space-y-4"
+                            style={{ paddingBottom: 'calc(48px + env(safe-area-inset-bottom, 0px) + 16px)' }}
+                        >
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <div className="w-8 h-1 bg-gray-300 rounded-full mx-auto mb-3" />
+                                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Get directions to</p>
+                                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{confirmedPlaceName}</p>
+                                </div>
+                                <button onClick={() => setShowMapsSheet(false)} className="p-1 rounded-full hover:bg-gray-100">
+                                    <X className="w-4 h-4 text-gray-400" />
+                                </button>
+                            </div>
+                            <div className="space-y-2">
+                                <button
+                                    onClick={() => { openInMaps(mapsDestination, 'google'); setShowMapsSheet(false); }}
+                                    className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+                                >
+                                    <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 48 48" fill="none">
+                                        <path d="M24 4C15.2 4 8 11.2 8 20c0 12 16 28 16 28s16-16 16-28c0-8.8-7.2-16-16-16z" fill="#EA4335"/>
+                                        <circle cx="24" cy="20" r="6" fill="white"/>
+                                    </svg>
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900">Google Maps</p>
+                                        <p className="text-xs text-gray-500">Walking directions</p>
+                                    </div>
+                                </button>
+
+                                {isApplePlatform() && (
+                                    <button
+                                        onClick={() => { openInMaps(mapsDestination, 'apple'); setShowMapsSheet(false); }}
+                                        className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+                                    >
+                                        <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 48 48" fill="none">
+                                            <rect width="48" height="48" rx="10" fill="#007AFF"/>
+                                            <path d="M24 10 L24 38 M10 24 L38 24" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+                                            <circle cx="24" cy="24" r="5" fill="white"/>
+                                        </svg>
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900">Apple Maps</p>
+                                            <p className="text-xs text-gray-500">Walking directions</p>
+                                        </div>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </>,
                     document.body
                 )}
                 </>
