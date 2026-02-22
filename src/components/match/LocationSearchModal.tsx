@@ -167,7 +167,6 @@ export function LocationSearchModal({
         return () => clearInterval(timer);
     }, []);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- getPlacePredictions is unstable (recreated every render by the hook)
     useEffect(() => {
         if (query.length > 2 && apiReady) {
             getPlacePredictions({
@@ -175,6 +174,9 @@ export function LocationSearchModal({
                 types: ['establishment'],
             });
         }
+    // getPlacePredictions is intentionally omitted — it is recreated on every render by the hook
+    // and including it would cause an infinite loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, apiReady, userMidpointLat, userMidpointLng]);
 
     const confirmPendingPlace = () => {
