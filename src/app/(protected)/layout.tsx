@@ -33,7 +33,7 @@ function LayoutContent({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, userProfile, loading, needsVerification } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const { presence } = usePresence();
   const router = useRouter();
   const pathname = usePathname();
@@ -104,12 +104,6 @@ function LayoutContent({
       return;
     }
 
-    // Redirect unverified users to login page where OTP verification is shown
-    if (needsVerification) {
-      router.replace('/login');
-      return;
-    }
-
     if ((!userProfile || !userProfile.profileCompleted) && pathname !== '/onboarding') {
       router.replace('/onboarding');
       return;
@@ -121,7 +115,7 @@ function LayoutContent({
     }
 
     setIsChecking(false);
-  }, [user, userProfile, loading, needsVerification, router, pathname]);
+  }, [user, userProfile, loading, router, pathname]);
 
   // ── Handle tab changes ──
   const handleTabChange = (tab: TabKey) => {

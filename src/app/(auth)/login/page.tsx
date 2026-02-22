@@ -31,11 +31,13 @@ export default function LoginPage() {
   const { user, needsVerification, signIn, signUp } = useAuth();
   const router = useRouter();
 
-  // If user is signed in and verified, redirect to app
+  // If user is signed in and verified, redirect to app.
+  // If signed in but unverified, show OTP screen.
   useEffect(() => {
-    if (user && !needsVerification) {
+    if (!user) return;
+    if (!needsVerification) {
       router.replace('/');
-    } else if (user && needsVerification && mode !== 'verify') {
+    } else if (mode !== 'verify') {
       setPendingEmail(user.email || '');
       setMode('verify');
     }
