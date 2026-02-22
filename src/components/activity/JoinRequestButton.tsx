@@ -32,6 +32,8 @@ export default function JoinRequestButton({
   const isPending = myJoinRequest?.status === 'pending';
   const isAccepted = myJoinRequest?.status === 'accepted';
   const isDeclined = myJoinRequest?.status === 'declined';
+  const isKicked = myJoinRequest?.status === 'kicked';
+  const isLeft = myJoinRequest?.status === 'left';
 
   const handleSend = async () => {
     setSubmitting(true);
@@ -71,6 +73,26 @@ export default function JoinRequestButton({
       setSubmitting(false);
     }
   };
+
+  // Kicked from group
+  if (isKicked) {
+    return (
+      <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 text-center mb-4">
+        <X className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+        <p className="text-gray-500 text-sm">This activity is no longer available to you</p>
+      </div>
+    );
+  }
+
+  // Voluntarily left
+  if (isLeft) {
+    return (
+      <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 text-center mb-4">
+        <X className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+        <p className="text-gray-500 text-sm">You left this activity</p>
+      </div>
+    );
+  }
 
   // Already accepted
   if (isAccepted) {

@@ -9,6 +9,7 @@ interface UseGroupChatReturn {
   messages: GroupChatMsg[];
   loading: boolean;
   error: string | null;
+  removed: boolean;
   sendMessage: (body: string) => Promise<void>;
   sending: boolean;
 }
@@ -17,6 +18,7 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
   const [messages, setMessages] = useState<GroupChatMsg[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [removed, setRemoved] = useState(false);
   const [sending, setSending] = useState(false);
   const initialLoadDone = useRef(false);
 
@@ -53,7 +55,14 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
       },
       (err) => {
         console.error('[useGroupChat] Snapshot error:', err);
-        setError('Failed to load messages');
+        const isPermissionError =
+          err?.code === 'permission-denied' ||
+          err?.message?.includes('Missing or insufficient permissions');
+        if (isPermissionError && initialLoadDone.current) {
+          setRemoved(true);
+        } else {
+          setError('Failed to load messages');
+        }
         setLoading(false);
       }
     );
@@ -78,6 +87,7 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
     messages,
     loading,
     error,
+    removed,
     sendMessage,
     sending,
   };

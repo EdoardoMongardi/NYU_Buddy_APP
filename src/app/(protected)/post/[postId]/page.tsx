@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Clock, MapPin, Users, Loader2, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Users, Loader2, AlertCircle, X, LogOut } from 'lucide-react';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useActivityPost } from '@/lib/hooks/useActivityPost';
@@ -11,8 +11,10 @@ import JoinRequestButton from '@/components/activity/JoinRequestButton';
 import JoinRequestInbox from '@/components/activity/JoinRequestInbox';
 import GroupChatPanel from '@/components/activity/GroupChatPanel';
 import GroupMemberList from '@/components/activity/GroupMemberList';
+import { groupLeave } from '@/lib/firebase/functions';
 import { useVisualViewport } from '@/lib/hooks/useVisualViewport';
 import { useLockBodyScroll } from '@/lib/hooks/useLockBodyScroll';
+import { useToast } from '@/hooks/use-toast';
 
 const CATEGORY_COLORS: Record<string, string> = {
   coffee: 'bg-amber-100 text-amber-700',
@@ -49,8 +51,12 @@ export default function PostDetailPage() {
   const postId = params.postId as string;
   const { post, joinRequests, group, myJoinRequest, loading, error, refresh } = useActivityPost(postId);
 
+  const { toast } = useToast();
+
   // State for member view
   const [showMembers, setShowMembers] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [wasRemoved, setWasRemoved] = useState(false);
 
   // Keyboard avoidance hooks
   const isKbOpen = useVisualViewport();
@@ -59,6 +65,29 @@ export default function PostDetailPage() {
   const isCreator = user?.uid === post?.creatorUid;
   const isMember = group?.memberUids?.includes(user?.uid || '');
   const statusBadge = post ? STATUS_BADGES[post.status] : null;
+
+  const handleLeaveActivity = async () => {
+    if (!group || isLeaving) return;
+    const confirmed = window.confirm('Are you sure you want to leave this activity? You will lose access to the group chat.');
+    if (!confirmed) return;
+    setIsLeaving(true);
+    try {
+      await groupLeave({ groupId: group.groupId });
+      toast({ title: 'You left the activity' });
+      router.back();
+    } catch (err) {
+      toast({
+        title: 'Failed to leave',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        variant: 'destructive',
+      });
+      setIsLeaving(false);
+    }
+  };
+
+  const handleChatRemoved = () => {
+    setWasRemoved(true);
+  };
 
   if (loading) {
     return (
@@ -201,22 +230,38 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => setShowMembers(true)}
-          className="flex flex-col items-center justify-center px-2 py-1 ml-2 rounded-lg hover:bg-gray-50 flex-shrink-0 text-violet-600"
-        >
-          <div className="flex items-center gap-1">
-            <Users className="w-5 h-5" />
-            <span className="text-sm font-semibold">{post.acceptedCount}/{post.maxParticipants}</span>
-          </div>
-          <span className="text-[10px] font-medium leading-none mt-0.5">Members</span>
-        </button>
+        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+          {!isCreator && !wasRemoved && (
+            <button
+              onClick={handleLeaveActivity}
+              disabled={isLeaving}
+              className="flex flex-col items-center justify-center px-2 py-1 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
+            >
+              {isLeaving ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <LogOut className="w-5 h-5" />
+              )}
+              <span className="text-[10px] font-medium leading-none mt-0.5">Leave</span>
+            </button>
+          )}
+          <button
+            onClick={() => setShowMembers(true)}
+            className="flex flex-col items-center justify-center px-2 py-1 rounded-lg hover:bg-gray-50 text-violet-600"
+          >
+            <div className="flex items-center gap-1">
+              <Users className="w-5 h-5" />
+              <span className="text-sm font-semibold">{post.acceptedCount}/{post.maxParticipants}</span>
+            </div>
+            <span className="text-[10px] font-medium leading-none mt-0.5">Members</span>
+          </button>
+        </div>
       </div>
 
       {/* Chat Panel - Takes remaining space */}
       <div className="flex-1 overflow-hidden relative">
         {group && (
-          <GroupChatPanel groupId={group.groupId} fullScreen={true} />
+          <GroupChatPanel groupId={group.groupId} fullScreen={true} onRemoved={handleChatRemoved} />
         )}
       </div>
 
@@ -265,6 +310,7 @@ export default function PostDetailPage() {
                   isCreator={isCreator}
                   currentUid={user?.uid || ''}
                   onRefresh={refresh}
+                  onLeave={() => router.back()}
                 />
               </div>
             )}

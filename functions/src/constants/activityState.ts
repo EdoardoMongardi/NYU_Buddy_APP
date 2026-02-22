@@ -54,6 +54,8 @@ export const JOIN_REQUEST_STATUS = {
   DECLINED: 'declined',
   WITHDRAWN: 'withdrawn',
   EXPIRED: 'expired',
+  KICKED: 'kicked',
+  LEFT: 'left',
 } as const;
 
 export type JoinRequestStatus = typeof JOIN_REQUEST_STATUS[keyof typeof JOIN_REQUEST_STATUS];
