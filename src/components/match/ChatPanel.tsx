@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, MapPin, CheckCircle2, Navigation, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -180,7 +181,12 @@ export function ChatPanel({
     const showCharCount = charCount > 400;
 
     const [showMapsSheet, setShowMapsSheet] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
     const mapsDestination = confirmedPlaceAddress || confirmedPlaceName || '';
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -292,6 +298,13 @@ export function ChatPanel({
                     </>
                 )}
                 </AnimatePresence>
+                {showMapsSheet && isMounted && createPortal(
+                    <div
+                        className="hidden md:block fixed inset-0 bg-black/40 z-40"
+                        onClick={() => setShowMapsSheet(false)}
+                    />,
+                    document.body
+                )}
                 </>
             )}
 

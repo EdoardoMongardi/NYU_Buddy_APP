@@ -515,10 +515,10 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   return (
     <div className="relative" ref={containerRef}>
       {stackLayers >= 2 && (
-        <div className="absolute top-[3px] bottom-[3px] left-1.5 right-0 rounded-2xl bg-gray-100/60 border border-gray-200/30" />
+        <div className="absolute inset-y-0 left-3 right-0 rounded-2xl bg-gray-100/60 border border-gray-200/30" />
       )}
       {stackLayers >= 1 && (
-        <div className="absolute top-[1.5px] bottom-[1.5px] left-1.5 right-[2px] rounded-2xl bg-gray-50/70 border border-gray-200/40" />
+        <div className="absolute inset-y-0 left-1.5 right-0 rounded-2xl bg-gray-50/70 border border-gray-200/40" />
       )}
 
       <motion.div
