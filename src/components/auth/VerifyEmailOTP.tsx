@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Mail, ArrowLeft, RefreshCw } from 'lucide-react';
 
@@ -26,8 +26,11 @@ export default function VerifyEmailOTP({ email, onVerified, onBack }: VerifyEmai
   const [codeSent, setCodeSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const hasSentOnMount = useRef(false);
+  const verifyingRef = useRef(false);
 
-  const sendCode = useCallback(async () => {
+  const sendCode = async () => {
+    if (sending) return;
     setSending(true);
     setError(null);
     try {
@@ -40,12 +43,15 @@ export default function VerifyEmailOTP({ email, onVerified, onBack }: VerifyEmai
     } finally {
       setSending(false);
     }
-  }, [sendVerificationCode]);
+  };
 
-  // Send code automatically on mount
+  // Send code exactly once on mount
   useEffect(() => {
+    if (hasSentOnMount.current) return;
+    hasSentOnMount.current = true;
     sendCode();
-  }, [sendCode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cooldown timer
   useEffect(() => {
@@ -93,7 +99,8 @@ export default function VerifyEmailOTP({ email, onVerified, onBack }: VerifyEmai
   const isComplete = code.length === CODE_LENGTH;
 
   const handleVerify = async () => {
-    if (!isComplete) return;
+    if (!isComplete || verifyingRef.current) return;
+    verifyingRef.current = true;
     setVerifying(true);
     setError(null);
     try {
@@ -106,12 +113,13 @@ export default function VerifyEmailOTP({ email, onVerified, onBack }: VerifyEmai
       inputRefs.current[0]?.focus();
     } finally {
       setVerifying(false);
+      verifyingRef.current = false;
     }
   };
 
   // Auto-submit when all digits entered
   useEffect(() => {
-    if (isComplete && !verifying) {
+    if (isComplete && !verifyingRef.current) {
       handleVerify();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

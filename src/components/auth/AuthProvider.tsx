@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import {
@@ -41,6 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [needsVerification, setNeedsVerification] = useState(false);
 
+  // Prevents onAuthStateChanged from overriding needsVerification after
+  // a successful verifyCode call (the client token may still be stale).
+  const verifiedLockRef = useRef(false);
+
   const fetchUserProfile = useCallback(async (uid: string, firebaseUser?: User | null) => {
     if (!db) return;
     const userDocRef = doc(db, 'users', uid);
@@ -48,8 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userDoc.exists()) {
       const profile = userDoc.data() as UserProfile;
 
-      // Sync Firebase Auth emailVerified status to Firestore
-      const authUser = firebaseUser || user;
+      const authUser = firebaseUser;
       if (authUser?.emailVerified && !profile.isVerified) {
         try {
           await updateDoc(userDocRef, {
@@ -66,7 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setUserProfile(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -83,15 +86,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } catch {
             // reload() can fail on network issues — continue with cached state
           }
-          // Use auth.currentUser after reload so emailVerified is fresh
           const freshUser = auth?.currentUser ?? firebaseUser;
           setUser(freshUser);
           await fetchUserProfile(freshUser.uid, freshUser);
-          setNeedsVerification(!freshUser.emailVerified);
+
+          // Only update needsVerification if we haven't just verified via OTP.
+          // The server has already set emailVerified=true, but the client token
+          // may still cache the old value until it naturally refreshes.
+          if (!verifiedLockRef.current) {
+            setNeedsVerification(!freshUser.emailVerified);
+          }
         } else {
           setUser(null);
           setUserProfile(null);
           setNeedsVerification(false);
+          verifiedLockRef.current = false;
         }
       } catch {
         // Ensure app doesn't get stuck on loading screen
@@ -103,8 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [fetchUserProfile]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     if (!auth) throw new Error('Firebase not configured');
+    verifiedLockRef.current = false;
     const { user: signedInUser } = await signInWithEmailAndPassword(
       auth,
       email,
@@ -112,10 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     await fetchUserProfile(signedInUser.uid, signedInUser);
     setNeedsVerification(!signedInUser.emailVerified);
-  };
+  }, [fetchUserProfile]);
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string) => {
     if (!auth || !db) throw new Error('Firebase not configured');
+    verifiedLockRef.current = false;
     const { user: newUser } = await createUserWithEmailAndPassword(
       auth,
       email,
@@ -136,64 +147,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     await fetchUserProfile(newUser.uid, newUser);
     setNeedsVerification(true);
-  };
+  }, [fetchUserProfile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     if (!auth) throw new Error('Firebase not configured');
+    verifiedLockRef.current = false;
     await firebaseSignOut(auth);
     setUserProfile(null);
     setNeedsVerification(false);
-  };
+  }, []);
 
-  const sendVerificationCode = async () => {
-    if (!functions || !user) throw new Error('Not authenticated');
+  const sendVerificationCode = useCallback(async () => {
+    if (!functions) throw new Error('Firebase not configured');
     const fn = httpsCallable(functions, 'sendVerificationCode');
     await fn();
-  };
+  }, []);
 
-  const verifyCode = async (code: string) => {
-    if (!functions || !user || !auth) throw new Error('Not authenticated');
+  const verifyCode = useCallback(async (code: string) => {
+    if (!functions || !auth) throw new Error('Not configured');
     const fn = httpsCallable<{ code: string }, { success: boolean }>(functions, 'verifyCode');
     const result = await fn({ code });
     if (result.data.success) {
-      // Reload user from Firebase Auth servers to get updated emailVerified = true.
-      // Do NOT call getIdToken(true) here — it can trigger onAuthStateChanged with
-      // a stale cached token that still has emailVerified: false, causing a redirect loop.
-      await user.reload();
-
-      // Use auth.currentUser after reload — this is the live object with updated properties
-      const freshUser = auth.currentUser;
-      if (freshUser) {
-        setUser(freshUser);
-      }
+      // Lock so onAuthStateChanged won't flip needsVerification back
+      verifiedLockRef.current = true;
       setNeedsVerification(false);
 
+      // Reload the user to pick up emailVerified: true
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        try { await currentUser.reload(); } catch { /* ok */ }
+        setUser(auth.currentUser ?? currentUser);
+      }
+
       // Sync to Firestore
-      if (db) {
+      if (db && currentUser) {
         try {
-          await updateDoc(doc(db, 'users', user.uid), {
+          await updateDoc(doc(db, 'users', currentUser.uid), {
             isVerified: true,
             updatedAt: serverTimestamp(),
           });
         } catch {
           // Non-critical
         }
+        await fetchUserProfile(currentUser.uid, auth.currentUser ?? currentUser);
       }
-      await fetchUserProfile(user.uid, freshUser ?? user);
     }
-  };
+  }, [fetchUserProfile]);
 
-  const refreshUserProfile = async () => {
-    if (user) {
-      try {
-        await user.reload();
-      } catch {
-        // Continue with cached state
-      }
-      await fetchUserProfile(user.uid, user);
+  const refreshUserProfile = useCallback(async () => {
+    if (!user) return;
+    try { await user.reload(); } catch { /* ok */ }
+    await fetchUserProfile(user.uid, user);
+    if (!verifiedLockRef.current) {
       setNeedsVerification(!user.emailVerified);
     }
-  };
+  }, [user, fetchUserProfile]);
 
   return (
     <AuthContext.Provider
