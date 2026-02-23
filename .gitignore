@@ -38,6 +38,11 @@ functions/lib
 .firebase
 firebase-debug.log
 firebase-debug.*.log
+firestore.rules
+firestore.rules.*
+firestore.indexes.json
+storage.rules
+storage.rules.*
 
 .env
 *.log
