@@ -30,17 +30,17 @@ NYU Buddy closes that gap. It lets students broadcast what they want to do, find
 
 | Home Feed | Map |
 |:---------:|:---:|
-| ![Home Feed](docs/screenshots/home-feed.png) | ![Map](docs/screenshots/map.png) |
+| ![Home Feed](screenshots/home-feed.PNG) | ![Map](screenshots/map.PNG) |
 
 ---
 
 ## Demo
 
-<video src="docs/screenshots/ScreenRecording_02-23-2026%2007-31-38_1.mov" controls muted playsinline width="900">
+<video src="screenshots/ScreenRecording_02-23-2026%2007-31-38_1.mov" controls muted playsinline width="900">
   Your browser does not support the video tag.
 </video>
 
-[Open demo video directly](docs/screenshots/ScreenRecording_02-23-2026%2007-31-38_1.mov)
+[Open demo video directly](screenshots/ScreenRecording_02-23-2026%2007-31-38_1.mov)
 
 
 ---

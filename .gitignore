@@ -58,6 +58,9 @@ service-account.json
 
 # Internal documentation (not for public repo)
 docs/
+# Keep demo media public in repository root
+!screenshots/
+!screenshots/**
 
 # Stale backups
 *.backup-*
