@@ -60,6 +60,7 @@ export async function groupSendMessageHandler(
   // 4. Get sender profile
   const userDoc = await db.collection('users').doc(uid).get();
   const senderDisplayName = userDoc.exists ? userDoc.data()!.displayName : 'Unknown';
+  const senderPhotoURL = userDoc.exists ? (userDoc.data()!.photoURL ?? null) : null;
 
   // 5. Create message
   const messageRef = await db
@@ -69,6 +70,7 @@ export async function groupSendMessageHandler(
     .add({
       senderUid: uid,
       senderDisplayName: senderDisplayName,
+      senderPhotoURL: senderPhotoURL,
       body: body,
       type: 'user',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),

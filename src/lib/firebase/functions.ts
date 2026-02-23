@@ -507,6 +507,7 @@ export interface GroupChatMsg {
   id: string;
   senderUid: string;
   senderDisplayName: string;
+  senderPhotoURL: string | null;
   body: string;
   type: 'user' | 'system';
   createdAt: string | null;

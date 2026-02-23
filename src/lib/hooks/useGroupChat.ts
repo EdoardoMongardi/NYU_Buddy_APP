@@ -44,6 +44,7 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
             id: doc.id,
             senderUid: data.senderUid || '',
             senderDisplayName: data.senderDisplayName || '',
+            senderPhotoURL: data.senderPhotoURL ?? null,
             body: data.body || '',
             type: data.type || 'user',
             createdAt: data.createdAt?.toDate?.()?.toISOString() || null,

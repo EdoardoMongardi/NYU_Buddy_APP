@@ -297,7 +297,7 @@ export default function ManageActivityTab() {
                         className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'my-posts' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
                             }`}
                     >
-                        <span>My Posts</span>
+                        <span>My Activities</span>
                         {myPosts.length > 0 && (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeSection === 'my-posts' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500'}`}>
                                 {myPosts.length}
@@ -457,14 +457,12 @@ export default function ManageActivityTab() {
                                             </span>
                                         </div>
 
-                                        {/* Request Inbox Component (reusing existing) */}
-                                        <div className="p-1">
-                                            <JoinRequestInbox
-                                                postId={group.post.postId}
-                                                requests={group.requests}
-                                                onRefresh={refresh}
-                                            />
-                                        </div>
+                                        {/* Request Inbox Component */}
+                                        <JoinRequestInbox
+                                            postId={group.post.postId}
+                                            requests={group.requests}
+                                            onRefresh={refresh}
+                                        />
                                     </div>
                                 );
                             })}
