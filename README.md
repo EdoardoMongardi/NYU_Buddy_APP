@@ -110,16 +110,23 @@ The frontend is a single Next.js PWA deployed on Vercel. All business logic runs
 │   └── types/                # TypeScript type definitions
 ├── functions/
 │   └── src/                  # Firebase Cloud Functions
-│       ├── activity/         #   Activity post CRUD, join requests, group chat
-│       ├── matches/          #   Match lifecycle, chat, place decision
-│       ├── offers/           #   Offer create/respond/cancel
-│       ├── suggestions/      #   Matching algorithm (scoring + filtering)
-│       ├── presence/         #   Availability sessions
-│       ├── map/              #   Map status broadcasting
-│       ├── safety/           #   Report submission
-│       └── verification/     #   Email OTP verification
+│       ├── activity/         #   Posts, join requests, group/ask chat, cleanup jobs
+│       ├── matches/          #   Match lifecycle, status, place choice, messaging
+│       ├── offers/           #   Offer create/respond/cancel/inbox/outgoing
+│       ├── suggestions/      #   Matching algorithm and suggestion cycle
+│       ├── presence/         #   Availability sessions and expiry cleanup
+│       ├── map/              #   Map status set/clear/nearby/cleanup
+│       ├── safety/           #   Reporting pipeline
+│       ├── verification/     #   Email OTP send/verify
+│       ├── availability/     #   Availability inspection utilities
+│       ├── admin/            #   Admin-only callable tools
+│       ├── migrations/       #   One-off migration callables
+│       ├── idempotency/      #   Idempotency cleanup jobs
+│       ├── constants/        #   Shared server state constants
+│       └── utils/            #   Shared server helpers (places, email, notifications)
 ├── scripts/                  # Mapbox pipeline, seed data, migrations
 ├── public/                   # Static assets, PWA manifest, service worker
+├── screenshots/              # Public README media (images + demo video)
 ├── firestore.rules           # Firestore security rules
 ├── storage.rules             # Storage security rules
 └── firebase.json             # Firebase project config (incl. emulators)
