@@ -65,6 +65,9 @@ export default function PostDetailPage() {
   const isCreator = user?.uid === post?.creatorUid;
   const isMember = group?.memberUids?.includes(user?.uid || '');
   const statusBadge = post ? STATUS_BADGES[post.status] : null;
+  // #region agent log
+  if (post) { fetch('http://127.0.0.1:7276/ingest/3b772985-a450-48d2-8329-a96e1da0faa0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'079af5'},body:JSON.stringify({sessionId:'079af5',location:'PostDetailPage:render',message:'page render state',data:{postId,isCreator,isMember,myJoinRequestStatus:myJoinRequest?.status||null,groupExists:!!group,postGroupId:post?.groupId||null,postStatus:post?.status||null,userUid:user?.uid||null},timestamp:Date.now(),hypothesisId:'A,B,C,D'})}).catch(()=>{}); }
+  // #endregion
 
   const handleLeaveActivity = async () => {
     if (!group || isLeaving) return;

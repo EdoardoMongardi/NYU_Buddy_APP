@@ -84,6 +84,9 @@ export function useManageActivity() {
 
             const res = await joinRequestGetMine({});
             const requests = res.data.requests;
+            // #region agent log
+            fetch('http://127.0.0.1:7276/ingest/3b772985-a450-48d2-8329-a96e1da0faa0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'079af5'},body:JSON.stringify({sessionId:'079af5',location:'useManageActivity.ts:fetchJoinedActivities',message:'joinRequestGetMine result',data:{requestCount:requests.length,requests:requests.map(r=>({id:r.requestId,postId:r.postId,status:r.status}))},timestamp:Date.now(),hypothesisId:'A,D'})}).catch(()=>{});
+            // #endregion
 
             // Initialize with loading state
             const initial: JoinedActivity[] = requests.map((r) => ({

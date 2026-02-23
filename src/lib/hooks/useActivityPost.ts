@@ -28,6 +28,9 @@ export function useActivityPost(postId: string | null): UseActivityPostReturn {
     try {
       setError(null);
       const result = await activityPostGetById({ postId });
+      // #region agent log
+      fetch('http://127.0.0.1:7276/ingest/3b772985-a450-48d2-8329-a96e1da0faa0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'079af5'},body:JSON.stringify({sessionId:'079af5',location:'useActivityPost.ts:fetchDetails',message:'activityPostGetById result',data:{postId,myJoinRequestStatus:result.data.myJoinRequest?.status||null,myJoinRequestId:result.data.myJoinRequest?.requestId||null,groupId:result.data.group?.groupId||null,groupMemberUids:result.data.group?.memberUids||null,postStatus:result.data.post?.status||null,postGroupId:result.data.post?.groupId||null},timestamp:Date.now(),hypothesisId:'A,B,C'})}).catch(()=>{});
+      // #endregion
       setPost(result.data.post);
       setJoinRequests(result.data.joinRequests);
       setGroup(result.data.group);

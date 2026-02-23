@@ -56,6 +56,9 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
       },
       (err) => {
         console.error('[useGroupChat] Snapshot error:', err);
+        // #region agent log
+        fetch('http://127.0.0.1:7276/ingest/3b772985-a450-48d2-8329-a96e1da0faa0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'079af5'},body:JSON.stringify({sessionId:'079af5',location:'useGroupChat.ts:snapshotError',message:'Firestore snapshot error',data:{groupId,errorCode:err?.code,errorMessage:err?.message,initialLoadDone:initialLoadDone.current},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         const isPermissionError =
           err?.code === 'permission-denied' ||
           err?.message?.includes('Missing or insufficient permissions');
