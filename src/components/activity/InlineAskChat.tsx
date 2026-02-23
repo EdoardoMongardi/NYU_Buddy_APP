@@ -63,7 +63,7 @@ function CreatorAsksView({ postId }: { postId: string }) {
         return () => { mounted = false; };
     }, [postId, user]);
 
-    const handleReply = async (askerUid: string, askerName: string) => {
+    const handleReply = async (askerUid: string) => {
         const body = replyInputs[askerUid]?.trim();
         if (!body || sending) return;
         setSending(askerUid);
@@ -150,13 +150,13 @@ function CreatorAsksView({ postId }: { postId: string }) {
                                         setReplyInputs(prev => ({ ...prev, [thread.askerUid]: e.target.value }))
                                     }
                                     onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleReply(thread.askerUid, thread.askerDisplayName);
+                                        if (e.key === 'Enter') handleReply(thread.askerUid);
                                     }}
                                     placeholder={`Reply to ${thread.askerDisplayName.split(' ')[0]}…`}
                                     className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-[12px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-400 min-w-0"
                                 />
                                 <button
-                                    onClick={() => handleReply(thread.askerUid, thread.askerDisplayName)}
+                                    onClick={() => handleReply(thread.askerUid)}
                                     disabled={!replyInputs[thread.askerUid]?.trim() || sending === thread.askerUid}
                                     className="p-1.5 bg-violet-600 text-white rounded-full hover:bg-violet-700 disabled:bg-gray-200 disabled:text-gray-400 transition-colors flex-shrink-0"
                                 >
