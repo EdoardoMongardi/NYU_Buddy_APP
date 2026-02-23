@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -57,3 +55,12 @@ public/brand/export/*.png
 
 # Firebase Service Account
 service-account.json
+
+# Internal documentation (not for public repo)
+docs/
+
+# Stale backups
+*.backup-*
+
+# Unrelated boilerplate
+untitled/
