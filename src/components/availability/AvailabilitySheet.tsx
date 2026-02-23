@@ -127,7 +127,7 @@ export default function AvailabilitySheet({ isPWA = false }: { isPWA?: boolean }
         // U21 Fix: Handle email verification error
         const errorMessage = err instanceof Error ? err.message : 'Failed to set availability';
         if (errorMessage === 'EMAIL_NOT_VERIFIED') {
-          setLocationError('Please verify your email address to use this feature. Check your inbox for the verification link.');
+          setLocationError('Please verify your email address to use this feature.');
         } else {
           setLocationError(errorMessage);
         }

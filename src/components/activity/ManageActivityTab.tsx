@@ -128,14 +128,12 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     const isPending = request.status === 'pending';
     const isAccepted = request.status === 'accepted';
     const isDeclined = request.status === 'declined';
+    const isWithdrawn = request.status === 'withdrawn';
+    const isKicked = request.status === 'kicked';
+    const isLeft = request.status === 'left';
 
-    // Check if user should be denied access (kicked/blocked) or if post is expired
-    // Note: If request is accepted but user was kicked later, they might still show as accepted in request 
-    // but not be in member list. However, standard flow updates request status.
-    // We'll rely on post status and request status.
-
-    const isExpired = post?.status === 'expired' || post?.expiresAt && new Date(post.expiresAt) < new Date();
-    const isKicked = !loading && post && isAccepted && !post.groupId; // Crude check, ideally we check group membership
+    const isExpired = post?.status === 'expired' || (post?.expiresAt && new Date(post.expiresAt) < new Date());
+    const isInactive = isDeclined || isKicked || isLeft || isWithdrawn;
 
     if (loading) {
         return (
@@ -146,7 +144,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     }
 
     const handleClick = () => {
-        if (isDeclined || isKicked || (isExpired && !isAccepted)) return;
+        if (isInactive || (isExpired && !isAccepted)) return;
         if (post) {
             router.push(`/post/${post.postId}`);
         }
@@ -162,8 +160,8 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     return (
         <button
             onClick={handleClick}
-            disabled={isDeclined || !!isKicked || (!!isExpired && !isAccepted)}
-            className={`w-full text-left bg-white rounded-2xl border p-4 transition-shadow touch-scale ${isDeclined || isKicked || (isExpired && !isAccepted)
+            disabled={isInactive || (!!isExpired && !isAccepted)}
+            className={`w-full text-left bg-white rounded-2xl border p-4 transition-shadow touch-scale ${isInactive || (isExpired && !isAccepted)
                 ? 'border-gray-100 opacity-60 cursor-default'
                 : 'border-gray-100 hover:shadow-md active:scale-[0.99]'
                 }`}
@@ -179,7 +177,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                         Pending
                     </span>
                 )}
-                {isAccepted && !isExpired && !isKicked && (
+                {isAccepted && !isExpired && (
                     <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-green-50 text-green-700 border border-green-100">
                         <Check className="w-3 h-3" />
                         Accepted
@@ -191,13 +189,25 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                         Not Available
                     </span>
                 )}
+                {isWithdrawn && (
+                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-600 border border-gray-100">
+                        <X className="w-3 h-3" />
+                        Withdrawn
+                    </span>
+                )}
                 {isKicked && (
-                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600 border border-red-100">
+                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-500 border border-gray-100">
                         <X className="w-3 h-3" />
                         Not Available
                     </span>
                 )}
-                {isExpired && (
+                {isLeft && (
+                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-500 border border-gray-100">
+                        <X className="w-3 h-3" />
+                        Exited
+                    </span>
+                )}
+                {isExpired && !isKicked && !isLeft && (
                     <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600 border border-red-100">
                         <Clock className="w-3 h-3" />
                         Expired
@@ -231,17 +241,10 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
             )}
 
             {/* Chat entry for accepted */}
-            {isAccepted && post && !isExpired && !isKicked && (
+            {isAccepted && post && !isExpired && (
                 <div className="mt-2 flex items-center gap-2 text-violet-600 text-[13px] font-medium">
                     <MessageCircle className="w-4 h-4" />
                     <span>Enter group chat →</span>
-                </div>
-            )}
-
-            {/* Kicked/Blocked/Expired message */}
-            {(isKicked || isDeclined) && (
-                <div className="mt-2 text-red-500 text-[12px] font-medium">
-                    This activity is no longer available to you.
                 </div>
             )}
 

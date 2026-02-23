@@ -28,7 +28,7 @@ export async function requireEmailVerification(
       'EMAIL_NOT_VERIFIED',
       {
         requiresVerification: true,
-        message: 'Please verify your email address to use this feature. Check your inbox for the verification link.',
+        message: 'Please verify your email address to use this feature.',
       }
     );
   }

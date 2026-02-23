@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import useGooglePlaces from 'react-google-autocomplete/lib/usePlacesAutocompleteService';
 
 import {
   Plus,
@@ -12,7 +13,18 @@ import {
   ToggleRight,
   Upload,
   X,
+  Users,
+  Search,
+  List,
+  Map,
+  Sparkles,
+  ChevronDown,
 } from 'lucide-react';
+
+// Leaflet requires the browser DOM — load only on client
+const PlacesMap = lazy(() =>
+  import('@/components/admin/PlacesMap').then(m => ({ default: m.PlacesMap }))
+);
 import {
   collection,
   query,
@@ -67,10 +79,20 @@ interface Place {
   active: boolean;
   priceRange?: string; // U11: e.g., "$20-$50"
   photoUrl?: string; // U11: Custom image URL for the place
+  openingHours?: {
+    periods: {
+      open?: { day: number; time: string };
+      close?: { day: number; time: string };
+    }[];
+    weekday_text: string[];
+  } | null;
+  source?: string; // 'user_custom' for user-submitted places
+  timesSelected?: number; // How many times this place has been chosen by users
+  submittedBy?: string; // UID of the user who first submitted this place
 }
 
 const CATEGORIES = [
-  'Cafe',
+  'Cafe/Tea',
   'Restaurant',
   'Library',
   'Park',
@@ -80,22 +102,58 @@ const CATEGORIES = [
 
 // Activities users can choose when setting availability
 const ACTIVITIES = [
-  'Coffee',
+  'Drink',
   'Lunch',
   'Dinner',
   'Study',
   'Walk',
+  'Hangout',
 ];
 
 // Default activity mapping based on category
 const CATEGORY_DEFAULT_ACTIVITIES: Record<string, string[]> = {
-  'Cafe': ['Coffee', 'Study', 'Lunch'],
+  'Cafe/Tea': ['Drink'],
   'Restaurant': ['Lunch', 'Dinner'],
   'Library': ['Study'],
-  'Park': ['Walk'],
+  'Park': ['Walk', 'Hangout'],
   'Study Space': ['Study'],
-  'Other': [],
+  'Other': ['Hangout'],
 };
+
+// ── Google Places helpers ────────────────────────────────────────────────────
+
+const GOOGLE_TYPE_TO_CATEGORY: Record<string, string> = {
+  cafe: 'Cafe/Tea', coffee_shop: 'Cafe/Tea', tea_house: 'Cafe/Tea',
+  bubble_tea_shop: 'Cafe/Tea', juice_bar: 'Cafe/Tea', smoothie_shop: 'Cafe/Tea',
+  ice_cream_shop: 'Cafe/Tea', dessert_shop: 'Cafe/Tea', bakery: 'Cafe/Tea',
+  bar: 'Cafe/Tea', night_club: 'Cafe/Tea', wine_bar: 'Cafe/Tea', cocktail_bar: 'Cafe/Tea',
+  restaurant: 'Restaurant', food: 'Restaurant', meal_takeaway: 'Restaurant', meal_delivery: 'Restaurant',
+  library: 'Library',
+  university: 'Study Space', school: 'Study Space',
+  park: 'Park',
+};
+
+const SKIP_TAG_TYPES = new Set([
+  'establishment', 'point_of_interest', 'food', 'store', 'locality',
+  'political', 'geocode', 'premise', 'subpremise',
+]);
+
+const PRICE_RANGE_MAP: Record<number, string> = {
+  0: 'Under $10', 1: '$10-$20', 2: '$20-$50', 3: '$50+', 4: '$50+',
+};
+
+function deriveCategoryFromTypes(types: string[]): string {
+  for (const t of types) {
+    if (GOOGLE_TYPE_TO_CATEGORY[t]) return GOOGLE_TYPE_TO_CATEGORY[t];
+  }
+  return 'Other';
+}
+
+function deriveTagsFromTypes(types: string[]): string[] {
+  return types.filter(t => !SKIP_TAG_TYPES.has(t)).slice(0, 4);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminSpotsPage() {
   const [places, setPlaces] = useState<Place[]>([]);
@@ -103,6 +161,13 @@ export default function AdminSpotsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlace, setEditingPlace] = useState<Place | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Search / filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('All');
+
+  // View mode: 'list' or 'map'
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // Form state
   const [name, setName] = useState('');
@@ -114,11 +179,24 @@ export default function AdminSpotsPage() {
   const [allowedActivities, setAllowedActivities] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState(''); // U11: Price range input
   const [photoUrl, setPhotoUrl] = useState(''); // U11: Photo URL from upload or existing
+  const [openingHoursJson, setOpeningHoursJson] = useState(''); // JSON representation
 
   // File upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Google Places search (for auto-fill)
+  const [googleSearchQuery, setGoogleSearchQuery] = useState('');
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [googleFillMsg, setGoogleFillMsg] = useState('');
+  const [showGoogleSearch, setShowGoogleSearch] = useState(true);
+  const googleSearchRef = useRef<HTMLInputElement>(null);
+
+  const { placesService, placePredictions, getPlacePredictions } = useGooglePlaces({
+    apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+    options: { types: ['establishment'], input: '' },
+  });
 
   // Listen for places
   useEffect(() => {
@@ -151,12 +229,80 @@ export default function AdminSpotsPage() {
     setLng('');
     setTags('');
     setAllowedActivities([]);
-    setPriceRange(''); // U11
-    setPhotoUrl(''); // U11
-    setSelectedFile(null); // File upload
+    setPriceRange('');
+    setPhotoUrl('');
+    setOpeningHoursJson('');
+    setSelectedFile(null);
     setUploadProgress(0);
     setIsUploading(false);
     setEditingPlace(null);
+    setGoogleSearchQuery('');
+    setGoogleFillMsg('');
+    setShowGoogleSearch(true);
+  };
+
+  // Trigger predictions as the user types in the Google search box
+  useEffect(() => {
+    if (googleSearchQuery.length > 2) {
+      getPlacePredictions({ input: googleSearchQuery, types: ['establishment'] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleSearchQuery]);
+
+  const handleGoogleSelect = async (placeId: string) => {
+    if (!placesService) { setGoogleFillMsg('Google Maps not ready yet — try again in a moment.'); return; }
+    setIsFetchingDetails(true);
+    setGoogleFillMsg('');
+    setGoogleSearchQuery('');
+    try {
+      const details = await new Promise<google.maps.places.PlaceResult>((resolve, reject) => {
+        placesService.getDetails({
+          placeId,
+          fields: ['name', 'formatted_address', 'geometry', 'types', 'price_level', 'photos', 'opening_hours'],
+        }, (res, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && res) resolve(res);
+          else reject(status);
+        });
+      });
+
+      const placeLat = details.geometry?.location?.lat();
+      const placeLng = details.geometry?.location?.lng();
+      if (!placeLat || !placeLng) throw new Error('No coordinates');
+
+      const types = details.types || [];
+      const derivedCategory = deriveCategoryFromTypes(types);
+      const derivedTags = deriveTagsFromTypes(types);
+
+      const openingHours = details.opening_hours ? {
+        periods: (details.opening_hours.periods || []).map(p => ({
+          open:  p.open  ? { day: p.open.day,  time: p.open.time  } : undefined,
+          close: p.close ? { day: p.close.day, time: p.close.time } : undefined,
+        })),
+        weekday_text: details.opening_hours.weekday_text || [],
+      } : null;
+
+      const photo = details.photos?.[0]?.getUrl({ maxWidth: 800 }) ?? '';
+      const price = details.price_level != null ? (PRICE_RANGE_MAP[details.price_level] ?? '') : '';
+
+      // Fill all form fields
+      setName(details.name || '');
+      setAddress(details.formatted_address || '');
+      setLat(placeLat.toString());
+      setLng(placeLng.toString());
+      setTags(derivedTags.join(', '));
+      setPhotoUrl(photo);
+      setPriceRange(price);
+      setOpeningHoursJson(openingHours ? JSON.stringify(openingHours, null, 2) : '');
+      handleCategoryChange(derivedCategory); // also sets default allowedActivities
+
+      setShowGoogleSearch(false);
+      setGoogleFillMsg(`✓ Filled from Google — review and adjust before saving.`);
+    } catch (err) {
+      console.error('Google Places details error:', err);
+      setGoogleFillMsg('Failed to fetch details. Please fill in manually.');
+    } finally {
+      setIsFetchingDetails(false);
+    }
   };
 
   // Handle file upload to Firebase Storage
@@ -216,6 +362,7 @@ export default function AdminSpotsPage() {
     setAllowedActivities(place.allowedActivities || []);
     setPriceRange(place.priceRange || ''); // U11
     setPhotoUrl(place.photoUrl || ''); // U11
+    setOpeningHoursJson(place.openingHours ? JSON.stringify(place.openingHours, null, 2) : '');
     setIsDialogOpen(true);
   };
 
@@ -265,6 +412,18 @@ export default function AdminSpotsPage() {
         }
       }
 
+      let parsedOpeningHours = null;
+      if (openingHoursJson.trim()) {
+        try {
+          parsedOpeningHours = JSON.parse(openingHoursJson);
+        } catch (err) {
+          console.error(err);
+          alert('Invalid JSON in Opening Hours field');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const geohash = geofire.geohashForLocation([latNum, lngNum]);
       const tagsArray = tags
         .split(',')
@@ -283,6 +442,7 @@ export default function AdminSpotsPage() {
         active: editingPlace?.active ?? true,
         priceRange: priceRange.trim() || null, // U11: Save price range (null if empty)
         photoUrl: finalPhotoUrl, // U11: Save uploaded photo URL or existing URL
+        openingHours: parsedOpeningHours,
         updatedAt: serverTimestamp(),
       };
 
@@ -333,6 +493,15 @@ export default function AdminSpotsPage() {
     }
   };
 
+  // Derived filtered list — computed from current state, no extra fetch needed
+  const filteredPlaces = places.filter((p) => {
+    const matchesSearch = searchQuery.trim() === '' ||
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.address.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = filterCategory === 'All' || p.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -343,22 +512,120 @@ export default function AdminSpotsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Manage Spots</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex items-center gap-2">
+          {/* List / Map toggle */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <List className="h-4 w-4" /> List
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === 'map'
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Map className="h-4 w-4" /> Map
+            </button>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Add Spot
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
+          <DialogContent className="max-w-md flex flex-col max-h-[90vh]">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>
                 {editingPlace ? 'Edit Spot' : 'Add New Spot'}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-4">
+            <div className="space-y-4 pt-4 overflow-y-auto pr-1">
+
+              {/* ── Google Places auto-fill ── */}
+              {!editingPlace && (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 space-y-2">
+                  <button
+                    type="button"
+                    className="flex items-center justify-between w-full text-sm font-semibold text-violet-700"
+                    onClick={() => setShowGoogleSearch(v => !v)}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4" />
+                      Auto-fill from Google Places
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showGoogleSearch ? '' : '-rotate-90'}`} />
+                  </button>
+
+                  {showGoogleSearch && (
+                    <div className="space-y-1.5">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Input
+                          ref={googleSearchRef}
+                          className="pl-9 bg-white"
+                          placeholder="Search any place…"
+                          value={googleSearchQuery}
+                          onChange={e => setGoogleSearchQuery(e.target.value)}
+                        />
+                      </div>
+
+                      {isFetchingDetails && (
+                        <div className="flex items-center gap-2 text-xs text-violet-600 pl-1">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Fetching details…
+                        </div>
+                      )}
+
+                      {!isFetchingDetails && googleSearchQuery.length > 2 && placePredictions && placePredictions.length > 0 && (
+                        <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100 shadow-sm max-h-48 overflow-y-auto">
+                          {placePredictions.map(p => (
+                            <button
+                              key={p.place_id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 hover:bg-violet-50 transition-colors"
+                              onClick={() => handleGoogleSelect(p.place_id)}
+                            >
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {p.structured_formatting?.main_text || p.description}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {p.structured_formatting?.secondary_text || ''}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {googleFillMsg && (
+                    <p className={`text-xs font-medium pl-1 ${googleFillMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>
+                      {googleFillMsg}
+                      {!showGoogleSearch && (
+                        <button
+                          type="button"
+                          className="ml-2 underline text-violet-600"
+                          onClick={() => { setShowGoogleSearch(true); setGoogleFillMsg(''); }}
+                        >
+                          Search again
+                        </button>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Name *</Label>
                 <Input
@@ -585,6 +852,19 @@ export default function AdminSpotsPage() {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label>Opening Hours (JSON) *Optional*</Label>
+                <textarea
+                  value={openingHoursJson}
+                  onChange={(e) => setOpeningHoursJson(e.target.value)}
+                  placeholder={'{\n  "weekday_text": [\n    "Monday: 8:00 AM – 8:00 PM"\n  ]\n}'}
+                  className="w-full h-32 p-2 border rounded-md text-sm font-mono text-gray-700 focus:ring-2 focus:ring-violet-600 focus:outline-none"
+                />
+                <p className="text-xs text-gray-500">
+                  Paste the Google Places API opening_hours object here (valid JSON required).
+                </p>
+              </div>
+
               <div className="flex space-x-2 pt-4">
                 <Button
                   variant="outline"
@@ -612,101 +892,151 @@ export default function AdminSpotsPage() {
               </div>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
-      {places.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No spots yet. Add your first one!</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {places.map((place) => (
-            <div
-              key={place.id}
-            >
-              <Card
-                className={`transition-opacity ${!place.active ? 'opacity-60' : ''
-                  }`}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg flex items-center space-x-2">
-                        <span>{place.name}</span>
-                        {!place.active && (
-                          <Badge variant="secondary">Inactive</Badge>
-                        )}
-                      </CardTitle>
-                      <p className="text-sm text-gray-500">{place.address}</p>
-                    </div>
-                    <Badge variant="outline">{place.category}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Allowed Activities */}
-                    <div className="flex flex-wrap gap-1">
-                      {(place.allowedActivities || []).map((activity) => (
-                        <Badge key={activity} className="text-xs bg-violet-100 text-violet-700">
-                          {activity}
-                        </Badge>
-                      ))}
-                      {(!place.allowedActivities || place.allowedActivities.length === 0) && (
-                        <span className="text-xs text-gray-400">No activities set</span>
-                      )}
-                    </div>
+      {/* ── Map view ───────────────────────────────────────────── */}
+      {viewMode === 'map' && (
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-[520px] rounded-xl border border-gray-200 bg-gray-50">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+          </div>
+        }>
+          <PlacesMap places={places} />
+        </Suspense>
+      )}
 
-                    {/* Tags */}
-                    {place.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {place.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-end mt-3">
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleActive(place)}
-                      >
-                        {place.active ? (
-                          <ToggleRight className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <ToggleLeft className="h-5 w-5 text-gray-400" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(place)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(place)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+      {/* ── List view ──────────────────────────────────────────── */}
+      {viewMode === 'list' && (
+        <>
+          {/* Search + filter bar */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Input
+                className="pl-9"
+                placeholder="Search by name or address…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          ))}
-        </div>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="sm:w-44">
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All categories</SelectItem>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(searchQuery || filterCategory !== 'All') && (
+              <p className="text-sm text-gray-500 self-center whitespace-nowrap">
+                {filteredPlaces.length} / {places.length} spots
+              </p>
+            )}
+          </div>
+
+          {/* Place cards */}
+          {places.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No spots yet. Add your first one!</p>
+              </CardContent>
+            </Card>
+          ) : filteredPlaces.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No spots match your search.</p>
+                <button
+                  className="mt-2 text-sm text-violet-600 hover:underline"
+                  onClick={() => { setSearchQuery(''); setFilterCategory('All'); }}
+                >
+                  Clear filters
+                </button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {filteredPlaces.map((place) => (
+                <div key={place.id}>
+                  <Card className={`transition-opacity ${!place.active ? 'opacity-60' : ''}`}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg flex items-center flex-wrap gap-1.5">
+                            <span>{place.name}</span>
+                            {!place.active && (
+                              <Badge variant="secondary">Inactive</Badge>
+                            )}
+                            {place.source === 'user_custom' && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                User Submitted
+                              </Badge>
+                            )}
+                            {place.openingHours && (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Hours</Badge>
+                            )}
+                            {(place.timesSelected ?? 0) > 0 && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                {place.timesSelected}× chosen
+                              </Badge>
+                            )}
+                          </CardTitle>
+                          <p className="text-sm text-gray-500">{place.address}</p>
+                        </div>
+                        <Badge variant="outline">{place.category}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-1">
+                          {(place.allowedActivities || []).map((activity) => (
+                            <Badge key={activity} className="text-xs bg-violet-100 text-violet-700">
+                              {activity}
+                            </Badge>
+                          ))}
+                          {(!place.allowedActivities || place.allowedActivities.length === 0) && (
+                            <span className="text-xs text-gray-400">No activities set</span>
+                          )}
+                        </div>
+                        {place.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {place.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-end mt-3">
+                        <div className="flex items-center space-x-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleToggleActive(place)}>
+                            {place.active
+                              ? <ToggleRight className="h-5 w-5 text-green-600" />
+                              : <ToggleLeft  className="h-5 w-5 text-gray-400" />}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => openEditDialog(place)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(place)} className="text-red-600 hover:text-red-700">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -19,6 +19,7 @@ interface GroupMemberListProps {
   isCreator: boolean;
   currentUid: string;
   onRefresh: () => Promise<void>;
+  onLeave?: () => void;
 }
 
 export default function GroupMemberList({
@@ -26,6 +27,7 @@ export default function GroupMemberList({
   isCreator,
   currentUid,
   onRefresh,
+  onLeave,
 }: GroupMemberListProps) {
   const { toast } = useToast();
   const [members, setMembers] = useState<MemberProfile[]>([]);
@@ -81,14 +83,17 @@ export default function GroupMemberList({
     try {
       await groupLeave({ groupId: group.groupId });
       toast({ title: 'You left the group' });
-      await onRefresh();
+      if (onLeave) {
+        onLeave();
+      } else {
+        await onRefresh();
+      }
     } catch (err) {
       toast({
         title: 'Failed to leave',
         description: err instanceof Error ? err.message : 'Please try again.',
         variant: 'destructive',
       });
-    } finally {
       setActionUid(null);
     }
   };

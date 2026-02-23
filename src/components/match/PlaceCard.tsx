@@ -1,15 +1,42 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { MapPin, Check, Loader2, DollarSign, Wifi, Zap, Volume2 } from 'lucide-react';
+import { MapPin, Check, Loader2, DollarSign, Wifi, Zap, Volume2, Search, Clock } from 'lucide-react';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PlaceCandidate } from '@/lib/firebase/functions';
 
-// Default placeholder image for locations
 const DEFAULT_PLACE_IMAGE = 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400&h=200&fit=crop&auto=format';
+const isCustomPlace = (rank: number) => rank < 0;
+
+function isOpenNow(openingHours: PlaceCandidate['openingHours']): boolean {
+    if (!openingHours || !openingHours.periods || openingHours.periods.length === 0) return true;
+    const now = new Date();
+    const dayStr = now.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+    const timeStr = now.toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit',
+    });
+    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const currentDay = dayMap[dayStr] ?? 0;
+    const [rawH, rawM] = timeStr.split(':').map(Number);
+    const currentTime = (rawH >= 24 ? 0 : rawH) * 100 + rawM;
+    for (const period of openingHours.periods) {
+        const { open, close } = period;
+        if (open && open.day === 0 && open.time === '0000' && !close) return true;
+        if (!open || !close) continue;
+        const openDay = open.day, closeDay = close.day;
+        const openTime = parseInt(open.time, 10), closeTime = parseInt(close.time, 10);
+        if (openDay === closeDay) {
+            if (currentDay === openDay && currentTime >= openTime && currentTime < closeTime) return true;
+        } else {
+            if (currentDay === openDay  && currentTime >= openTime)  return true;
+            if (currentDay === closeDay && currentTime <  closeTime) return true;
+        }
+    }
+    return false;
+}
 
 interface PlaceCardProps {
     place: PlaceCandidate & {
@@ -41,10 +68,17 @@ export function PlaceCard({
     onSelect,
     compact = false,
 }: PlaceCardProps) {
-    // U11: Prefer priceRange text over priceLevel number. If no priceRange, show just icon (no text)
-    const priceDisplay = place.priceRange || '';
+    // Prefer admin-set priceRange text (e.g. "$20-$50"), then fall back to $ symbols from priceLevel
+    const priceLevelSymbols: Record<number, string> = { 0: 'Free', 1: '$', 2: '$$', 3: '$$$', 4: '$$$$' };
+    const priceDisplay = place.priceRange ||
+        (place.priceLevel != null ? priceLevelSymbols[place.priceLevel] ?? '' : '');
     const tags = place.tags || ['WiFi', 'Outlets'];
     const photoUrl = place.photoUrl || DEFAULT_PLACE_IMAGE;
+
+    const custom = isCustomPlace(place.rank);
+    // Only show "Closed now" when we have opening hours data and the place is currently closed.
+    // Places without hours data default to open — no false warnings.
+    const isClosed = place.openingHours != null && !isOpenNow(place.openingHours);
 
     // Compact mode for side-by-side grid
     if (compact) {
@@ -58,8 +92,8 @@ export function PlaceCard({
                     }`}
             >
                 <div className="flex items-start gap-2">
-                    <Badge className="bg-black/70 text-white border-0 text-[10px] shrink-0">
-                        #{place.rank}
+                    <Badge className={`border-0 text-[10px] shrink-0 ${custom ? 'bg-violet-600 text-white' : 'bg-black/70 text-white'}`}>
+                        {custom ? <><Search className="w-2.5 h-2.5 mr-0.5 inline" />Custom</> : `#${place.rank}`}
                     </Badge>
                     <div className="min-w-0 flex-1">
                         <h3 className="font-semibold text-gray-900 text-xs leading-tight truncate">
@@ -69,6 +103,11 @@ export function PlaceCard({
                             <MapPin className="w-2.5 h-2.5 inline mr-0.5" />
                             {place.distance}m
                         </p>
+                        {isClosed && (
+                            <p className="text-[10px] text-red-500 font-medium mt-0.5 flex items-center gap-0.5">
+                                <Clock className="w-2.5 h-2.5 inline" /> Closed now
+                            </p>
+                        )}
                     </div>
                 </div>
                 {isSelected && (
@@ -114,8 +153,8 @@ export function PlaceCard({
                 />
                 {/* Rank badge */}
                 <div className="absolute top-2 left-2">
-                    <Badge className="bg-black/70 text-white border-0 text-xs">
-                        #{place.rank}
+                    <Badge className={`border-0 text-xs ${custom ? 'bg-violet-600 text-white' : 'bg-black/70 text-white'}`}>
+                        {custom ? 'Custom' : `#${place.rank}`}
                     </Badge>
                 </div>
                 {/* Distance badge */}
@@ -125,6 +164,14 @@ export function PlaceCard({
                         {place.distance}m
                     </Badge>
                 </div>
+                {/* Closed now badge */}
+                {isClosed && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2">
+                        <Badge className="bg-red-500/90 text-white border-0 text-xs flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> Closed now
+                        </Badge>
+                    </div>
+                )}
                 {/* Selected/Other choice indicator */}
                 {isSelected && (
                     <div className="absolute bottom-2 right-2">
@@ -153,8 +200,8 @@ export function PlaceCard({
                         <p className="text-sm text-gray-500 truncate">{place.address}</p>
                     </div>
                     <div className="flex items-center gap-1 ml-2">
-                        {/* Show icon only when no priceRange set; priceRange text includes $ already */}
-                        {!place.priceRange && <DollarSign className="w-4 h-4 text-green-600" />}
+                        {/* Show bare icon only when no price data at all */}
+                        {!priceDisplay && <DollarSign className="w-4 h-4 text-green-600" />}
                         {priceDisplay && (
                             <span className="text-sm font-medium text-green-700">
                                 {priceDisplay}

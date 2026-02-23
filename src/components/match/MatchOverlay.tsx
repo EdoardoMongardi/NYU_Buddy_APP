@@ -68,8 +68,9 @@ export default function MatchOverlay({
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -50 }}
-                className="fixed bottom-24 left-4 right-4 z-50"
+                className="fixed bottom-24 left-0 right-0 z-50 px-4"
             >
+                <div className="md:max-w-[600px] md:mx-auto">
                 <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-4 shadow-xl border border-white/20 text-white flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                         <div className="flex -space-x-3">
@@ -103,6 +104,7 @@ export default function MatchOverlay({
                     <div className="animate-pulse">
                         <span className="text-2xl">🎉</span>
                     </div>
+                </div>
                 </div>
             </motion.div>
         </AnimatePresence>

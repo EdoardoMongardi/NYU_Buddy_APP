@@ -41,10 +41,11 @@ if (isFirebaseConfigured) {
 
     if (!hasConnectedEmulators) {
       try {
-        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-        connectFirestoreEmulator(db, 'localhost', 8080);
-        connectFunctionsEmulator(functions, 'localhost', 5001);
-        if (storage) connectStorageEmulator(storage, 'localhost', 9199);
+        const host = window.location.hostname;
+        connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+        connectFirestoreEmulator(db, host, 8080);
+        connectFunctionsEmulator(functions, host, 5001);
+        if (storage) connectStorageEmulator(storage, host, 9199);
         globalAny.__FIREBASE_EMULATORS_CONNECTED__ = true;
       } catch {
         // Emulators might not be running

@@ -65,15 +65,15 @@ function useVisualViewport(): boolean {
         // same time.  closeGuard prevents normal tracking from
         // flipping isKeyboardOpen back to TRUE while the viewport
         // still shows the keyboard-open height.
-        const CLOSE_MAIN_MS  = 280;   // matches iOS keyboard slide
+        const CLOSE_MAIN_MS = 280;   // matches iOS keyboard slide
         const CLOSE_HOLD_MAX = 500;   // safety timeout for hold
 
         let closePhase: 'off' | 'main' | 'hold' = 'off';
-        let closeStart  = 0;    // phase start time
-        let closeFromH  = 0;    // interpolation start height
-        let closeToH    = 0;    // interpolation target height
+        let closeStart = 0;    // phase start time
+        let closeFromH = 0;    // interpolation start height
+        let closeToH = 0;    // interpolation target height
         let closeKbOpenH = 0;   // original keyboard-open vv.height
-        let closeGuard   = false; // prevent flipping isKeyboardOpen
+        let closeGuard = false; // prevent flipping isKeyboardOpen
 
         const easeOutCubic = (t: number) => 1 - (1 - t) * (1 - t) * (1 - t);
 
@@ -826,6 +826,7 @@ export default function PreviewChatUIPage() {
                             formattedCountdown="08:45"
                             isSettingChoice={false}
                             onSelectPlace={(id, rank) => setMyChoice({ placeId: id, placeRank: rank })}
+                            onSelectCustomPlace={() => { }}
                             onGoWithTheirChoice={() => { }}
                             onCancel={() => { }}
                             isCancelling={false}

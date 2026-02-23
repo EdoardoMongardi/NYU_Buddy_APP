@@ -4,6 +4,7 @@ import { requireEmailVerification } from '../utils/verifyEmail';
 import { sendNotificationToUser } from '../utils/notifications';
 import {
   ACTIVITY_POST_STATUS,
+  JOIN_REQUEST_STATUS,
 } from '../constants/activityState';
 
 interface GroupKickData {
@@ -94,7 +95,18 @@ export async function groupKickHandler(
     await postRef.update(postUpdates);
   }
 
-  // 9. Notify kicked user
+  // 9. Update join request status to kicked
+  const requestId = `${group.postId}_${data.targetUid}`;
+  const requestRef = db.collection('joinRequests').doc(requestId);
+  const requestDoc = await requestRef.get();
+  if (requestDoc.exists) {
+    await requestRef.update({
+      status: JOIN_REQUEST_STATUS.KICKED,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  // 10. Notify kicked user
   const postData = postDoc.exists ? postDoc.data()! : null;
   const truncatedBody = postData
     ? (postData.body.length > 30 ? postData.body.substring(0, 30) + '...' : postData.body)

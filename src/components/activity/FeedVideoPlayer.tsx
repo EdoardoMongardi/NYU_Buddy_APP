@@ -183,14 +183,14 @@ export default function FeedVideoPlayer({ src, poster, className }: FeedVideoPla
     return (
         <div
             ref={containerRef}
-            className={cn("relative group bg-black overflow-hidden flex items-center justify-center cursor-pointer", className)}
+            className={cn("relative group overflow-hidden cursor-pointer", className)}
             onClick={handleContainerClick}
         >
             <video
                 ref={videoRef}
                 src={src}
                 poster={poster}
-                className="w-full h-full max-h-[600px] object-contain"
+                className="w-auto h-auto max-w-full max-h-[450px] md:max-h-[600px] object-contain block"
                 loop
                 muted={isMuted}
                 playsInline

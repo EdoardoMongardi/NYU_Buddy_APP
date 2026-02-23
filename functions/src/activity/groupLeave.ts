@@ -4,6 +4,7 @@ import { requireEmailVerification } from '../utils/verifyEmail';
 import { sendNotificationToUser } from '../utils/notifications';
 import {
   ACTIVITY_POST_STATUS,
+  JOIN_REQUEST_STATUS,
 } from '../constants/activityState';
 
 interface GroupLeaveData {
@@ -77,7 +78,18 @@ export async function groupLeaveHandler(
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-  // 8. Update post: decrement acceptedCount, re-open if was filled
+  // 8. Update join request status to left
+  const requestId = `${group.postId}_${uid}`;
+  const requestRef = db.collection('joinRequests').doc(requestId);
+  const requestDocSnap = await requestRef.get();
+  if (requestDocSnap.exists) {
+    await requestRef.update({
+      status: JOIN_REQUEST_STATUS.LEFT,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  // 9. Update post: decrement acceptedCount, re-open if was filled
   if (postDoc.exists) {
     const post = postDoc.data()!;
     const postUpdates: Record<string, unknown> = {

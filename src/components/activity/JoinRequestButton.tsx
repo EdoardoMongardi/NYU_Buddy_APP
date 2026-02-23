@@ -32,6 +32,8 @@ export default function JoinRequestButton({
   const isPending = myJoinRequest?.status === 'pending';
   const isAccepted = myJoinRequest?.status === 'accepted';
   const isDeclined = myJoinRequest?.status === 'declined';
+  const isKicked = myJoinRequest?.status === 'kicked';
+  const isLeft = myJoinRequest?.status === 'left';
 
   const handleSend = async () => {
     setSubmitting(true);
@@ -72,6 +74,26 @@ export default function JoinRequestButton({
     }
   };
 
+  // Kicked from group
+  if (isKicked) {
+    return (
+      <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 text-center mb-4">
+        <X className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+        <p className="text-gray-500 text-sm">This activity is no longer available to you</p>
+      </div>
+    );
+  }
+
+  // Voluntarily left
+  if (isLeft) {
+    return (
+      <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 text-center mb-4">
+        <X className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+        <p className="text-gray-500 text-sm">You left this activity</p>
+      </div>
+    );
+  }
+
   // Already accepted
   if (isAccepted) {
     return (
@@ -110,6 +132,26 @@ export default function JoinRequestButton({
           ) : (
             'Withdraw Request'
           )}
+        </button>
+      </div>
+    );
+  }
+
+  const isWithdrawn = myJoinRequest?.status === 'withdrawn';
+
+  // Withdrawn — show withdrawn status + request again option
+  if (isWithdrawn && !showInput) {
+    return (
+      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center mb-4">
+        <div className="flex items-center gap-2 justify-center mb-2">
+          <X className="w-4 h-4 text-gray-500" />
+          <p className="text-gray-600 text-sm">Request withdrawn</p>
+        </div>
+        <button
+          onClick={() => setShowInput(true)}
+          className="w-full py-2 text-sm text-violet-600 hover:text-violet-700 font-medium"
+        >
+          Request Again
         </button>
       </div>
     );

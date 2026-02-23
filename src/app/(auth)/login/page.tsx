@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,15 +20,29 @@ import {
   LoginFormData,
   RegisterFormData,
 } from '@/lib/schemas/user';
+import VerifyEmailOTP from '@/components/auth/VerifyEmailOTP';
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'verify'>('login');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
 
-  const { signIn, signUp } = useAuth();
+  const { user, needsVerification, loading: authLoading, signIn, signUp } = useAuth();
   const router = useRouter();
+
+  // If user is signed in and verified, redirect to app.
+  // If signed in but unverified, show OTP screen.
+  // Gate on authLoading to avoid acting on stale/default state.
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (!needsVerification) {
+      router.replace('/');
+    } else if (mode !== 'verify') {
+      setPendingEmail(user.email || '');
+      setMode('verify');
+    }
+  }, [authLoading, user, needsVerification, router, mode]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -46,7 +60,7 @@ export default function LoginPage() {
 
     try {
       await signIn(data.email, data.password);
-      router.push('/');
+      // After sign-in, the useEffect above will handle redirect or verification
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to sign in. Please try again.'
@@ -58,16 +72,12 @@ export default function LoginPage() {
 
   const handleRegister = async (data: RegisterFormData) => {
     setError(null);
-    setSuccess(null);
     setIsLoading(true);
 
     try {
       await signUp(data.email, data.password);
-      setSuccess(
-        'Account created! Please check your email to verify your account.'
-      );
-      registerForm.reset();
-      setMode('login');
+      setPendingEmail(data.email);
+      setMode('verify');
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to create account. Please try again.'
@@ -77,10 +87,19 @@ export default function LoginPage() {
     }
   };
 
+  const handleVerified = () => {
+    // Navigation is handled by the useEffect above reacting to
+    // needsVerification becoming false. No explicit push needed.
+  };
+
+  const handleBackFromVerify = () => {
+    setMode('login');
+    setError(null);
+  };
+
   const toggleMode = () => {
     setMode(mode === 'login' ? 'register' : 'login');
     setError(null);
-    setSuccess(null);
   };
 
   return (
@@ -102,198 +121,197 @@ export default function LoginPage() {
                 NYU Buddy
               </CardTitle>
             </motion.div>
-            <CardDescription>
-              {mode === 'login'
-                ? 'Sign in to find your study buddy'
-                : 'Create an account with your NYU email'}
-            </CardDescription>
+            {mode !== 'verify' && (
+              <CardDescription>
+                {mode === 'login'
+                  ? 'Sign in to find your study buddy'
+                  : 'Create an account with your NYU email'}
+              </CardDescription>
+            )}
           </CardHeader>
 
           <CardContent>
-            <AnimatePresence mode="wait">
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-4"
-                >
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                </motion.div>
-              )}
+            {/* ── OTP Verification Screen ── */}
+            {mode === 'verify' ? (
+              <VerifyEmailOTP
+                email={pendingEmail}
+                onVerified={handleVerified}
+                onBack={handleBackFromVerify}
+              />
+            ) : (
+              <>
+                <AnimatePresence mode="wait">
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mb-4"
+                    >
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-              {success && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-4"
-                >
-                  <Alert className="border-green-200 bg-green-50 text-green-800">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription>{success}</AlertDescription>
-                  </Alert>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                <AnimatePresence mode="wait">
+                  {mode === 'login' ? (
+                    <motion.form
+                      key="login"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.2 }}
+                      onSubmit={loginForm.handleSubmit(handleLogin)}
+                      className="space-y-4"
+                    >
+                      <div className="space-y-2">
+                        <Label htmlFor="email">NYU Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="netid@nyu.edu"
+                            className="pl-10"
+                            {...loginForm.register('email')}
+                          />
+                        </div>
+                        {loginForm.formState.errors.email && (
+                          <p className="text-sm text-red-500">
+                            {loginForm.formState.errors.email.message}
+                          </p>
+                        )}
+                      </div>
 
-            <AnimatePresence mode="wait">
-              {mode === 'login' ? (
-                <motion.form
-                  key="login"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.2 }}
-                  onSubmit={loginForm.handleSubmit(handleLogin)}
-                  className="space-y-4"
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="email">NYU Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="netid@nyu.edu"
-                        className="pl-10"
-                        {...loginForm.register('email')}
-                      />
-                    </div>
-                    {loginForm.formState.errors.email && (
-                      <p className="text-sm text-red-500">
-                        {loginForm.formState.errors.email.message}
-                      </p>
-                    )}
-                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="password"
+                            type="password"
+                            placeholder="Enter your password"
+                            className="pl-10"
+                            {...loginForm.register('password')}
+                          />
+                        </div>
+                        {loginForm.formState.errors.password && (
+                          <p className="text-sm text-red-500">
+                            {loginForm.formState.errors.password.message}
+                          </p>
+                        )}
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="Enter your password"
-                        className="pl-10"
-                        {...loginForm.register('password')}
-                      />
-                    </div>
-                    {loginForm.formState.errors.password && (
-                      <p className="text-sm text-red-500">
-                        {loginForm.formState.errors.password.message}
-                      </p>
-                    )}
-                  </div>
+                      <Button
+                        type="submit"
+                        className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Sign In'
+                        )}
+                      </Button>
+                    </motion.form>
+                  ) : (
+                    <motion.form
+                      key="register"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      onSubmit={registerForm.handleSubmit(handleRegister)}
+                      className="space-y-4"
+                    >
+                      <div className="space-y-2">
+                        <Label htmlFor="register-email">NYU Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="register-email"
+                            type="email"
+                            placeholder="netid@nyu.edu"
+                            className="pl-10"
+                            {...registerForm.register('email')}
+                          />
+                        </div>
+                        {registerForm.formState.errors.email && (
+                          <p className="text-sm text-red-500">
+                            {registerForm.formState.errors.email.message}
+                          </p>
+                        )}
+                      </div>
 
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
-                    disabled={isLoading}
+                      <div className="space-y-2">
+                        <Label htmlFor="register-password">Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="register-password"
+                            type="password"
+                            placeholder="Create a password"
+                            className="pl-10"
+                            {...registerForm.register('password')}
+                          />
+                        </div>
+                        {registerForm.formState.errors.password && (
+                          <p className="text-sm text-red-500">
+                            {registerForm.formState.errors.password.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="confirm-password">Confirm Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            id="confirm-password"
+                            type="password"
+                            placeholder="Confirm your password"
+                            className="pl-10"
+                            {...registerForm.register('confirmPassword')}
+                          />
+                        </div>
+                        {registerForm.formState.errors.confirmPassword && (
+                          <p className="text-sm text-red-500">
+                            {registerForm.formState.errors.confirmPassword.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <Button
+                        type="submit"
+                        className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Create Account'
+                        )}
+                      </Button>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
+
+                <div className="mt-6 text-center">
+                  <button
+                    type="button"
+                    onClick={toggleMode}
+                    className="text-sm text-violet-600 hover:text-violet-800 hover:underline"
                   >
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'Sign In'
-                    )}
-                  </Button>
-                </motion.form>
-              ) : (
-                <motion.form
-                  key="register"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  onSubmit={registerForm.handleSubmit(handleRegister)}
-                  className="space-y-4"
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">NYU Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-email"
-                        type="email"
-                        placeholder="netid@nyu.edu"
-                        className="pl-10"
-                        {...registerForm.register('email')}
-                      />
-                    </div>
-                    {registerForm.formState.errors.email && (
-                      <p className="text-sm text-red-500">
-                        {registerForm.formState.errors.email.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-password"
-                        type="password"
-                        placeholder="Create a password"
-                        className="pl-10"
-                        {...registerForm.register('password')}
-                      />
-                    </div>
-                    {registerForm.formState.errors.password && (
-                      <p className="text-sm text-red-500">
-                        {registerForm.formState.errors.password.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        placeholder="Confirm your password"
-                        className="pl-10"
-                        {...registerForm.register('confirmPassword')}
-                      />
-                    </div>
-                    {registerForm.formState.errors.confirmPassword && (
-                      <p className="text-sm text-red-500">
-                        {registerForm.formState.errors.confirmPassword.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'Create Account'
-                    )}
-                  </Button>
-                </motion.form>
-              )}
-            </AnimatePresence>
-
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={toggleMode}
-                className="text-sm text-violet-600 hover:text-violet-800 hover:underline"
-              >
-                {mode === 'login'
-                  ? "Don't have an account? Sign up"
-                  : 'Already have an account? Sign in'}
-              </button>
-            </div>
+                    {mode === 'login'
+                      ? "Don't have an account? Sign up"
+                      : 'Already have an account? Sign in'}
+                  </button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </motion.div>

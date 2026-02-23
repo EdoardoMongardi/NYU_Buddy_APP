@@ -18,6 +18,7 @@ import { updateMatchStatusHandler } from './matches/updateStatus';
 import { matchSendMessageHandler } from './matches/sendMessage';
 import { matchFetchAllPlacesHandler } from './matches/fetchPlaces';
 import { matchSetPlaceChoiceHandler } from './matches/setPlaceChoice';
+import { matchSearchCustomPlaceHandler } from './matches/searchCustomPlace';
 import { matchResolvePlaceIfNeededHandler } from './matches/resolvePlace';
 import { matchResolveExpiredHandler } from './matches/resolveExpired';
 import { matchCleanupStalePendingHandler } from './matches/cleanupStalePending';
@@ -57,6 +58,8 @@ import { reportSubmitHandler } from './safety/submitReport';
 import { askSendMessageHandler } from './activity/askSendMessage';
 import { askGetThreadHandler } from './activity/askGetThread';
 import { askGetThreadsHandler } from './activity/askGetThreads';
+import { sendVerificationCodeHandler } from './verification/sendCode';
+import { verifyCodeHandler } from './verification/verifyCode';
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -147,6 +150,11 @@ export const matchFetchAllPlaces = onCall(
 export const matchSetPlaceChoice = onCall(
   { region: 'us-east1' },
   matchSetPlaceChoiceHandler
+);
+
+export const matchSearchCustomPlace = onCall(
+  { region: 'us-east1', cors: true },
+  matchSearchCustomPlaceHandler
 );
 
 export const matchResolvePlaceIfNeeded = onCall(
@@ -352,4 +360,26 @@ export const activityDataPurge = onSchedule(
 export const mapStatusCleanupExpired = onSchedule(
   { schedule: 'every 5 minutes', region: 'us-east1' },
   mapStatusCleanupExpiredHandler
+);
+
+// ============================================================================
+// EMAIL VERIFICATION (OTP)
+// ============================================================================
+
+const EMAIL_SECRETS = [
+  'EMAIL_SMTP_HOST',
+  'EMAIL_SMTP_PORT',
+  'EMAIL_SMTP_USER',
+  'EMAIL_SMTP_PASS',
+  'EMAIL_FROM_NAME',
+];
+
+export const sendVerificationCode = onCall(
+  { region: 'us-east1', secrets: EMAIL_SECRETS },
+  sendVerificationCodeHandler
+);
+
+export const verifyCode = onCall(
+  { region: 'us-east1' },
+  verifyCodeHandler
 );

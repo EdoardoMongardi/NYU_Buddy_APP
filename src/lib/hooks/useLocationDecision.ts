@@ -6,6 +6,7 @@ import { getFirebaseDb } from '@/lib/firebase/client';
 import {
     matchFetchAllPlaces,
     matchSetPlaceChoice,
+    matchSearchCustomPlace,
     matchResolvePlaceIfNeeded,
     PlaceCandidate,
 } from '@/lib/firebase/functions';
@@ -213,6 +214,31 @@ export function useLocationDecision(matchId: string | null) {
         await handleSetChoice(otherChoice.placeId, otherChoice.placeRank, true);
     }, [otherChoice, handleSetChoice]);
 
+    // Custom Place Selection
+    const handleSelectCustomPlace = useCallback(async (customPlace: PlaceCandidate) => {
+        if (!matchId) return;
+        setIsSettingChoice(true);
+
+        try {
+            const result = await matchSearchCustomPlace({
+                matchId,
+                customPlace,
+            });
+
+            if (result.data.success) {
+                // Now set the choice using the newly created/returned placeId
+                await handleSetChoice(result.data.placeId, -1, false);
+            } else {
+                setError('Failed to process custom place');
+            }
+        } catch (err) {
+            console.error('Failed to select custom place:', err);
+            setError('Failed to select custom place');
+        } finally {
+            setIsSettingChoice(false);
+        }
+    }, [matchId, handleSetChoice]);
+
     // Get candidate by placeId
     const getCandidateByPlaceId = useCallback((placeId: string) => {
         return placeCandidates.find(c => c.placeId === placeId);
@@ -247,6 +273,7 @@ export function useLocationDecision(matchId: string | null) {
         handleFindOthers,
         handleSetChoice,
         handleGoWithTheirChoice,
+        handleSelectCustomPlace,
         triggerResolution,
         isSettingChoice,
         isResolving,

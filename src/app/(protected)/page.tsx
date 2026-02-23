@@ -25,9 +25,9 @@ export default function HomePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { needsVerification } = useAuth();
   const { pendingMatches } = usePendingConfirmations();
-  const { setNavVisible } = useNav();
+  const { navRef } = useNav();
 
   // ── Activity Feed State ──
   const {
@@ -43,38 +43,71 @@ export default function HomePage() {
   } = useActivityFeed();
 
   // ── Scroll & Header Visibility ──
-  const [showHeader, setShowHeader] = useState(true);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const headerContentRef = useRef<HTMLDivElement>(null);
+  const headerOffset = useRef(0);
+  const navOffset = useRef(0);
   const lastScrollY = useRef(0);
+  const ticking = useRef(false);
 
   useEffect(() => {
     const handleScroll = () => {
       // Disable scroll-hide on desktop (md breakpoint)
       if (window.matchMedia('(min-width: 768px)').matches) {
-        setShowHeader(true);
+        if (headerRef.current) {
+          headerRef.current.style.transform = 'translateY(0)';
+        }
+        if (headerContentRef.current) {
+          headerContentRef.current.style.opacity = '1';
+        }
+        if (navRef.current) {
+          navRef.current.style.transform = 'translateY(0)';
+        }
         return;
       }
 
       const currentScrollY = window.scrollY;
 
-      // Threshold to avoid jitter
-      if (Math.abs(currentScrollY - lastScrollY.current) < 10) return;
+      // Calculate delta
+      const diff = currentScrollY - lastScrollY.current;
+      lastScrollY.current = currentScrollY;
 
-      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-        // Scrolling Down -> Hide
-        setShowHeader(false);
-        setNavVisible(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling Up -> Show
-        setShowHeader(true);
-        setNavVisible(true);
+      // Ignore overscroll bouncing on iOS
+      if (currentScrollY <= 0) {
+        headerOffset.current = 0;
+        navOffset.current = 0;
+      } else {
+        // Topbar max hide offset ~140px, Bottom bar max hide offset ~100px
+        const maxHeaderOffset = 140;
+        const maxNavOffset = 100;
+
+        headerOffset.current = Math.min(0, Math.max(-maxHeaderOffset, headerOffset.current - diff));
+        navOffset.current = Math.min(maxNavOffset, Math.max(0, navOffset.current + diff));
       }
 
-      lastScrollY.current = currentScrollY;
+      if (!ticking.current) {
+        window.requestAnimationFrame(() => {
+          if (headerRef.current) {
+            headerRef.current.style.transform = `translateY(${headerOffset.current}px)`;
+          }
+          if (headerContentRef.current) {
+            const maxHeaderOffset = 140;
+            const opacity = 1 - Math.abs(headerOffset.current) / maxHeaderOffset;
+            headerContentRef.current.style.opacity = opacity.toString();
+          }
+          if (navRef.current) {
+            navRef.current.style.transform = `translateY(${navOffset.current}px)`;
+          }
+          ticking.current = false;
+        });
+
+        ticking.current = true;
+      }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [setNavVisible]);
+  }, [navRef]);
 
   // ── PWA standalone detection ──
   const [isPWA, setIsPWA] = useState(false);
@@ -149,7 +182,7 @@ export default function HomePage() {
     }
   }, [searchParams, toast, router]);
 
-  const emailVerified = user?.emailVerified;
+  const emailVerified = !needsVerification;
 
   return (
     <div
@@ -162,104 +195,108 @@ export default function HomePage() {
 
       {/* ── HEADER GROUP (Sticky/Animated) ── */}
       <div
-        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white/95 backdrop-blur-md transition-transform duration-300 ease-in-out border-b border-gray-100 flex flex-col md:!transform-none`}
-        style={{ transform: showHeader ? 'translateY(0)' : 'translateY(-100%)' }}
+        ref={headerRef}
+        className={`fixed top-0 left-0 right-0 z-30 w-full md:max-w-[600px] mx-auto bg-white border-b border-gray-100 flex flex-col md:!transform-none`}
+        style={{ transform: 'translateY(0)' }}
       >
-        {/* Row 1: Title + Action Icons */}
-        <div className={`flex items-center justify-between px-4 ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'}`}>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">NYU Buddy</h1>
+        <div ref={headerContentRef} className="flex flex-col w-full h-full" style={{ opacity: 1 }}>
+          {/* Row 1: Title (Mobile) + Action Icons */}
+          <div className={`flex items-center justify-between px-4 relative ${isPWA ? 'pt-2 pb-1' : 'pt-3 pb-1'} ${!showNotifBubble && !showInstallBubble ? 'md:hidden' : ''}`}>
+            <h1 className="md:hidden text-xl font-bold text-violet-600 tracking-tight">NYU Buddy</h1>
 
-          {/* Notification / Install bubble */}
-          <AnimatePresence mode="wait">
-            {showNotifBubble && (
-              <motion.div
-                key="notif"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
-              >
-                <Bell className="w-3.5 h-3.5 flex-shrink-0" />
-                <button
-                  onClick={handleEnableNotifications}
-                  disabled={notifRequesting}
-                  className="text-[12px] font-medium whitespace-nowrap"
-                >
-                  {notifRequesting ? 'Enabling...' : 'Notifications'}
-                </button>
-                <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
-                  <X className="w-3.5 h-3.5 text-violet-400" />
-                </button>
-              </motion.div>
-            )}
-            {!showNotifBubble && showInstallBubble && (
-              <motion.div
-                key="install"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
-              >
-                <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
-                  Install
-                </button>
-                <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
-                  <X className="w-3.5 h-3.5 text-violet-400" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Row 2: Sub-tabs (X-style) */}
-        {/* Note: In previous version this had a verified check, keeping it */}
-        {emailVerified && (
-          <div className="flex relative mt-1">
-            <button
-              onClick={() => setFeedTab('for-you')}
-              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'for-you' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                }`}
-            >
-              For you
-            </button>
-            <button
-              onClick={() => setFeedTab('asked')}
-              className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'asked' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                }`}
-            >
-              Asked
-            </button>
-            {/* Animated underline indicator */}
-            <motion.div
-              className="absolute bottom-0 h-[3px] bg-violet-600 rounded-full"
-              animate={{
-                left: feedTab === 'for-you' ? '0%' : '50%',
-                width: '50%',
-              }}
-              transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
-            />
+            <div className="flex-1 flex justify-end">
+              <AnimatePresence mode="wait">
+                {showNotifBubble && (
+                  <motion.div
+                    key="notif"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
+                  >
+                    <Bell className="w-3.5 h-3.5 flex-shrink-0" />
+                    <button
+                      onClick={handleEnableNotifications}
+                      disabled={notifRequesting}
+                      className="text-[12px] font-medium whitespace-nowrap"
+                    >
+                      {notifRequesting ? 'Enabling...' : 'Notifications'}
+                    </button>
+                    <button onClick={dismissNotif} className="p-1 hover:bg-violet-100 rounded-full">
+                      <X className="w-3.5 h-3.5 text-violet-400" />
+                    </button>
+                  </motion.div>
+                )}
+                {!showNotifBubble && showInstallBubble && (
+                  <motion.div
+                    key="install"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full pl-3 pr-2 py-1.5 border border-violet-100/60"
+                  >
+                    <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                    <button onClick={handleInstall} className="text-[12px] font-medium whitespace-nowrap">
+                      Install
+                    </button>
+                    <button onClick={dismissFor24Hours} className="p-1 hover:bg-violet-100 rounded-full">
+                      <X className="w-3.5 h-3.5 text-violet-400" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        )}
 
-        {/* Row 3: Category Filters */}
-        <div className="py-2 px-4">
-          <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
+          {/* Row 2: Sub-tabs (X-style) */}
+          {/* Note: In previous version this had a verified check, keeping it */}
+          {emailVerified && (
+            <div className="flex relative mt-1">
+              <button
+                onClick={() => setFeedTab('for-you')}
+                className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'for-you' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+              >
+                For you
+              </button>
+              <button
+                onClick={() => setFeedTab('asked')}
+                className={`flex-1 py-3 text-[14px] font-semibold text-center transition-colors ${feedTab === 'asked' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+              >
+                Asked
+              </button>
+              {/* Animated underline indicator */}
+              <motion.div
+                className="absolute bottom-0 h-[3px] bg-violet-600 rounded-full"
+                animate={{
+                  left: feedTab === 'for-you' ? '0%' : '50%',
+                  width: '50%',
+                }}
+                transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+              />
+            </div>
+          )}
+
+          {/* Row 3: Category Filters */}
+          <div className="py-2 px-4">
+            <CategoryFilter selected={categoryFilter} onSelect={setCategory} />
+          </div>
         </div>
       </div>
 
       {/* ── SCROLLABLE CONTENT ── */}
-      {/* Padding top adjusted for header height ≈ 150px */}
+      {/* Padding top adjusted for header height ≈ 138px */}
       <div
         className="flex-1 w-full"
-        style={{ paddingTop: '140px' }}
+        style={{ paddingTop: '138px' }}
       >
         {!emailVerified ? (
           <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-6 text-center mx-5 mt-4">
             <h3 className="font-semibold text-amber-800 mb-2">Verify Your Email</h3>
-            <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features. Check your inbox for the verification link.</p>
+            <p className="text-amber-700 text-sm">Please verify your NYU email address to access all features.</p>
           </div>
         ) : (
           <div className="min-h-full">

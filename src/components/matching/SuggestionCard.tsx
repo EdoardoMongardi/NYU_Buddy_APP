@@ -513,70 +513,75 @@ export default function SuggestionCard({ isAvailable, canSendMore, isPWA = false
   const stackLayers = remainingCount >= 2 ? 2 : remainingCount === 1 ? 1 : 0;
 
   return (
-    <div className="relative" ref={containerRef}>
-      {stackLayers >= 2 && (
-        <div className="absolute top-[3px] bottom-[3px] left-1.5 right-0 rounded-2xl bg-gray-100/60 border border-gray-200/30" />
-      )}
-      {stackLayers >= 1 && (
-        <div className="absolute top-[1.5px] bottom-[1.5px] left-1.5 right-[2px] rounded-2xl bg-gray-50/70 border border-gray-200/40" />
-      )}
+    <div>
+      <div className="relative" ref={containerRef}>
+        {stackLayers >= 2 && (
+          <div className="absolute inset-y-0 left-3 right-0 rounded-2xl bg-gray-100/60 border border-gray-200/30" />
+        )}
+        {stackLayers >= 1 && (
+          <div className="absolute inset-y-0 left-1.5 right-0 rounded-2xl bg-gray-50/70 border border-gray-200/40" />
+        )}
 
-      <motion.div
-        className="absolute top-0 bottom-0 left-1.5 right-1 rounded-2xl overflow-hidden"
-        style={{ scale: bgScale, opacity: bgOpacity }}
-      >
-        {nextSuggestion ? (
+        <motion.div
+          className="absolute top-0 bottom-0 left-1.5 right-1 rounded-2xl overflow-hidden"
+          style={{ scale: bgScale, opacity: bgOpacity }}
+        >
+          {nextSuggestion ? (
+            <CardBody
+              s={nextSuggestion}
+              commonInterests={nextCommonInterests}
+              nonCommonInterests={nextNonCommonInterests}
+              walkMinutes={nextWalkMinutes}
+              cycleInfo={cycleInfo ? { ...cycleInfo, current: cycleInfo.current + 1 } : null}
+              canSendMore={canSendMore}
+              isResponding={false}
+              isSwiping={false}
+              isPWA={isPWA}
+            />
+          ) : isLastCard ? (
+            <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden rounded-2xl">
+              <CardContent className="py-10 flex items-center justify-center">
+                <div className="text-center px-6">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-violet-50 flex items-center justify-center">
+                    <RefreshCw className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <p className="text-[14px] font-semibold text-gray-700">That&apos;s everyone nearby</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="h-full bg-white rounded-2xl border border-gray-200/40" />
+          )}
+        </motion.div>
+
+        <motion.div
+          key={suggestion.uid}
+          initial={skipAnimation ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={skipAnimation ? { duration: 0 } : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          style={{ x, rotate, touchAction: 'none' }}
+          onPointerDown={handlePointerDown}
+          onPan={handlePan}
+          onPanEnd={handlePanEnd}
+          className="relative z-10 mx-1.5"
+        >
           <CardBody
-            s={nextSuggestion}
-            commonInterests={nextCommonInterests}
-            nonCommonInterests={nextNonCommonInterests}
-            walkMinutes={nextWalkMinutes}
-            cycleInfo={cycleInfo ? { ...cycleInfo, current: cycleInfo.current + 1 } : null}
+            s={suggestion}
+            commonInterests={commonInterests}
+            nonCommonInterests={nonCommonInterests}
+            walkMinutes={walkMinutes}
+            cycleInfo={cycleInfo}
             canSendMore={canSendMore}
-            isResponding={false}
-            isSwiping={false}
+            onInvite={handleInvite}
+            isResponding={isResponding}
+            isSwiping={isSwiping}
             isPWA={isPWA}
           />
-        ) : isLastCard ? (
-          <Card className="border border-gray-200/60 shadow-card bg-white overflow-hidden rounded-2xl">
-            <CardContent className="py-10 flex items-center justify-center">
-              <div className="text-center px-6">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-violet-50 flex items-center justify-center">
-                  <RefreshCw className="w-5 h-5 text-violet-400" />
-                </div>
-                <p className="text-[14px] font-semibold text-gray-700">That&apos;s everyone nearby</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="h-full bg-white rounded-2xl border border-gray-200/40" />
-        )}
-      </motion.div>
-
-      <motion.div
-        key={suggestion.uid}
-        initial={skipAnimation ? false : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={skipAnimation ? { duration: 0 } : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        style={{ x, rotate, touchAction: 'none' }}
-        onPointerDown={handlePointerDown}
-        onPan={handlePan}
-        onPanEnd={handlePanEnd}
-        className="relative z-10 mx-1.5"
-      >
-        <CardBody
-          s={suggestion}
-          commonInterests={commonInterests}
-          nonCommonInterests={nonCommonInterests}
-          walkMinutes={walkMinutes}
-          cycleInfo={cycleInfo}
-          canSendMore={canSendMore}
-          onInvite={handleInvite}
-          isResponding={isResponding}
-          isSwiping={isSwiping}
-          isPWA={isPWA}
-        />
-      </motion.div>
+        </motion.div>
+      </div>
+      <p className="mt-2 text-center text-xs text-gray-500">
+        Swipe left or right to see other available users.
+      </p>
     </div>
   );
 }

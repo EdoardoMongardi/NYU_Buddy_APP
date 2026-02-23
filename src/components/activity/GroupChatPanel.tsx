@@ -9,12 +9,14 @@ import { useToast } from '@/hooks/use-toast';
 interface GroupChatPanelProps {
   groupId: string;
   fullScreen?: boolean;
+  onRemoved?: () => void;
 }
 
-export default function GroupChatPanel({ groupId, fullScreen = false }: GroupChatPanelProps) {
+export default function GroupChatPanel({ groupId, fullScreen = false, onRemoved }: GroupChatPanelProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { messages, loading, error, sendMessage, sending } = useGroupChat(groupId);
+  const { messages, loading, error, removed, sendMessage, sending } = useGroupChat(groupId);
+  const removedNotifiedRef = useRef(false);
   const [input, setInput] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,6 +57,13 @@ export default function GroupChatPanel({ groupId, fullScreen = false }: GroupCha
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (removed && !removedNotifiedRef.current) {
+      removedNotifiedRef.current = true;
+      onRemoved?.();
+    }
+  }, [removed, onRemoved]);
 
   const handleInputFocus = () => {
     requestAnimationFrame(() => {
@@ -163,44 +172,57 @@ export default function GroupChatPanel({ groupId, fullScreen = false }: GroupCha
             );
           })
         )}
+        {removed && (
+          <div className="flex justify-center py-4">
+            <span className="text-[12px] text-gray-400 bg-gray-50 px-4 py-2 rounded-full">
+              You have been removed from this activity
+            </span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div
-        className="px-3 py-3 border-t border-gray-100 flex gap-2 flex-shrink-0 bg-white"
-        style={{
-          paddingBottom: fullScreen ? 'var(--safe-bottom, env(safe-area-inset-bottom, 0px))' : '12px',
-          transition: 'padding-bottom 200ms ease-out',
-        }}
-      >
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={handleInputFocus}
-          placeholder="Type a message..."
-          rows={1}
-          className="flex-1 resize-none border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 max-h-20 overflow-y-auto bg-white"
-          style={{ minHeight: '40px' }}
-        />
-        <button
-          onMouseDown={(e) => e.preventDefault()} // Prevent focus loss
-          onClick={handleSend}
-          disabled={!input.trim() || sending}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${input.trim() && !sending
-            ? 'bg-violet-600 text-white hover:bg-violet-700'
-            : 'bg-gray-100 text-gray-400'
-            }`}
+      {removed ? (
+        <div className="px-3 py-3 border-t border-gray-100 flex-shrink-0 bg-gray-50">
+          <p className="text-center text-sm text-gray-400">You can no longer send messages</p>
+        </div>
+      ) : (
+        <div
+          className="px-3 py-3 border-t border-gray-100 flex gap-2 flex-shrink-0 bg-white"
+          style={{
+            paddingBottom: fullScreen ? 'var(--safe-bottom, env(safe-area-inset-bottom, 0px))' : '12px',
+            transition: 'padding-bottom 200ms ease-out',
+          }}
         >
-          {sending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-        </button>
-      </div>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={handleInputFocus}
+            placeholder="Type a message..."
+            rows={1}
+            className="flex-1 resize-none border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 max-h-20 overflow-y-auto bg-white"
+            style={{ minHeight: '40px' }}
+          />
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleSend}
+            disabled={!input.trim() || sending}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${input.trim() && !sending
+              ? 'bg-violet-600 text-white hover:bg-violet-700'
+              : 'bg-gray-100 text-gray-400'
+              }`}
+          >
+            {sending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

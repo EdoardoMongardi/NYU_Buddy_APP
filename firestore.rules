@@ -225,6 +225,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Verification Codes collection (OTP codes for email verification)
+    // All access via Cloud Functions only
+    match /verificationCodes/{uid} {
+      allow read, write: if false; // Cloud Functions only (Admin SDK bypasses rules)
+    }
+
     // Asks collection (1v1 chats before join request)
     // Only the asker and the post creator can read the thread
     // Writes via Cloud Functions only

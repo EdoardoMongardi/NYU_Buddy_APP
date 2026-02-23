@@ -256,10 +256,18 @@ export interface PlaceCandidate {
   lng: number;
   distance: number;
   rank: number;
-  tags?: string[];
+  tags?: string[];           // Human-readable display labels (e.g. "Bubble Tea", "Restaurant")
+  rawTypes?: string[];       // Raw Google Place API types (e.g. "bubble_tea_shop") — used for category derivation on the backend
   priceLevel?: number;
   priceRange?: string; // U11: e.g., "$20-$50" (preferred over priceLevel)
   photoUrl?: string;
+  openingHours?: {
+    periods: {
+      open?: { day: number; time: string };
+      close?: { day: number; time: string };
+    }[];
+    weekday_text: string[];
+  } | null;
 }
 
 export const matchFetchAllPlaces = createCallable<
@@ -287,6 +295,17 @@ export const matchSetPlaceChoice = createCallable<
     shouldResolve?: boolean;
   }
 >('matchSetPlaceChoice');
+
+export const matchSearchCustomPlace = createCallable<
+  {
+    matchId: string;
+    customPlace: PlaceCandidate;
+  },
+  {
+    success: boolean;
+    placeId: string;
+  }
+>('matchSearchCustomPlace');
 
 export const matchResolvePlaceIfNeeded = createCallable<
   { matchId: string },
@@ -577,3 +596,17 @@ export const askGetThreads = createCallable<
   { role: 'asker' | 'creator'; postId?: string; cursor?: string | null; limit?: number },
   { askThreads: AskThreadInfo[]; nextCursor: string | null }
 >('askGetThreads');
+
+// ============================================================================
+// EMAIL VERIFICATION (OTP)
+// ============================================================================
+
+export const sendVerificationCode = createCallable<
+  void,
+  { success: boolean; message: string }
+>('sendVerificationCode');
+
+export const verifyCodeFn = createCallable<
+  { code: string },
+  { success: boolean }
+>('verifyCode');

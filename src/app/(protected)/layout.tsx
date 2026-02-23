@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -16,6 +16,7 @@ import ManageActivityTab from '@/components/activity/ManageActivityTab';
 import InstantMatchTab from '@/components/matching/InstantMatchTab';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
 import { NavProvider, useNav } from '@/context/NavContext';
+import { usePresence } from '@/lib/hooks/usePresence';
 
 // Dynamic import — SSR-safe, only loads mapbox-gl on client
 const MapboxMap = dynamic(() => import('@/components/map/MapboxMap'), {
@@ -33,6 +34,7 @@ function LayoutContent({
   children: React.ReactNode;
 }) {
   const { user, userProfile, loading } = useAuth();
+  const { presence } = usePresence();
   const router = useRouter();
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
@@ -121,6 +123,14 @@ function LayoutContent({
       router.push('/profile');
       return;
     }
+
+    // Phase 6: By-pass the home tab redirect if switching to the match tab while already matched
+    if (tab === 'search' && presence?.matchId && presence.status === 'matched') {
+      router.push(`/match/${presence.matchId}`);
+      // Deliberately NOT calling setActiveTab here to avoid flashing the InstantMatchTab Availability sheet on the root page.
+      return;
+    }
+
     // If on a sub-page (post detail, match, profile, etc.), navigate back to root
     if (pathname !== '/') {
       router.push('/');
@@ -137,8 +147,8 @@ function LayoutContent({
     }
   }, [pathname]);
 
-  // Is user on a sub-page (post detail, match, feedback, etc.)?
-  const isSubPage = pathname !== '/' && pathname !== '/onboarding';
+  // Is user on a sub-page (post detail, match, onboarding, profile, etc.)?
+  const isSubPage = pathname !== '/';
 
   // Is user on the root page? (where we show tab content)
   const isRootPage = pathname === '/';
@@ -218,20 +228,28 @@ function LayoutContent({
           }`}
       >
         <div className="md:max-w-[600px] md:mx-auto md:border-x md:border-gray-100 md:min-h-screen">
-          {/* If on root page, render tab content */}
-          {isRootPage && activeTab === 'home' && children}
-          {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
-          {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
+          <Suspense fallback={null}>
+            {/* If on root page, render tab content */}
+            {isRootPage && activeTab === 'home' && children}
+            {isRootPage && activeTab === 'manage' && <ManageActivityTab />}
+            {isRootPage && activeTab === 'search' && <InstantMatchTab isPWA={isPWA} />}
 
-          {/* If on a sub-page, render the route children normally */}
-          {isSubPage && children}
+            {/* If on a sub-page, render the route children normally */}
+            {isSubPage && children}
+          </Suspense>
         </div>
       </main>
 
       {/* ── Tab Bar (always visible, except on onboarding) ── */}
       {pathname !== '/onboarding' && (
         <BottomTabBar
-          activeTab={isSubPage && pathname !== '/profile' ? 'home' : activeTab}
+          activeTab={
+            isSubPage && pathname !== '/profile'
+              ? pathname.startsWith('/match/')
+                ? 'search'
+                : 'home'
+              : activeTab
+          }
           onTabChange={handleTabChange}
         />
       )}
