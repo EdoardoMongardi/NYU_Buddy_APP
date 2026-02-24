@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
-import ActivityPostCard from './ActivityPostCard';
+import PostCardGrid from './PostCardGrid';
+import PostDetailModal from './PostDetailModal';
 import CreatePostFAB from './CreatePostFAB';
 import { FeedPost } from '@/lib/firebase/functions';
 
@@ -27,6 +28,7 @@ export default function ActivityFeed({
   refresh,
   loadMore,
 }: ActivityFeedProps) {
+  const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
 
   const observer = useRef<IntersectionObserver | null>(null);
   const lastPostRef = useCallback(
@@ -43,14 +45,24 @@ export default function ActivityFeed({
     [loadingMore, hasMore, loadMore]
   );
 
+  const handleCardClick = (post: FeedPost) => {
+    setSelectedPost(post);
+  };
+
+  const handleNext = () => {
+    if (!selectedPost) return;
+    const idx = posts.findIndex(p => p.postId === selectedPost.postId);
+    if (idx < posts.length - 1) {
+      setSelectedPost(posts[idx + 1]);
+    }
+  };
+
   return (
     <>
       <PullToRefresh onRefresh={refresh}>
         <div className="flex flex-col h-full bg-white">
-          {/* Feed content */}
           <div className="flex-1 min-h-0 pb-20 pt-1">
 
-            {/* Loading state */}
             {loading && posts.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <Loader2 className="w-8 h-8 animate-spin mb-3" />
@@ -58,7 +70,6 @@ export default function ActivityFeed({
               </div>
             )}
 
-            {/* Error state */}
             {error && (
               <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mx-4 mb-3">
                 <p className="text-red-700 text-sm text-center">{error}</p>
@@ -71,7 +82,6 @@ export default function ActivityFeed({
               </div>
             )}
 
-            {/* Empty state */}
             {!loading && !error && posts.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <p className="text-lg font-medium text-gray-600 mb-1">No activities yet</p>
@@ -79,19 +89,18 @@ export default function ActivityFeed({
               </div>
             )}
 
-            {/* Posts */}
-            <div className="space-y-0">
+            {/* 2-col mobile, 3-col desktop grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 px-3 py-2">
               {posts.map((post, index) => (
                 <div
                   key={post.postId}
                   ref={index === posts.length - 1 ? lastPostRef : undefined}
                 >
-                  <ActivityPostCard post={post} />
+                  <PostCardGrid post={post} onClick={handleCardClick} />
                 </div>
               ))}
             </div>
 
-            {/* Loading more indicator */}
             {loadingMore && (
               <div className="flex justify-center py-4">
                 <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
@@ -101,8 +110,20 @@ export default function ActivityFeed({
         </div>
       </PullToRefresh>
 
-      {/* FAB fixed at the bottom right */}
       <CreatePostFAB />
+
+      {/* Post Detail Modal */}
+      {selectedPost && (
+        <PostDetailModal
+          feedPost={selectedPost}
+          onClose={() => setSelectedPost(null)}
+          onNext={
+            posts.findIndex(p => p.postId === selectedPost.postId) < posts.length - 1
+              ? handleNext
+              : undefined
+          }
+        />
+      )}
     </>
   );
 }

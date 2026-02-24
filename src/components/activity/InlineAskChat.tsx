@@ -245,6 +245,7 @@ function AskerAskView({ postId, postStatus, autoFocus, isExpired }: { postId: st
     const [loading, setLoading] = useState(true);
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
+    const [collapsed, setCollapsed] = useState(!!isExpired);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -303,11 +304,7 @@ function AskerAskView({ postId, postStatus, autoFocus, isExpired }: { postId: st
 
     if (!user) return null;
 
-    // askSendMessage requires post to be 'open'; show read-only input for other statuses
     const canSend = !postStatus || postStatus === 'open';
-
-    // When expired, the section is collapsible (starts collapsed)
-    const [collapsed, setCollapsed] = useState(!!isExpired);
 
     return (
         <div className="mt-3 border-t border-gray-100 pt-3">

@@ -399,7 +399,7 @@ export default function ManageActivityTab() {
                                 <p className="text-sm text-gray-400">Create a post to find activity buddies!</p>
                             </div>
                         )}
-                        <div className="space-y-3">
+                        <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                             {myPosts.map((post) => (
                                 <MyPostCard key={post.postId} post={post} />
                             ))}
@@ -423,7 +423,7 @@ export default function ManageActivityTab() {
                                 <p className="text-sm text-gray-400">Join activities from the Home feed!</p>
                             </div>
                         )}
-                        <div className="space-y-3">
+                        <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                             {joinedActivities.map((item) => (
                                 <JoinedActivityCard key={item.request.requestId} item={item} />
                             ))}
@@ -447,7 +447,7 @@ export default function ManageActivityTab() {
                                 <p className="text-sm text-gray-400">You&apos;re all caught up!</p>
                             </div>
                         )}
-                        <div className="space-y-4">
+                        <div className="space-y-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
                             {incomingRequests.map((group) => {
                                 const categoryLabel = CATEGORY_LABELS[group.post.category as ActivityCategory] || group.post.category;
                                 const categoryColor = CATEGORY_COLORS[group.post.category] || CATEGORY_COLORS.other;
