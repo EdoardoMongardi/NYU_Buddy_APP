@@ -18,6 +18,7 @@ interface InlineAskChatProps {
     creatorUid: string;
     postStatus?: string;
     autoFocus?: boolean;
+    isExpired?: boolean;
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -35,7 +36,7 @@ function timeAgo(dateStr: string | null): string {
 // Uses askGetThreads for asker metadata (photo/name) and askGetThread (no
 // targetAskerUid) for the FULL message history so creator replies and asker
 // follow-ups are never lost.
-function CreatorAsksView({ postId }: { postId: string }) {
+function CreatorAsksView({ postId, isExpired }: { postId: string; isExpired?: boolean }) {
     const { user } = useAuth();
     const { toast } = useToast();
     // thread metadata keyed by askerUid
@@ -146,7 +147,7 @@ function CreatorAsksView({ postId }: { postId: string }) {
                 className="w-full flex items-center gap-1.5 px-1 py-0.5 rounded-lg hover:bg-gray-50 transition-colors"
             >
                 <MessageSquare className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <span className="text-[12px] font-semibold text-gray-600">Asks</span>
+                <span className="text-[12px] font-semibold text-gray-600">{isExpired ? 'Asks history' : 'Asks'}</span>
                 <span className="text-[11px] font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full ml-0.5">
                     {threads.length}
                 </span>
@@ -189,11 +190,10 @@ function CreatorAsksView({ postId }: { postId: string }) {
                                                 key={msg.id}
                                                 className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ml-9`}
                                             >
-                                                <div className={`max-w-[90%] px-3 py-2 rounded-xl text-[13px] leading-relaxed ${
-                                                    isOwn
+                                                <div className={`max-w-[90%] px-3 py-2 rounded-xl text-[13px] leading-relaxed ${isOwn
                                                         ? 'bg-violet-100 text-violet-900 rounded-br-sm'
                                                         : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
-                                                }`}>
+                                                    }`}>
                                                     {msg.body}
                                                 </div>
                                             </div>
@@ -236,7 +236,7 @@ function CreatorAsksView({ postId }: { postId: string }) {
 }
 
 // ─── Asker view: shows own thread as chat bubbles + send input ───
-function AskerAskView({ postId, postStatus, autoFocus }: { postId: string; postStatus?: string; autoFocus?: boolean }) {
+function AskerAskView({ postId, postStatus, autoFocus, isExpired }: { postId: string; postStatus?: string; autoFocus?: boolean; isExpired?: boolean }) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [messages, setMessages] = useState<AskMessage[]>([]);
@@ -309,7 +309,7 @@ function AskerAskView({ postId, postStatus, autoFocus }: { postId: string; postS
             {/* My Ask header */}
             <div className="flex items-center gap-1.5 mb-2 px-1">
                 <MessageSquare className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <span className="text-[12px] font-semibold text-gray-600">My Ask</span>
+                <span className="text-[12px] font-semibold text-gray-600">{isExpired ? 'Ask history' : 'My Ask'}</span>
             </div>
 
             {loading ? (
@@ -380,15 +380,15 @@ function AskerAskView({ postId, postStatus, autoFocus }: { postId: string; postS
 }
 
 // ─── Main export ───
-export default function InlineAskChat({ postId, creatorUid, postStatus, autoFocus }: InlineAskChatProps) {
+export default function InlineAskChat({ postId, creatorUid, postStatus, autoFocus, isExpired }: InlineAskChatProps) {
     const { user } = useAuth();
     if (!user) return null;
 
     const isCreator = user.uid === creatorUid;
 
     if (isCreator) {
-        return <CreatorAsksView postId={postId} />;
+        return <CreatorAsksView postId={postId} isExpired={isExpired} />;
     }
 
-    return <AskerAskView postId={postId} postStatus={postStatus} autoFocus={autoFocus} />;
+    return <AskerAskView postId={postId} postStatus={postStatus} autoFocus={autoFocus} isExpired={isExpired} />;
 }

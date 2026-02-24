@@ -19,7 +19,7 @@ import {
 import { motion } from 'framer-motion';
 import { useManageActivity, JoinedActivity } from '@/lib/hooks/useManageActivity';
 import { CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
-import { FeedPost } from '@/lib/firebase/functions';
+import { FeedPost, PostDetail } from '@/lib/firebase/functions';
 
 // ─── Category styling ───────────────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
@@ -32,15 +32,6 @@ const CATEGORY_COLORS: Record<string, string> = {
     other: 'bg-gray-100 text-gray-700',
 };
 
-const CATEGORY_EMOJIS: Record<string, string> = {
-    coffee: '☕',
-    study: '📚',
-    food: '🍔',
-    event: '🎉',
-    explore: '🗺️',
-    sports: '⚽',
-    other: '🔮',
-};
 
 function timeAgo(dateStr: string | null): string {
     if (!dateStr) return '';
@@ -55,12 +46,10 @@ function timeAgo(dateStr: string | null): string {
 
 function CategoryPill({ category }: { category: string }) {
     const color = CATEGORY_COLORS[category] || CATEGORY_COLORS.other;
-    const emoji = CATEGORY_EMOJIS[category] || '';
     const label = CATEGORY_LABELS[category as ActivityCategory] || category;
     return (
-        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0 ${color}`}>
-            <span>{emoji}</span>
-            <span>{label}</span>
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0 ${color}`}>
+            {label}
         </span>
     );
 }
@@ -68,7 +57,7 @@ function CategoryPill({ category }: { category: string }) {
 // ─────────────────────────────────────────────────
 //  My Post Card
 // ─────────────────────────────────────────────────
-function MyPostCard({ post }: { post: FeedPost }) {
+function MyPostCard({ post }: { post: PostDetail }) {
     const router = useRouter();
     const isExpired = post.status === 'expired';
     const isClosed = post.status === 'closed';
@@ -76,16 +65,15 @@ function MyPostCard({ post }: { post: FeedPost }) {
     const isOpen = post.status === 'open';
 
     return (
-        <div className="w-full text-left bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+        <div className={`w-full text-left bg-white rounded-2xl border border-gray-100 p-4 shadow-sm ${isExpired ? 'opacity-60' : ''}`}>
             {/* Header: category + status */}
             <div className="flex items-center justify-between mb-2.5">
                 <CategoryPill category={post.category} />
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border flex-shrink-0 ${
-                    isOpen   ? 'bg-green-50 text-green-700 border-green-100' :
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border flex-shrink-0 ${isOpen ? 'bg-green-50 text-green-700 border-green-100' :
                     isFilled ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                    isClosed ? 'bg-gray-50 text-gray-600 border-gray-100' :
-                               'bg-red-50 text-red-600 border-red-100'
-                }`}>
+                        isClosed ? 'bg-gray-50 text-gray-600 border-gray-100' :
+                            'bg-red-50 text-red-600 border-red-100'
+                    }`}>
                     {(isOpen || isFilled) && (
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isOpen ? 'bg-green-500' : 'bg-amber-500'}`} />
                     )}
@@ -110,15 +98,14 @@ function MyPostCard({ post }: { post: FeedPost }) {
                     <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                     {timeAgo(post.createdAt)}
                 </span>
-                <span className={`flex items-center gap-1 ml-auto font-medium ${
-                    isFilled ? 'text-amber-500' : 'text-gray-500'
-                }`}>
+                <span className={`flex items-center gap-1 ml-auto font-medium ${isFilled ? 'text-amber-500' : 'text-gray-500'
+                    }`}>
                     <Users className="w-3.5 h-3.5 flex-shrink-0" />
                     {post.acceptedCount}/{post.maxParticipants}
                 </span>
             </div>
 
-            {/* Open group chat button */}
+            {/* Open group chat button — only when not expired/closed and there are members */}
             {!isExpired && !isClosed && post.acceptedCount > 0 && (
                 <button
                     onClick={() => router.push(`/post/${post.postId}`)}
@@ -130,8 +117,20 @@ function MyPostCard({ post }: { post: FeedPost }) {
                 </button>
             )}
 
+            {/* View chat history button — when expired and a group was created */}
+            {isExpired && post.groupId && (
+                <button
+                    onClick={() => router.push(`/post/${post.postId}`)}
+                    className="w-full mt-2.5 flex items-center gap-2 bg-gray-50 text-gray-500 text-[13px] font-semibold px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors active:scale-[0.98]"
+                >
+                    <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>View chat history</span>
+                    <span className="ml-auto">→</span>
+                </button>
+            )}
+
             {/* Inline Ask threads */}
-            <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} />
+            <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} isExpired={isExpired} />
         </div>
     );
 }
@@ -143,14 +142,14 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     const router = useRouter();
     const { request, post, loading } = item;
 
-    const isPending   = request.status === 'pending';
-    const isAccepted  = request.status === 'accepted';
-    const isDeclined  = request.status === 'declined';
+    const isPending = request.status === 'pending';
+    const isAccepted = request.status === 'accepted';
+    const isDeclined = request.status === 'declined';
     const isWithdrawn = request.status === 'withdrawn';
-    const isKicked    = request.status === 'kicked';
-    const isLeft      = request.status === 'left';
+    const isKicked = request.status === 'kicked';
+    const isLeft = request.status === 'left';
 
-    const isExpired  = post?.status === 'expired' || (post?.expiresAt && new Date(post.expiresAt) < new Date());
+    const isExpired = post?.status === 'expired' || (post?.expiresAt && new Date(post.expiresAt) < new Date());
     const isInactive = isDeclined || isKicked || isLeft || isWithdrawn;
 
     if (loading) {
@@ -162,7 +161,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     }
 
     const canEnterChat = isAccepted && post && !isExpired && !isInactive;
-    const canViewChatHistory = (isKicked || isLeft) && post?.groupId;
+    const canViewChatHistory = (isKicked || isLeft || (isExpired && isAccepted)) && post?.groupId;
 
     return (
         <div className={`bg-white rounded-2xl border border-gray-100 p-4 shadow-sm ${isInactive ? 'opacity-60' : ''}`}>
@@ -257,9 +256,9 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                 </button>
             )}
 
-            {/* My Ask section — show for pending AND accepted activities (read-only for accepted) */}
-            {(isPending || isAccepted) && post && (
-                <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} postStatus={post.status} />
+            {/* Ask section — show for pending/accepted (active), or any status when expired (history) */}
+            {(isPending || isAccepted || isExpired) && post && (
+                <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} postStatus={post.status} isExpired={!!isExpired} />
             )}
         </div>
     );
@@ -283,7 +282,7 @@ export default function ManageActivityTab() {
 
     const isLoading =
         activeSection === 'my-posts' ? loadingPosts :
-        activeSection === 'joined'   ? loadingJoined : loadingRequests;
+            activeSection === 'joined' ? loadingJoined : loadingRequests;
 
     const totalRequests = incomingRequests.reduce((acc, g) => acc + g.requests.length, 0);
 
@@ -303,15 +302,13 @@ export default function ManageActivityTab() {
                     {/* My Activities tab */}
                     <button
                         onClick={() => setActiveSection('my-posts')}
-                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${
-                            activeSection === 'my-posts' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                        }`}
+                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'my-posts' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                            }`}
                     >
                         <span>My Activities</span>
                         {myPosts.length > 0 && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                activeSection === 'my-posts' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500'
-                            }`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeSection === 'my-posts' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500'
+                                }`}>
                                 {myPosts.length}
                             </span>
                         )}
@@ -320,15 +317,13 @@ export default function ManageActivityTab() {
                     {/* Joined tab */}
                     <button
                         onClick={() => setActiveSection('joined')}
-                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${
-                            activeSection === 'joined' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                        }`}
+                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'joined' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                            }`}
                     >
                         <span>Joined</span>
                         {joinedActivities.length > 0 && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                activeSection === 'joined' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500'
-                            }`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeSection === 'joined' ? 'bg-violet-100 text-violet-600' : 'bg-gray-100 text-gray-500'
+                                }`}>
                                 {joinedActivities.length}
                             </span>
                         )}
@@ -337,15 +332,13 @@ export default function ManageActivityTab() {
                     {/* Requests tab */}
                     <button
                         onClick={() => setActiveSection('requests')}
-                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${
-                            activeSection === 'requests' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                        }`}
+                        className={`flex-1 py-3 text-[13px] font-semibold text-center transition-colors flex items-center justify-center gap-1.5 ${activeSection === 'requests' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                            }`}
                     >
                         <span>Requests</span>
                         {totalRequests > 0 && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                activeSection === 'requests' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
-                            }`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeSection === 'requests' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
+                                }`}>
                                 {totalRequests}
                             </span>
                         )}
@@ -457,16 +450,14 @@ export default function ManageActivityTab() {
                         <div className="space-y-4">
                             {incomingRequests.map((group) => {
                                 const categoryLabel = CATEGORY_LABELS[group.post.category as ActivityCategory] || group.post.category;
-                                const categoryEmoji = CATEGORY_EMOJIS[group.post.category] || '';
                                 const categoryColor = CATEGORY_COLORS[group.post.category] || CATEGORY_COLORS.other;
 
                                 return (
                                     <div key={group.post.postId} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
                                         {/* Post summary header */}
                                         <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2 bg-gray-50/50">
-                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${categoryColor}`}>
-                                                <span>{categoryEmoji}</span>
-                                                <span>{categoryLabel}</span>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${categoryColor}`}>
+                                                {categoryLabel}
                                             </span>
                                             <span className="text-[13px] text-gray-700 font-medium truncate flex-1">
                                                 {group.post.body}
