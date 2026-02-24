@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase/client';
-import { groupSendMessage, GroupChatMsg } from '@/lib/firebase/functions';
+import { groupSendMessage, groupGetMessages, GroupChatMsg } from '@/lib/firebase/functions';
 
 interface UseGroupChatReturn {
   messages: GroupChatMsg[];
@@ -14,7 +14,7 @@ interface UseGroupChatReturn {
   sending: boolean;
 }
 
-export function useGroupChat(groupId: string | null): UseGroupChatReturn {
+export function useGroupChat(groupId: string | null, readOnly = false): UseGroupChatReturn {
   const [messages, setMessages] = useState<GroupChatMsg[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,10 +22,10 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
   const [sending, setSending] = useState(false);
   const initialLoadDone = useRef(false);
 
-  // Real-time listener on group chat messages
+  // Real-time listener for active members
   useEffect(() => {
-    if (!groupId) {
-      setLoading(false);
+    if (!groupId || readOnly) {
+      if (!readOnly) setLoading(false);
       return;
     }
 
@@ -56,9 +56,6 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
       },
       (err) => {
         console.error('[useGroupChat] Snapshot error:', err);
-        // #region agent log
-        fetch('http://127.0.0.1:7276/ingest/3b772985-a450-48d2-8329-a96e1da0faa0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'079af5'},body:JSON.stringify({sessionId:'079af5',location:'useGroupChat.ts:snapshotError',message:'Firestore snapshot error',data:{groupId,errorCode:err?.code,errorMessage:err?.message,initialLoadDone:initialLoadDone.current},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         const isPermissionError =
           err?.code === 'permission-denied' ||
           err?.message?.includes('Missing or insufficient permissions');
@@ -72,10 +69,43 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
     );
 
     return () => unsubscribe();
-  }, [groupId]);
+  }, [groupId, readOnly]);
+
+  // One-time fetch for former members (read-only mode)
+  useEffect(() => {
+    if (!groupId || !readOnly) return;
+
+    setLoading(true);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await groupGetMessages({ groupId, limit: 200 });
+        if (cancelled) return;
+        const msgs: GroupChatMsg[] = result.data.messages.map((m) => ({
+          id: m.id,
+          senderUid: m.senderUid,
+          senderDisplayName: m.senderDisplayName,
+          senderPhotoURL: m.senderPhotoURL ?? null,
+          body: m.body,
+          type: m.type,
+          createdAt: m.createdAt,
+        }));
+        setMessages(msgs);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[useGroupChat] ReadOnly fetch error:', err);
+        setError('Failed to load chat history');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [groupId, readOnly]);
 
   const sendMessage = useCallback(async (body: string) => {
-    if (!groupId || !body.trim()) return;
+    if (!groupId || !body.trim() || readOnly) return;
     setSending(true);
     try {
       await groupSendMessage({ groupId, body: body.trim() });
@@ -85,7 +115,7 @@ export function useGroupChat(groupId: string | null): UseGroupChatReturn {
     } finally {
       setSending(false);
     }
-  }, [groupId]);
+  }, [groupId, readOnly]);
 
   return {
     messages,

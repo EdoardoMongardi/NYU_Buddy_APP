@@ -34,8 +34,8 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = data.title || 'NYU Buddy';
   const notificationOptions = {
     body: data.body || 'You have a new notification',
-    icon: '/icon.png',
-    badge: '/badge.png',
+    icon: '/icon-192.svg',
+    badge: '/icon-192.svg',
     data: data,
   };
 

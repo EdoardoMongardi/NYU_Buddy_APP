@@ -1,10 +1,11 @@
 import * as admin from 'firebase-admin';
 import { HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { requireEmailVerification } from '../utils/verifyEmail';
+import { JOIN_REQUEST_STATUS } from '../constants/activityState';
 
 interface GroupGetMessagesData {
   groupId: string;
-  cursor?: string | null; // createdAt ISO string for pagination
+  cursor?: string | null;
   limit?: number;
 }
 
@@ -24,24 +25,40 @@ export async function groupGetMessagesHandler(
     throw new HttpsError('invalid-argument', 'Group ID is required');
   }
 
-  // 1. Fetch group for membership check
   const groupDoc = await db.collection('groups').doc(data.groupId).get();
   if (!groupDoc.exists) {
     throw new HttpsError('not-found', 'Group not found');
   }
 
   const group = groupDoc.data()!;
+  let messagesCutoff: admin.firestore.Timestamp | null = null;
+
   if (!group.memberUids?.includes(uid)) {
-    throw new HttpsError('permission-denied', 'You are not a member of this group');
+    const requestId = `${group.postId}_${uid}`;
+    const requestDoc = await db.collection('joinRequests').doc(requestId).get();
+    if (!requestDoc.exists) {
+      throw new HttpsError('permission-denied', 'You are not a member of this group');
+    }
+    const reqData = requestDoc.data()!;
+    if (
+      reqData.status !== JOIN_REQUEST_STATUS.KICKED &&
+      reqData.status !== JOIN_REQUEST_STATUS.LEFT
+    ) {
+      throw new HttpsError('permission-denied', 'You are not a member of this group');
+    }
+    messagesCutoff = reqData.updatedAt || null;
   }
 
-  // 2. Query messages
   const pageSize = Math.min(data.limit || 50, 100);
   let query: admin.firestore.Query = db
     .collection('groupChats')
     .doc(data.groupId)
     .collection('messages')
     .orderBy('createdAt', 'asc');
+
+  if (messagesCutoff) {
+    query = query.where('createdAt', '<=', messagesCutoff);
+  }
 
   if (data.cursor) {
     const cursorDate = new Date(data.cursor);
@@ -63,6 +80,7 @@ export async function groupGetMessagesHandler(
       id: doc.id,
       senderUid: d.senderUid,
       senderDisplayName: d.senderDisplayName,
+      senderPhotoURL: d.senderPhotoURL ?? null,
       body: d.body,
       type: d.type,
       createdAt: d.createdAt?.toDate?.()?.toISOString() || null,

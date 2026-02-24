@@ -27,7 +27,7 @@ export async function groupLeaveHandler(
     throw new HttpsError('invalid-argument', 'Group ID is required');
   }
 
-  // 1. Fetch group
+  // ── Reads ──
   const groupRef = db.collection('groups').doc(data.groupId);
   const groupDoc = await groupRef.get();
 
@@ -37,12 +37,10 @@ export async function groupLeaveHandler(
 
   const group = groupDoc.data()!;
 
-  // 2. Membership check
   if (!group.memberUids?.includes(uid)) {
     throw new HttpsError('permission-denied', 'You are not a member of this group');
   }
 
-  // 3. Creator cannot leave their own group (they should close the post instead)
   if (group.creatorUid === uid) {
     throw new HttpsError(
       'failed-precondition',
@@ -50,46 +48,41 @@ export async function groupLeaveHandler(
     );
   }
 
-  // 4. Fetch the linked post
   const postRef = db.collection('activityPosts').doc(group.postId);
   const postDoc = await postRef.get();
 
-  // 5. Get user display name for system message
   const userDoc = await db.collection('users').doc(uid).get();
   const displayName = userDoc.exists ? userDoc.data()!.displayName : 'Someone';
 
-  // 6. Update group
-  await groupRef.update({
+  const requestId = `${group.postId}_${uid}`;
+  const requestRef = db.collection('joinRequests').doc(requestId);
+  const requestDocSnap = await requestRef.get();
+
+  // ── Atomic batch write ──
+  const batch = db.batch();
+
+  batch.update(groupRef, {
     memberUids: admin.firestore.FieldValue.arrayRemove(uid),
     memberCount: admin.firestore.FieldValue.increment(-1),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // 7. Add system message to group chat
-  await db
-    .collection('groupChats')
-    .doc(data.groupId)
-    .collection('messages')
-    .add({
-      senderUid: 'system',
-      senderDisplayName: 'System',
-      body: `${displayName} left the group`,
-      type: 'system',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+  const msgRef = db.collection('groupChats').doc(data.groupId).collection('messages').doc();
+  batch.set(msgRef, {
+    senderUid: 'system',
+    senderDisplayName: 'System',
+    body: `${displayName} left the group`,
+    type: 'system',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
-  // 8. Update join request status to left
-  const requestId = `${group.postId}_${uid}`;
-  const requestRef = db.collection('joinRequests').doc(requestId);
-  const requestDocSnap = await requestRef.get();
   if (requestDocSnap.exists) {
-    await requestRef.update({
+    batch.update(requestRef, {
       status: JOIN_REQUEST_STATUS.LEFT,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
 
-  // 9. Update post: decrement acceptedCount, re-open if was filled
   if (postDoc.exists) {
     const post = postDoc.data()!;
     const postUpdates: Record<string, unknown> = {
@@ -101,9 +94,14 @@ export async function groupLeaveHandler(
       postUpdates.status = ACTIVITY_POST_STATUS.OPEN;
     }
 
-    await postRef.update(postUpdates);
+    batch.update(postRef, postUpdates);
+  }
 
-    // Notify creator that someone left
+  await batch.commit();
+
+  // ── Non-critical notification (after batch) ──
+  if (postDoc.exists) {
+    const post = postDoc.data()!;
     await sendNotificationToUser(post.creatorUid, {
       title: 'Participant Left',
       body: `${displayName} left your activity`,

@@ -37,8 +37,8 @@ export function useNotifications() {
       if (title) {
         new Notification(title, {
           body,
-          icon: '/icon.png',
-          badge: '/badge.png',
+          icon: '/icon-192.svg',
+          badge: '/icon-192.svg',
         });
       }
     });

@@ -100,7 +100,7 @@ export async function joinRequestSendHandler(
     if (existing.status === JOIN_REQUEST_STATUS.DECLINED) {
       throw new HttpsError(
         'failed-precondition',
-        'Your request was already declined for this activity'
+        'You have been denied to join this activity'
       );
     }
     if (existing.status === JOIN_REQUEST_STATUS.ACCEPTED) {
@@ -109,8 +109,11 @@ export async function joinRequestSendHandler(
         'You are already part of this activity'
       );
     }
-    if (existing.status === JOIN_REQUEST_STATUS.WITHDRAWN) {
-      // Allow re-request after withdrawal — update the existing doc
+    if (
+      existing.status === JOIN_REQUEST_STATUS.WITHDRAWN ||
+      existing.status === JOIN_REQUEST_STATUS.KICKED ||
+      existing.status === JOIN_REQUEST_STATUS.LEFT
+    ) {
       await db.collection('joinRequests').doc(requestId).update({
         status: JOIN_REQUEST_STATUS.PENDING,
         message: data.message?.trim() || null,

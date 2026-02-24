@@ -162,6 +162,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
     }
 
     const canEnterChat = isAccepted && post && !isExpired && !isInactive;
+    const canViewChatHistory = (isKicked || isLeft) && post?.groupId;
 
     return (
         <div className={`bg-white rounded-2xl border border-gray-100 p-4 shadow-sm ${isInactive ? 'opacity-60' : ''}`}>
@@ -182,7 +183,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                 )}
                 {isDeclined && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600 border border-red-100 flex-shrink-0">
-                        Not Available
+                        Denied
                     </span>
                 )}
                 {isWithdrawn && (
@@ -190,9 +191,14 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                         Withdrawn
                     </span>
                 )}
-                {(isKicked || isLeft) && (
+                {isKicked && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-500 border border-red-100 flex-shrink-0">
+                        Not Available
+                    </span>
+                )}
+                {isLeft && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-500 border border-gray-100 flex-shrink-0">
-                        {isLeft ? 'Exited' : 'Not Available'}
+                        Left
                     </span>
                 )}
                 {isExpired && !isKicked && !isLeft && (
@@ -227,7 +233,7 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                 </div>
             )}
 
-            {/* Enter group chat button — accepted only */}
+            {/* Enter group chat button — accepted active members */}
             {canEnterChat && (
                 <button
                     onClick={() => router.push(`/post/${post!.postId}`)}
@@ -239,8 +245,20 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                 </button>
             )}
 
-            {/* My Ask section — pending activities */}
-            {isPending && post && (
+            {/* View chat history — kicked/left former members */}
+            {canViewChatHistory && (
+                <button
+                    onClick={() => router.push(`/post/${post!.postId}`)}
+                    className="w-full mt-2.5 flex items-center gap-2 bg-gray-50 text-gray-500 text-[13px] font-semibold px-3 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors active:scale-[0.98]"
+                >
+                    <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>View chat history</span>
+                    <span className="ml-auto">→</span>
+                </button>
+            )}
+
+            {/* My Ask section — show for pending AND accepted activities (read-only for accepted) */}
+            {(isPending || isAccepted) && post && (
                 <InlineAskChat postId={post.postId} creatorUid={post.creatorUid} postStatus={post.status} />
             )}
         </div>
@@ -271,8 +289,11 @@ export default function ManageActivityTab() {
 
     return (
         <div
-            className="max-w-md mx-auto h-full overflow-hidden flex flex-col"
-            style={{ overscrollBehavior: 'none' }}
+            className="w-full overflow-hidden flex flex-col"
+            style={{
+                overscrollBehavior: 'none',
+                height: 'calc(100dvh - 48px - env(safe-area-inset-bottom, 0px))',
+            }}
         >
             {/* Header + tabs */}
             <div className="shrink-0 pt-3 bg-white border-b border-gray-100">
@@ -343,7 +364,10 @@ export default function ManageActivityTab() {
             </div>
 
             {/* Content area */}
-            <div className="flex-1 overflow-y-auto min-h-0 pb-20 px-4 pt-3">
+            <div
+                className="flex-1 overflow-y-auto min-h-0 pb-20 px-4 pt-3 [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: 'none' }}
+            >
                 {/* Refresh */}
                 <div className="flex justify-center my-2">
                     <button

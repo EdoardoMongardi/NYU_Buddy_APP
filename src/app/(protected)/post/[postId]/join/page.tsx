@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { activityPostGetById, joinRequestSend, FeedPost } from '@/lib/firebase/functions';
-import { ChevronLeft, Loader2, Send } from 'lucide-react';
+import { ChevronLeft, Loader2, Send, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 
@@ -17,12 +17,16 @@ export default function JoinRequestPage() {
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [existingStatus, setExistingStatus] = useState<string | null>(null);
 
     useEffect(() => {
         async function fetchPost() {
             try {
                 const res = await activityPostGetById({ postId });
                 setPost(res.data.post);
+                if (res.data.myJoinRequest) {
+                    setExistingStatus(res.data.myJoinRequest.status);
+                }
             } catch (err) {
                 console.error('Failed to fetch post:', err);
                 toast({ title: 'Post not found', variant: 'destructive' });
@@ -44,11 +48,11 @@ export default function JoinRequestPage() {
                 postId,
                 message: message.trim() || undefined,
             });
+            setExistingStatus('pending');
             toast({
                 title: 'Request Sent!',
                 description: 'The creator has been notified of your request to join.',
             });
-            router.push('/');
         } catch (err: unknown) {
             console.error('Failed to send join request:', err);
             toast({
@@ -71,6 +75,82 @@ export default function JoinRequestPage() {
 
     if (!post) return null;
 
+    const alreadySent = existingStatus === 'pending';
+    const alreadyAccepted = existingStatus === 'accepted';
+    const alreadyDeclined = existingStatus === 'declined';
+
+    if (alreadySent || alreadyAccepted) {
+        return (
+            <div className="min-h-screen bg-white">
+                <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 py-3">
+                    <button
+                        onClick={() => router.back()}
+                        className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors"
+                    >
+                        <ChevronLeft className="w-6 h-6 text-gray-900" />
+                    </button>
+                    <h1 className="text-[17px] font-semibold text-gray-900 absolute left-1/2 -translate-x-1/2">
+                        Request to Join
+                    </h1>
+                    <div className="w-10" />
+                </div>
+
+                <div className="max-w-[600px] mx-auto p-4 flex flex-col items-center gap-4 mt-16">
+                    <div className="bg-green-50 border border-green-100 rounded-2xl p-6 text-center w-full">
+                        <Check className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                        <p className="text-green-700 text-base font-semibold">
+                            {alreadyAccepted ? "You're in this activity!" : 'Request sent'}
+                        </p>
+                        <p className="text-green-600 text-sm mt-1">
+                            {alreadyAccepted
+                                ? 'You have been accepted into this activity.'
+                                : 'The creator will review your request.'}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => router.back()}
+                        className="text-violet-600 text-sm font-semibold hover:text-violet-700"
+                    >
+                        Go back
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (alreadyDeclined) {
+        return (
+            <div className="min-h-screen bg-white">
+                <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-4 py-3">
+                    <button
+                        onClick={() => router.back()}
+                        className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors"
+                    >
+                        <ChevronLeft className="w-6 h-6 text-gray-900" />
+                    </button>
+                    <h1 className="text-[17px] font-semibold text-gray-900 absolute left-1/2 -translate-x-1/2">
+                        Request to Join
+                    </h1>
+                    <div className="w-10" />
+                </div>
+
+                <div className="max-w-[600px] mx-auto p-4 flex flex-col items-center gap-4 mt-16">
+                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center w-full">
+                        <p className="text-gray-500 text-base font-medium">
+                            You have been denied to join this activity
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => router.back()}
+                        className="text-violet-600 text-sm font-semibold hover:text-violet-700"
+                    >
+                        Go back
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-white">
             {/* Header */}
@@ -84,7 +164,7 @@ export default function JoinRequestPage() {
                 <h1 className="text-[17px] font-semibold text-gray-900 absolute left-1/2 -translate-x-1/2">
                     Request to Join
                 </h1>
-                <div className="w-10"></div> {/* Spacer for centering */}
+                <div className="w-10" />
             </div>
 
             <div className="max-w-[600px] mx-auto p-4 flex flex-col gap-6 mt-2">
@@ -124,7 +204,7 @@ export default function JoinRequestPage() {
                 <button
                     onClick={handleSubmit}
                     disabled={submitting}
-                    className="w-full bg-violet-600 text-white rounded-xl py-3.5 text-[16px] font-semibold hover:bg-violet-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-violet-600 text-white rounded-xl py-3.5 text-[16px] font-semibold hover:bg-violet-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                     {submitting ? (
                         <Loader2 className="w-5 h-5 animate-spin" />

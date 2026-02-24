@@ -64,10 +64,9 @@ export default function PostDetailPage() {
 
   const isCreator = user?.uid === post?.creatorUid;
   const isMember = group?.memberUids?.includes(user?.uid || '');
+  const isFormerMember = !isMember && (myJoinRequest?.status === 'kicked' || myJoinRequest?.status === 'left');
+  const formerMemberStatus = isFormerMember ? (myJoinRequest!.status as 'kicked' | 'left') : null;
   const statusBadge = post ? STATUS_BADGES[post.status] : null;
-  // #region agent log
-  if (post) { fetch('http://127.0.0.1:7276/ingest/3b772985-a450-48d2-8329-a96e1da0faa0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'079af5'},body:JSON.stringify({sessionId:'079af5',location:'PostDetailPage:render',message:'page render state',data:{postId,isCreator,isMember,myJoinRequestStatus:myJoinRequest?.status||null,groupExists:!!group,postGroupId:post?.groupId||null,postStatus:post?.status||null,userUid:user?.uid||null},timestamp:Date.now(),hypothesisId:'A,B,C,D'})}).catch(()=>{}); }
-  // #endregion
 
   const handleLeaveActivity = async () => {
     if (!group || isLeaving) return;
@@ -112,6 +111,45 @@ export default function PostDetailPage() {
         <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
           <p className="text-red-700 text-sm">{error || 'Post not found'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── FORMER MEMBER VIEW (Read-only Chat) ───
+  if (isFormerMember && post.groupId) {
+    return (
+      <div
+        className="fixed inset-x-0 mx-auto w-full max-w-lg flex flex-col bg-white overflow-hidden z-50 sm:border-x sm:border-gray-200"
+        style={{
+          zIndex: 50,
+          top: 'var(--vv-offset-top, 0px)',
+          height: 'calc(var(--vvh, 100dvh) - 48px - env(safe-area-inset-bottom, 0px))',
+        }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-gray-100 flex-shrink-0">
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold text-gray-900 leading-tight truncate">
+                Chat History
+              </h1>
+              <p className="text-[11px] text-gray-400 truncate">
+                {formerMemberStatus === 'kicked' ? 'You were removed from this activity' : 'You left this activity'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-hidden relative">
+          <GroupChatPanel
+            groupId={post.groupId}
+            fullScreen={true}
+            readOnly={true}
+            readOnlyStatus={formerMemberStatus}
+          />
         </div>
       </div>
     );

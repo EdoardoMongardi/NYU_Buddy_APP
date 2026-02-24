@@ -69,12 +69,14 @@ interface GroupChatPanelProps {
   groupId: string;
   fullScreen?: boolean;
   onRemoved?: () => void;
+  readOnly?: boolean;
+  readOnlyStatus?: 'kicked' | 'left' | null;
 }
 
-export default function GroupChatPanel({ groupId, fullScreen = false, onRemoved }: GroupChatPanelProps) {
-  const { user } = useAuth();
+export default function GroupChatPanel({ groupId, fullScreen = false, onRemoved, readOnly = false, readOnlyStatus }: GroupChatPanelProps) {
+  const { user, userProfile } = useAuth();
   const { toast } = useToast();
-  const { messages, loading, error, removed, sendMessage, sending } = useGroupChat(groupId);
+  const { messages, loading, error, removed, sendMessage, sending } = useGroupChat(groupId, readOnly);
   const removedNotifiedRef = useRef(false);
   const [input, setInput] = useState('');
 
@@ -222,19 +224,13 @@ export default function GroupChatPanel({ groupId, fullScreen = false, onRemoved 
                       </span>
                     )}
                   </div>
-                  {/* Current user avatar — uses real photo if available */}
-                  {user?.photoURL ? (
-                    <ProfileAvatar
-                      photoURL={user.photoURL}
-                      displayName={user.displayName || ''}
-                      size="xs"
-                      className="w-7 h-7 flex-shrink-0 mb-4"
-                    />
-                  ) : (
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mb-4 ${getAvatarColor(user?.uid || '')}`}>
-                      <span className="text-[10px] font-semibold">{getInitials(user?.displayName || 'Me')}</span>
-                    </div>
-                  )}
+                  {/* Current user avatar — prefer Firestore profile photo over Auth photo */}
+                  <ProfileAvatar
+                    photoURL={userProfile?.photoURL || user?.photoURL || null}
+                    displayName={userProfile?.displayName || user?.displayName || 'Me'}
+                    size="xs"
+                    className="w-7 h-7 flex-shrink-0 mb-4"
+                  />
                 </div>
               );
             }
@@ -271,10 +267,17 @@ export default function GroupChatPanel({ groupId, fullScreen = false, onRemoved 
             );
           })
         )}
-        {removed && (
+        {(removed || readOnlyStatus === 'kicked') && (
           <div className="flex justify-center py-4">
             <span className="text-[12px] text-red-500 bg-red-50 border border-red-100 px-4 py-2 rounded-full shadow-sm">
               You have been removed from this activity
+            </span>
+          </div>
+        )}
+        {readOnlyStatus === 'left' && !removed && (
+          <div className="flex justify-center py-4">
+            <span className="text-[12px] text-gray-500 bg-gray-50 border border-gray-200 px-4 py-2 rounded-full shadow-sm">
+              You left this activity
             </span>
           </div>
         )}
@@ -282,7 +285,7 @@ export default function GroupChatPanel({ groupId, fullScreen = false, onRemoved 
       </div>
 
       {/* Input */}
-      {removed ? (
+      {removed || readOnly ? (
         <div className="px-3 py-3 border-t border-gray-100 flex-shrink-0 bg-gray-50">
           <p className="text-center text-sm text-gray-400">You can no longer send messages</p>
         </div>
