@@ -177,9 +177,14 @@ export default function JoinRequestPage() {
                             <p className="text-gray-500 text-[13px]">is hosting an activity</p>
                         </div>
                     </div>
-                    <p className="text-gray-900 text-[15px] leading-relaxed line-clamp-3">
-                        {post.body}
+                    <p className="text-gray-900 text-[15px] font-semibold leading-snug line-clamp-1 mb-1">
+                        {post.title || post.body}
                     </p>
+                    {post.title && post.body && post.body !== post.title && (
+                        <p className="text-gray-600 text-[14px] leading-relaxed line-clamp-3">
+                            {post.body}
+                        </p>
+                    )}
                 </div>
 
                 {/* Message Input */}

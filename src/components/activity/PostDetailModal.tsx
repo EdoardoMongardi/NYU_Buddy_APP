@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { X, ChevronRight, Clock, MapPin, Users, Loader2, AlertCircle, UserPlus } from 'lucide-react';
+import { X, ChevronRight, Clock, MapPin, Users, Loader2, AlertCircle, UserPlus, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -78,8 +78,20 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
   }, [fetchDetails]);
 
   useEffect(() => {
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
   }, []);
 
   const isCreator = user?.uid === feedPost.creatorUid;
@@ -154,7 +166,7 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
             transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
               {/* Hero image */}
               {hasMedia && (
                 <div className="relative w-full aspect-[16/10] bg-gray-100">
@@ -174,7 +186,7 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
 
               {/* Content */}
               <div className="px-4 pb-4">
-                {/* Title / body */}
+                {/* Post title */}
                 <div className={hasMedia ? '-mt-2' : 'pt-4'}>
                   {!hasMedia && (
                     <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold mb-3 ${categoryColor}`}>
@@ -182,7 +194,7 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
                     </span>
                   )}
                   <p className="text-[18px] font-bold text-gray-900 leading-snug mb-2">
-                    {feedPost.body}
+                    {feedPost.title || feedPost.body}
                   </p>
                 </div>
 
@@ -199,8 +211,30 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
                   </div>
                 </div>
 
-                {/* Meta: time, location, participants */}
+                {/* Description (body) — only when title exists and body is separate */}
+                {feedPost.title && feedPost.body && feedPost.body !== feedPost.title && (
+                  <p className="text-[14px] text-gray-600 leading-relaxed mb-3">
+                    {feedPost.body}
+                  </p>
+                )}
+
+                {/* Meta: event date/time, expiry, location, participants */}
                 <div className="space-y-0 border-t border-gray-100">
+                  {(feedPost.eventDate || feedPost.eventTime) && (
+                    <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
+                      <Calendar className="w-[18px] h-[18px] text-violet-500 flex-shrink-0" />
+                      <span className="text-[14px] text-gray-700">
+                        {feedPost.eventDate && new Date(feedPost.eventDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {feedPost.eventDate && feedPost.eventTime && ' · '}
+                        {feedPost.eventTime && (() => {
+                          const [h, m] = feedPost.eventTime!.split(':').map(Number);
+                          const ampm = h >= 12 ? 'PM' : 'AM';
+                          const hour12 = h % 12 || 12;
+                          return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`;
+                        })()}
+                      </span>
+                    </div>
+                  )}
                   {feedPost.expiresAt && (
                     <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
                       <Clock className="w-[18px] h-[18px] text-gray-400 flex-shrink-0" />

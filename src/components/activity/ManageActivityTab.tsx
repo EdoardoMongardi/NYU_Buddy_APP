@@ -81,10 +81,15 @@ function MyPostCard({ post }: { post: PostDetail }) {
                 </span>
             </div>
 
-            {/* Body */}
-            <p className="text-[15px] text-gray-800 leading-relaxed mb-2.5 line-clamp-2">
-                {post.body}
+            {/* Title / Body */}
+            <p className="text-[15px] font-semibold text-gray-900 leading-snug mb-1 line-clamp-1">
+                {post.title || post.body}
             </p>
+            {post.title && post.body && post.body !== post.title && (
+                <p className="text-[13px] text-gray-500 leading-relaxed mb-2.5 line-clamp-2">
+                    {post.body}
+                </p>
+            )}
 
             {/* Meta row */}
             <div className="flex items-center gap-3 text-[12px] text-gray-400 mb-1">
@@ -207,11 +212,18 @@ function JoinedActivityCard({ item }: { item: JoinedActivity }) {
                 )}
             </div>
 
-            {/* Post body */}
+            {/* Post title / body */}
             {post && (
-                <p className="text-[15px] text-gray-800 leading-relaxed mb-2.5 line-clamp-2">
-                    {post.body}
-                </p>
+                <>
+                    <p className="text-[15px] font-semibold text-gray-900 leading-snug mb-1 line-clamp-1">
+                        {post.title || post.body}
+                    </p>
+                    {post.title && post.body && post.body !== post.title && (
+                        <p className="text-[13px] text-gray-500 leading-relaxed mb-2.5 line-clamp-2">
+                            {post.body}
+                        </p>
+                    )}
+                </>
             )}
 
             {/* Creator info */}
@@ -460,7 +472,7 @@ export default function ManageActivityTab() {
                                                 {categoryLabel}
                                             </span>
                                             <span className="text-[13px] text-gray-700 font-medium truncate flex-1">
-                                                {group.post.body}
+                                                {group.post.title || group.post.body}
                                             </span>
                                         </div>
                                         {/* Requests list */}

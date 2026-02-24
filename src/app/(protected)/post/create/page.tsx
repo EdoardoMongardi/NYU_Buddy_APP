@@ -21,6 +21,7 @@ export default function CreatePostPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<ActivityCategory | ''>('');
   const [maxParticipants, setMaxParticipants] = useState(2);
@@ -35,7 +36,7 @@ export default function CreatePostPage() {
   const [isUploading, setIsUploading] = useState(false);
 
   const charCount = body.length;
-  const isValid = body.trim().length > 0 && body.length <= 140 && category !== '';
+  const isValid = title.trim().length > 0 && title.trim().length <= 20 && category !== '';
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,6 +98,7 @@ export default function CreatePostPage() {
       }
 
       await activityPostCreate({
+        title: title.trim(),
         body: body.trim(),
         category,
         maxParticipants,
@@ -104,7 +106,7 @@ export default function CreatePostPage() {
         locationName: locationName.trim() || null,
         locationLat: null,
         locationLng: null,
-        imageUrl: imageUrl, // Pass the URL (works for video too, stored in imageUrl field)
+        imageUrl: imageUrl,
       });
 
       toast({
@@ -140,15 +142,32 @@ export default function CreatePostPage() {
       </div>
 
       <div className="space-y-5">
-        {/* Body */}
+        {/* Title */}
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-            What do you want to do?
+            Activity Title *
+          </label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g., Coffee at Think"
+            maxLength={20}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-[15px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all"
+          />
+          <p className={`text-[12px] mt-1 text-right ${title.length > 18 ? 'text-amber-500' : 'text-gray-400'}`}>
+            {title.length}/20
+          </p>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+            Description <span className="text-gray-400 font-normal">(optional)</span>
           </label>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="e.g., Looking for someone to grab coffee at Think Coffee..."
+            placeholder="Add more details about your activity..."
             rows={3}
             maxLength={140}
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-[15px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 resize-none transition-all"

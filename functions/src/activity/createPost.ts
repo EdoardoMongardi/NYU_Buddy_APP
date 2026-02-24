@@ -10,6 +10,7 @@ import {
 } from '../constants/activityState';
 
 interface CreatePostData {
+  title: string;
   body: string;
   category: string;
   maxParticipants: number;
@@ -18,6 +19,8 @@ interface CreatePostData {
   locationLat?: number | null;
   locationLng?: number | null;
   imageUrl?: string | null;
+  eventDate?: string | null;
+  eventTime?: string | null;
 }
 
 export async function activityPostCreateHandler(
@@ -34,10 +37,18 @@ export async function activityPostCreateHandler(
   const db = admin.firestore();
 
   // 2. Input validation
-  const body = data.body?.trim();
-  if (!body || body.length === 0) {
-    throw new HttpsError('invalid-argument', 'Post body is required');
+  const title = data.title?.trim();
+  if (!title || title.length === 0) {
+    throw new HttpsError('invalid-argument', 'Post title is required');
   }
+  if (title.length > ACTIVITY_LIMITS.POST_TITLE_MAX_LENGTH) {
+    throw new HttpsError(
+      'invalid-argument',
+      `Post title must be at most ${ACTIVITY_LIMITS.POST_TITLE_MAX_LENGTH} characters`
+    );
+  }
+
+  const body = data.body?.trim() || '';
   if (body.length > ACTIVITY_LIMITS.POST_BODY_MAX_LENGTH) {
     throw new HttpsError(
       'invalid-argument',
@@ -60,8 +71,8 @@ export async function activityPostCreateHandler(
     );
   }
 
-  if (!ACTIVITY_LIMITS.ALLOWED_DURATIONS_HOURS.includes(data.expiresInHours)) {
-    throw new HttpsError('invalid-argument', 'Invalid duration');
+  if (typeof data.expiresInHours !== 'number' || data.expiresInHours <= 0 || data.expiresInHours > 168) {
+    throw new HttpsError('invalid-argument', 'Duration must be between 1 and 168 hours');
   }
 
   // Validate location: if one coordinate provided, both must be provided
@@ -132,6 +143,7 @@ export async function activityPostCreateHandler(
     creatorUid: uid,
     creatorDisplayName: userData.displayName || '',
     creatorPhotoURL: userData.photoURL || null,
+    title: title,
     body: body,
     category: data.category,
     imageUrl: data.imageUrl || null,
@@ -141,6 +153,8 @@ export async function activityPostCreateHandler(
     locationLat: data.locationLat || null,
     locationLng: data.locationLng || null,
     locationGeohash: locationGeohash,
+    eventDate: data.eventDate?.trim() || null,
+    eventTime: data.eventTime?.trim() || null,
     status: ACTIVITY_POST_STATUS.OPEN,
     closeReason: null,
     groupId: null,

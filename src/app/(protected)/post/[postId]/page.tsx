@@ -193,10 +193,15 @@ export default function PostDetailPage() {
             </span>
           </div>
 
-          {/* Body */}
-          <p className="text-[16px] text-gray-800 leading-relaxed mb-4">
-            {post.body}
+          {/* Title / Body */}
+          <p className="text-[17px] font-bold text-gray-900 leading-snug mb-1">
+            {post.title || post.body}
           </p>
+          {post.title && post.body && post.body !== post.title && (
+            <p className="text-[14px] text-gray-600 leading-relaxed mb-4">
+              {post.body}
+            </p>
+          )}
 
           {/* Meta */}
           <div className="flex flex-wrap items-center gap-3 text-[13px] text-gray-500">

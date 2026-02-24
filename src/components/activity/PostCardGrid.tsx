@@ -1,9 +1,18 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { MapPin } from 'lucide-react';
 import { FeedPost } from '@/lib/firebase/functions';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
+
+const CATEGORY_BG: Record<string, string> = {
+  coffee: 'bg-amber-50',
+  study: 'bg-blue-50',
+  food: 'bg-orange-50',
+  event: 'bg-purple-50',
+  explore: 'bg-green-50',
+  sports: 'bg-red-50',
+  other: 'bg-gray-100',
+};
 
 interface PostCardGridProps {
   post: FeedPost;
@@ -12,46 +21,50 @@ interface PostCardGridProps {
 
 export default function PostCardGrid({ post, onClick }: PostCardGridProps) {
   const hasMedia = !!post.imageUrl;
+  const displayTitle = post.title || post.body;
 
   return (
     <button
       onClick={() => onClick(post)}
-      className="relative w-full aspect-[4/5] md:aspect-[3/4] rounded-2xl overflow-hidden bg-gray-100 touch-scale active:scale-[0.97] transition-transform cursor-pointer hover:ring-2 hover:ring-violet-300 hover:ring-offset-2"
+      className="w-full text-left rounded-2xl overflow-hidden bg-white active:scale-[0.97] transition-transform cursor-pointer hover:ring-2 hover:ring-violet-300 hover:ring-offset-2 shadow-sm"
     >
-      {hasMedia ? (
-        <img
-          src={post.imageUrl!}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-100 to-violet-50" />
-      )}
+      {/* Image */}
+      <div className="relative w-full aspect-[4/5]">
+        {hasMedia ? (
+          <img
+            src={post.imageUrl!}
+            alt=""
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className={`w-full h-full ${CATEGORY_BG[post.category] || CATEGORY_BG.other} flex items-center justify-center`}>
+            <span className="text-4xl opacity-40">
+              {post.category === 'coffee' && '☕'}
+              {post.category === 'study' && '📚'}
+              {post.category === 'food' && '🍕'}
+              {post.category === 'event' && '🎉'}
+              {post.category === 'explore' && '🗺️'}
+              {post.category === 'sports' && '⚽'}
+              {post.category === 'other' && '✨'}
+            </span>
+          </div>
+        )}
+      </div>
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-      {post.locationName && (
-        <div className="absolute top-2 left-2 flex items-center gap-1 bg-white/85 backdrop-blur-sm rounded-full px-2 py-1 md:px-2.5 md:py-1.5">
-          <MapPin className="w-3 h-3 text-violet-600 flex-shrink-0" />
-          <span className="text-[10px] md:text-[11px] font-semibold text-gray-800 truncate max-w-[80px] md:max-w-[120px]">
-            {post.locationName}
-          </span>
-        </div>
-      )}
-
-      <div className="absolute bottom-0 left-0 right-0 p-2.5 md:p-3">
-        <p className="text-[13px] md:text-[14px] font-bold text-white leading-tight line-clamp-2 mb-1.5 drop-shadow-sm">
-          {post.body.length > 60 ? post.body.slice(0, 60) + '…' : post.body}
+      {/* Info below image */}
+      <div className="px-2.5 py-2 md:px-3 md:py-2.5">
+        <p className="text-[13px] md:text-[14px] font-bold text-gray-900 leading-tight truncate">
+          {displayTitle}
         </p>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 mt-1.5">
           <ProfileAvatar
             photoURL={post.creatorPhotoURL}
             displayName={post.creatorDisplayName}
             size="xs"
-            className="w-5 h-5 md:w-6 md:h-6 flex-shrink-0 ring-1 ring-white/50"
+            className="w-5 h-5 flex-shrink-0"
           />
-          <span className="text-[11px] md:text-[12px] font-medium text-white/80 truncate drop-shadow-sm">
+          <span className="text-[11px] md:text-[12px] text-gray-500 truncate">
             {post.creatorDisplayName?.split(' ')[0]}
           </span>
         </div>

@@ -355,6 +355,7 @@ export const checkAvailabilityForUser = createCallable<
 // Activity Posts
 export const activityPostCreate = createCallable<
   {
+    title: string;
     body: string;
     category: string;
     maxParticipants: number;
@@ -363,6 +364,8 @@ export const activityPostCreate = createCallable<
     locationLat?: number | null;
     locationLng?: number | null;
     imageUrl?: string | null;
+    eventDate?: string | null;
+    eventTime?: string | null;
   },
   { postId: string; status: string }
 >('activityPostCreate');
@@ -390,6 +393,7 @@ export interface FeedPost {
   creatorUid: string;
   creatorDisplayName: string;
   creatorPhotoURL: string | null;
+  title?: string | null;
   body: string;
   category: string;
   imageUrl: string | null;
@@ -398,6 +402,8 @@ export interface FeedPost {
   locationName: string | null;
   locationLat: number | null;
   locationLng: number | null;
+  eventDate?: string | null;
+  eventTime?: string | null;
   status: string;
   expiresAt: string | null;
   createdAt: string | null;
@@ -418,6 +424,7 @@ export interface PostDetail {
   creatorUid: string;
   creatorDisplayName: string;
   creatorPhotoURL: string | null;
+  title?: string | null;
   body: string;
   category: string;
   imageUrl: string | null;
@@ -426,6 +433,8 @@ export interface PostDetail {
   locationName: string | null;
   locationLat: number | null;
   locationLng: number | null;
+  eventDate?: string | null;
+  eventTime?: string | null;
   status: string;
   closeReason: string | null;
   groupId: string | null;
