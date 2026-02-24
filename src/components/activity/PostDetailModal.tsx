@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { X, ChevronRight, Clock, MapPin, Users, Loader2, AlertCircle, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,6 +44,7 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
   const router = useRouter();
   const { user } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
 
   const [post, setPost] = useState<PostDetail | null>(null);
   const [, setJoinRequests] = useState<JoinRequestInfo[] | null>(null);
@@ -52,6 +54,8 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { setPortalRoot(document.body); }, []);
 
   const fetchDetails = useCallback(async () => {
     try {
@@ -94,10 +98,12 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
     router.push(`/post/${feedPost.postId}`);
   };
 
-  return (
+  if (!portalRoot) return null;
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-[100] flex flex-col items-center justify-center"
+        className="fixed inset-0 z-[100] flex items-center justify-center"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -133,198 +139,199 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
           </button>
         )}
 
-        {/* Main scrollable card */}
-        <motion.div
-          className="relative z-[105] w-[calc(100%-32px)] max-w-[420px] md:max-w-[520px] bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col"
-          style={{ maxHeight: 'calc(100dvh - 160px)', marginTop: '36px' }}
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
-          onClick={(e) => e.stopPropagation()}
+        {/* Content wrapper — constrains card + action button within viewport */}
+        <div
+          className="relative z-[105] flex flex-col items-center w-[calc(100%-32px)] max-w-[420px] md:max-w-[520px]"
+          style={{ maxHeight: 'calc(100dvh - 120px)' }}
         >
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
-            {/* Hero image */}
-            {hasMedia && (
-              <div className="relative w-full aspect-[16/10] bg-gray-100">
-                <img
-                  src={feedPost.imageUrl!}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent" />
-                <div className="absolute top-3 left-3">
-                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${categoryColor}`}>
-                    {categoryLabel}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Content */}
-            <div className="px-4 pb-4">
-              {/* Title / body */}
-              <div className={hasMedia ? '-mt-2' : 'pt-4'}>
-                {!hasMedia && (
-                  <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold mb-3 ${categoryColor}`}>
-                    {categoryLabel}
-                  </span>
-                )}
-                <p className="text-[18px] font-bold text-gray-900 leading-snug mb-2">
-                  {feedPost.body}
-                </p>
-              </div>
-
-              {/* Creator info */}
-              <div className="flex items-center gap-2.5 mb-3">
-                <ProfileAvatar
-                  photoURL={feedPost.creatorPhotoURL}
-                  displayName={feedPost.creatorDisplayName}
-                  size="sm"
-                  className="w-8 h-8 flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[14px] font-semibold text-gray-900">{feedPost.creatorDisplayName}</p>
-                </div>
-              </div>
-
-              {/* Meta: time, location, participants */}
-              <div className="space-y-0 border-t border-gray-100">
-                {feedPost.expiresAt && (
-                  <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
-                    <Clock className="w-[18px] h-[18px] text-gray-400 flex-shrink-0" />
-                    <span className="text-[14px] text-gray-700">{timeUntilExpiry(feedPost.expiresAt)}</span>
-                  </div>
-                )}
-                {feedPost.locationName && (
-                  <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
-                    <MapPin className="w-[18px] h-[18px] text-red-400 flex-shrink-0" />
-                    <span className="text-[14px] text-gray-700">{feedPost.locationName}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
-                  <Users className="w-[18px] h-[18px] text-gray-400 flex-shrink-0" />
-                  <span className={`text-[14px] font-medium ${feedPost.status === 'filled' ? 'text-amber-600' : 'text-gray-700'}`}>
-                    {feedPost.acceptedCount}/{feedPost.maxParticipants} joined
-                    {feedPost.status === 'filled' && ' · Full'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Loading state for detailed data */}
-              {loading && (
-                <div className="flex justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
-                </div>
-              )}
-
-              {error && (
-                <div className="bg-red-50 rounded-xl p-3 mt-3">
-                  <div className="flex items-center gap-2 text-red-600 text-sm">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    {error}
-                  </div>
-                </div>
-              )}
-
-              {/* Ask about the event section (1v1 chat) */}
-              {!loading && !isCreator && !isMember && (
-                <div className="mt-1">
-                  <InlineAskChat
-                    postId={feedPost.postId}
-                    creatorUid={feedPost.creatorUid}
-                    postStatus={feedPost.status}
-                    autoFocus={false}
+          {/* Main scrollable card */}
+          <motion.div
+            className="bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col w-full min-h-0"
+            style={{ flex: '1 1 0%' }}
+            initial={{ scale: 0.95, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.95, y: 20 }}
+            transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+              {/* Hero image */}
+              {hasMedia && (
+                <div className="relative w-full aspect-[16/10] bg-gray-100">
+                  <img
+                    src={feedPost.imageUrl!}
+                    alt=""
+                    className="w-full h-full object-cover"
                   />
+                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent" />
+                  <div className="absolute top-3 left-3">
+                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${categoryColor}`}>
+                      {categoryLabel}
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {/* Creator's Ask inbox inside the modal */}
-              {!loading && isCreator && (
-                <div className="mt-1">
-                  <InlineAskChat
-                    postId={feedPost.postId}
-                    creatorUid={feedPost.creatorUid}
-                    postStatus={feedPost.status}
+              {/* Content */}
+              <div className="px-4 pb-4">
+                {/* Title / body */}
+                <div className={hasMedia ? '-mt-2' : 'pt-4'}>
+                  {!hasMedia && (
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold mb-3 ${categoryColor}`}>
+                      {categoryLabel}
+                    </span>
+                  )}
+                  <p className="text-[18px] font-bold text-gray-900 leading-snug mb-2">
+                    {feedPost.body}
+                  </p>
+                </div>
+
+                {/* Creator info */}
+                <div className="flex items-center gap-2.5 mb-3">
+                  <ProfileAvatar
+                    photoURL={feedPost.creatorPhotoURL}
+                    displayName={feedPost.creatorDisplayName}
+                    size="sm"
+                    className="w-8 h-8 flex-shrink-0"
                   />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-gray-900">{feedPost.creatorDisplayName}</p>
+                  </div>
                 </div>
-              )}
 
-              {/* If already a member, show link to full chat */}
-              {!loading && isMember && (
+                {/* Meta: time, location, participants */}
+                <div className="space-y-0 border-t border-gray-100">
+                  {feedPost.expiresAt && (
+                    <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
+                      <Clock className="w-[18px] h-[18px] text-gray-400 flex-shrink-0" />
+                      <span className="text-[14px] text-gray-700">{timeUntilExpiry(feedPost.expiresAt)}</span>
+                    </div>
+                  )}
+                  {feedPost.locationName && (
+                    <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
+                      <MapPin className="w-[18px] h-[18px] text-red-400 flex-shrink-0" />
+                      <span className="text-[14px] text-gray-700">{feedPost.locationName}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2.5 py-3 border-b border-gray-100">
+                    <Users className="w-[18px] h-[18px] text-gray-400 flex-shrink-0" />
+                    <span className={`text-[14px] font-medium ${feedPost.status === 'filled' ? 'text-amber-600' : 'text-gray-700'}`}>
+                      {feedPost.acceptedCount}/{feedPost.maxParticipants} joined
+                      {feedPost.status === 'filled' && ' · Full'}
+                    </span>
+                  </div>
+                </div>
+
+                {loading && (
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+                  </div>
+                )}
+
+                {error && (
+                  <div className="bg-red-50 rounded-xl p-3 mt-3">
+                    <div className="flex items-center gap-2 text-red-600 text-sm">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {error}
+                    </div>
+                  </div>
+                )}
+
+                {!loading && !isCreator && !isMember && (
+                  <div className="mt-1">
+                    <InlineAskChat
+                      postId={feedPost.postId}
+                      creatorUid={feedPost.creatorUid}
+                      postStatus={feedPost.status}
+                      autoFocus={false}
+                    />
+                  </div>
+                )}
+
+                {!loading && isCreator && (
+                  <div className="mt-1">
+                    <InlineAskChat
+                      postId={feedPost.postId}
+                      creatorUid={feedPost.creatorUid}
+                      postStatus={feedPost.status}
+                    />
+                  </div>
+                )}
+
+                {!loading && isMember && (
+                  <button
+                    onClick={handleOpenFullPost}
+                    className="mt-3 w-full py-3 rounded-xl text-[14px] font-semibold bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors text-center"
+                  >
+                    Open Activity Chat
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Floating action button (below the card) */}
+          {!loading && !isCreator && !isMember && (
+            <motion.div
+              className="flex-shrink-0 w-full mt-3"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              {myJoinRequest ? (
+                <JoinRequestButton
+                  postId={feedPost.postId}
+                  postStatus={post?.status || feedPost.status}
+                  myJoinRequest={myJoinRequest}
+                  onRefresh={fetchDetails}
+                />
+              ) : (
                 <button
-                  onClick={handleOpenFullPost}
-                  className="mt-3 w-full py-3 rounded-xl text-[14px] font-semibold bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors text-center"
+                  onClick={handleJoinNavigate}
+                  disabled={feedPost.status !== 'open'}
+                  className="w-full py-4 rounded-full text-[16px] font-bold bg-violet-600 text-white hover:bg-violet-700 active:scale-[0.98] shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Open Activity Chat
+                  <UserPlus className="w-5 h-5" />
+                  Join
                 </button>
               )}
-            </div>
-          </div>
-        </motion.div>
+            </motion.div>
+          )}
 
-        {/* Floating Join button (below the card) */}
-        {!loading && !isCreator && !isMember && (
-          <motion.div
-            className="relative z-[105] w-[calc(100%-32px)] max-w-[420px] md:max-w-[520px] mt-3"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-          >
-            {myJoinRequest ? (
-              <JoinRequestButton
-                postId={feedPost.postId}
-                postStatus={post?.status || feedPost.status}
-                myJoinRequest={myJoinRequest}
-                onRefresh={fetchDetails}
-              />
-            ) : (
+          {!loading && isCreator && (
+            <motion.div
+              className="flex-shrink-0 w-full mt-3"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
               <button
-                onClick={handleJoinNavigate}
-                disabled={feedPost.status !== 'open'}
-                className="w-full py-4 rounded-full text-[16px] font-bold bg-violet-600 text-white hover:bg-violet-700 active:scale-[0.98] shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                onClick={handleOpenFullPost}
+                className="w-full py-4 rounded-full text-[16px] font-bold bg-white text-violet-600 hover:bg-gray-50 active:scale-[0.98] shadow-lg transition-all flex items-center justify-center gap-2"
               >
-                <UserPlus className="w-5 h-5" />
-                Join
+                Manage Activity
               </button>
-            )}
-          </motion.div>
-        )}
+            </motion.div>
+          )}
 
-        {/* If creator, show "Manage" link */}
-        {!loading && isCreator && (
-          <motion.div
-            className="relative z-[105] w-[calc(100%-32px)] max-w-[420px] md:max-w-[520px] mt-3"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-          >
-            <button
-              onClick={handleOpenFullPost}
-              className="w-full py-4 rounded-full text-[16px] font-bold bg-white text-violet-600 hover:bg-gray-50 active:scale-[0.98] shadow-lg transition-all flex items-center justify-center gap-2"
+          {!loading && isMember && !isCreator && (
+            <motion.div
+              className="flex-shrink-0 w-full mt-3"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
             >
-              Manage Activity
-            </button>
-          </motion.div>
-        )}
-
-        {/* If member, show "Open Chat" */}
-        {!loading && isMember && !isCreator && (
-          <motion.div
-            className="relative z-[105] w-[calc(100%-32px)] max-w-[420px] md:max-w-[520px] mt-3"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-          >
-            <button
-              onClick={handleOpenFullPost}
-              className="w-full py-4 rounded-full text-[16px] font-bold bg-white text-violet-600 hover:bg-gray-50 active:scale-[0.98] shadow-lg transition-all flex items-center justify-center gap-2"
-            >
-              Open Activity Chat
-            </button>
-          </motion.div>
-        )}
+              <button
+                onClick={handleOpenFullPost}
+                className="w-full py-4 rounded-full text-[16px] font-bold bg-white text-violet-600 hover:bg-gray-50 active:scale-[0.98] shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                Open Activity Chat
+              </button>
+            </motion.div>
+          )}
+        </div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    portalRoot
   );
 }

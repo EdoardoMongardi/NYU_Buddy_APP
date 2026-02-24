@@ -42,6 +42,13 @@ export default function HomePage() {
     setCategory,
   } = useActivityFeed();
 
+  // Refresh feed when a new post is created via the modal
+  useEffect(() => {
+    const handler = () => { refresh(); };
+    window.addEventListener('activityPostCreated', handler);
+    return () => window.removeEventListener('activityPostCreated', handler);
+  }, [refresh]);
+
   // ── Scroll & Header Visibility ──
   const headerRef = useRef<HTMLDivElement>(null);
   const headerContentRef = useRef<HTMLDivElement>(null);

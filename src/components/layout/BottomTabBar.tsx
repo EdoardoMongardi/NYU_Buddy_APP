@@ -1,10 +1,10 @@
 'use client';
 
 import { ClipboardList, Zap, Map, Settings } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 import { useNav } from '@/context/NavContext';
+import { useCreatePost } from '@/context/CreatePostContext';
 import { useUnreadBadges } from '@/lib/hooks/useUnreadBadges';
 
 export type TabKey = 'home' | 'manage' | 'search' | 'map' | 'settings';
@@ -52,9 +52,9 @@ interface BottomTabBarProps {
 }
 
 export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarProps) {
-    const router = useRouter();
     const { userProfile } = useAuth();
     const { navRef } = useNav();
+    const { openCreate } = useCreatePost();
 
     // Mount custom unread badges
     const unreadBadges = useUnreadBadges(activeTab);
@@ -150,7 +150,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: BottomTabBarPro
 
                     {/* Post button (like X's "Post" pill) */}
                     <button
-                        onClick={() => router.push('/post/create')}
+                        onClick={openCreate}
                         className="mt-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-full text-[15px] font-bold transition-colors"
                     >
                         Post
