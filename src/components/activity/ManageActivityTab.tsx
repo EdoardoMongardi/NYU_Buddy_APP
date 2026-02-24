@@ -19,7 +19,7 @@ import {
 import { motion } from 'framer-motion';
 import { useManageActivity, JoinedActivity } from '@/lib/hooks/useManageActivity';
 import { CATEGORY_LABELS, ActivityCategory } from '@/lib/schemas/activity';
-import { FeedPost, PostDetail } from '@/lib/firebase/functions';
+import { PostDetail } from '@/lib/firebase/functions';
 
 // ─── Category styling ───────────────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
