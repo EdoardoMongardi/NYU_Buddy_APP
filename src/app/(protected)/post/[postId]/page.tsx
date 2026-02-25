@@ -233,6 +233,86 @@ export default function PostDetailPage() {
     );
   }
 
+  // ─── CREATOR MANAGEMENT VIEW (No group yet) ───
+  if (isCreator && !group) {
+    return (
+      <div className="max-w-md mx-auto pb-8 px-5">
+        <div className="flex items-center gap-3 py-3">
+          <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-gray-100">
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <h1 className="text-lg font-semibold text-gray-900">Manage Activity</h1>
+          {statusBadge && (
+            <span className={`ml-auto px-2.5 py-1 rounded-full text-[11px] font-semibold ${statusBadge.color}`}>
+              {statusBadge.label}
+            </span>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4 shadow-sm">
+          {post.imageUrl && (
+            <div className="relative w-full rounded-xl overflow-hidden mb-3 bg-gray-100">
+              <img src={post.imageUrl} alt="" className="w-full max-h-[200px] object-cover" />
+            </div>
+          )}
+          <p className="text-[17px] font-bold text-gray-900 leading-snug mb-1">
+            {post.title || post.body}
+          </p>
+          {post.body && post.body !== (post.title || '') && (
+            <p className="text-[14px] text-gray-600 leading-relaxed mb-3">{post.body}</p>
+          )}
+          <div className="flex flex-wrap items-center gap-3 text-[13px] text-gray-500 mt-2">
+            {post.locationName && (
+              <span className="flex items-center gap-1"><MapPin className="w-4 h-4" />{post.locationName}</span>
+            )}
+            <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{timeUntilExpiry(post.expiresAt)}</span>
+            <span className={`flex items-center gap-1 font-medium ${post.status === 'filled' ? 'text-amber-500' : 'text-green-500'}`}>
+              <Users className="w-4 h-4" />{post.acceptedCount}/{post.maxParticipants} joined
+            </span>
+          </div>
+        </div>
+
+        {joinRequests && joinRequests.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              Pending Requests
+              <span className="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full">
+                {joinRequests.length}
+              </span>
+            </h3>
+            <JoinRequestInbox postId={postId} requests={joinRequests} onRefresh={refresh} />
+          </div>
+        )}
+
+        {(!joinRequests || joinRequests.length === 0) && (
+          <div className="bg-gray-50 rounded-2xl p-6 text-center mb-4">
+            <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-[14px] text-gray-500">No join requests yet</p>
+            <p className="text-[12px] text-gray-400 mt-1">People can find and request to join your activity</p>
+          </div>
+        )}
+
+        <button
+          onClick={async () => {
+            const confirmed = window.confirm('Are you sure you want to close this activity?');
+            if (!confirmed) return;
+            try {
+              const { activityPostClose } = await import('@/lib/firebase/functions');
+              await activityPostClose({ postId });
+              toast({ title: 'Activity closed' });
+              router.back();
+            } catch (err) {
+              toast({ title: 'Failed to close', description: err instanceof Error ? err.message : 'Try again', variant: 'destructive' });
+            }
+          }}
+          className="w-full py-3 rounded-xl text-[14px] font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+        >
+          Close Activity
+        </button>
+      </div>
+    );
+  }
+
   // ─── MEMBER VIEW (Fixed Layout with Chat) ───
   return (
     <div

@@ -39,7 +39,10 @@ export default function BottomSheet({ open, onClose, title, children }: BottomSh
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
           />
           <motion.div
             ref={contentRef}
@@ -53,6 +56,7 @@ export default function BottomSheet({ open, onClose, title, children }: BottomSh
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.6 }}
             onDragEnd={handleDragEnd}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing">
               <div className="w-10 h-1 rounded-full bg-gray-300" />

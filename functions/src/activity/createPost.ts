@@ -71,8 +71,8 @@ export async function activityPostCreateHandler(
     );
   }
 
-  if (typeof data.expiresInHours !== 'number' || data.expiresInHours <= 0 || data.expiresInHours > 168) {
-    throw new HttpsError('invalid-argument', 'Duration must be between 1 and 168 hours');
+  if (typeof data.expiresInHours !== 'number' || data.expiresInHours <= 0 || data.expiresInHours > 8760) {
+    throw new HttpsError('invalid-argument', 'Invalid duration');
   }
 
   // Validate location: if one coordinate provided, both must be provided

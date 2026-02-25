@@ -90,7 +90,7 @@ export default function ActivityFeed({
             )}
 
             {/* 2-col mobile, 3-col desktop grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 px-3 py-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-[6px] px-[6px] pt-[6px]">
               {posts.map((post, index) => (
                 <div
                   key={post.postId}

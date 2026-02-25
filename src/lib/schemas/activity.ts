@@ -76,7 +76,7 @@ export const activityPostCreateSchema = z.object({
   expiresInHours: z
     .number()
     .min(1, 'Duration must be at least 1 hour')
-    .max(168, 'Duration must be at most 7 days'),
+    .max(8760, 'Duration must be at most 1 year'),
   locationName: z
     .string()
     .max(60, 'Location name must be at most 60 characters')

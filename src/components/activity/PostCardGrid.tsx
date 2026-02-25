@@ -26,10 +26,10 @@ export default function PostCardGrid({ post, onClick }: PostCardGridProps) {
   return (
     <button
       onClick={() => onClick(post)}
-      className="w-full text-left rounded-2xl overflow-hidden bg-white active:scale-[0.97] transition-transform cursor-pointer hover:ring-2 hover:ring-violet-300 hover:ring-offset-2 shadow-sm"
+      className="w-full text-left rounded-[4px] overflow-hidden bg-white active:scale-[0.98] transition-transform cursor-pointer"
     >
       {/* Image */}
-      <div className="relative w-full aspect-[4/5]">
+      <div className="relative w-full aspect-[3/4]">
         {hasMedia ? (
           <img
             src={post.imageUrl!}
@@ -53,8 +53,8 @@ export default function PostCardGrid({ post, onClick }: PostCardGridProps) {
       </div>
 
       {/* Info below image */}
-      <div className="px-2.5 py-2 md:px-3 md:py-2.5">
-        <p className="text-[13px] md:text-[14px] font-bold text-gray-900 leading-tight truncate">
+      <div className="px-2 pt-2 pb-2.5">
+        <p className="text-[13px] md:text-[14px] font-semibold text-gray-900 leading-snug line-clamp-2 break-words">
           {displayTitle}
         </p>
         <div className="flex items-center gap-1.5 mt-1.5">
@@ -62,9 +62,9 @@ export default function PostCardGrid({ post, onClick }: PostCardGridProps) {
             photoURL={post.creatorPhotoURL}
             displayName={post.creatorDisplayName}
             size="xs"
-            className="w-5 h-5 flex-shrink-0"
+            className="w-4 h-4 flex-shrink-0"
           />
-          <span className="text-[11px] md:text-[12px] text-gray-500 truncate">
+          <span className="text-[11px] text-gray-400 truncate">
             {post.creatorDisplayName?.split(' ')[0]}
           </span>
         </div>

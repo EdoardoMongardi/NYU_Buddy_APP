@@ -153,29 +153,28 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
 
         {/* Content wrapper — constrains card + action button within viewport */}
         <div
-          className="relative z-[105] flex flex-col items-center w-[calc(100%-32px)] max-w-[420px] md:max-w-[520px]"
-          style={{ maxHeight: 'calc(100dvh - 120px)' }}
+          className="relative z-[105] flex flex-col items-center w-[calc(100%-24px)] max-w-[420px] md:max-w-[520px]"
+          style={{ maxHeight: 'calc(100dvh - 70px)', marginTop: '54px' }}
         >
           {/* Main scrollable card */}
           <motion.div
-            className="bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col w-full min-h-0"
-            style={{ flex: '1 1 0%' }}
+            className="bg-white rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl flex flex-col w-full"
+            style={{ flex: '1 1 0%', minHeight: 0 }}
             initial={{ scale: 0.95, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.95, y: 20 }}
             transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div ref={scrollRef} className="overflow-y-auto overscroll-contain" style={{ flex: '1 1 0%', minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
               {/* Hero image */}
               {hasMedia && (
-                <div className="relative w-full aspect-[16/10] bg-gray-100">
+                <div className="relative w-full bg-gray-100 flex-shrink-0">
                   <img
                     src={feedPost.imageUrl!}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className="w-full max-h-[40vh] object-cover"
                   />
-                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent" />
                   <div className="absolute top-3 left-3">
                     <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${categoryColor}`}>
                       {categoryLabel}
@@ -186,16 +185,18 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
 
               {/* Content */}
               <div className="px-4 pb-4">
-                {/* Post title */}
-                <div className={hasMedia ? '-mt-2' : 'pt-4'}>
+                <div className={hasMedia ? 'pt-3' : 'pt-4'}>
                   {!hasMedia && (
                     <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold mb-3 ${categoryColor}`}>
                       {categoryLabel}
                     </span>
                   )}
-                  <p className="text-[18px] font-bold text-gray-900 leading-snug mb-2">
-                    {feedPost.title || feedPost.body}
-                  </p>
+                  {/* Post title — only if the title field exists */}
+                  {feedPost.title && (
+                    <p className="text-[18px] font-bold text-gray-900 leading-snug mb-2 break-words">
+                      {feedPost.title}
+                    </p>
+                  )}
                 </div>
 
                 {/* Creator info */}
@@ -211,9 +212,9 @@ export default function PostDetailModal({ feedPost, onClose, onNext }: PostDetai
                   </div>
                 </div>
 
-                {/* Description (body) — only when title exists and body is separate */}
-                {feedPost.title && feedPost.body && feedPost.body !== feedPost.title && (
-                  <p className="text-[14px] text-gray-600 leading-relaxed mb-3">
+                {/* Description (body) — always shown below creator */}
+                {feedPost.body && (
+                  <p className="text-[15px] text-gray-900 leading-relaxed mb-3 break-words">
                     {feedPost.body}
                   </p>
                 )}

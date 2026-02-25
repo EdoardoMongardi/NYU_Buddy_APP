@@ -207,8 +207,9 @@ export default function CreatePostModal() {
     const timeStr = eventTime || '23:59';
     const target = new Date(`${dateStr}T${timeStr}:00`);
     const now = new Date();
-    const diffHours = Math.max(1, Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60)) + 2);
-    return Math.min(diffHours, 168);
+    const rawDiff = (target.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const diffHours = Math.max(1, Math.ceil(rawDiff) + 2);
+    return Math.min(diffHours, 8760);
   };
 
   const handleSubmit = async () => {
@@ -227,19 +228,21 @@ export default function CreatePostModal() {
         setIsUploading(false);
       }
 
-      await activityPostCreate({
+      const expiresInHours = computeExpiresInHours();
+      const payload = {
         title: title.trim(),
         body: description.trim(),
         category,
         maxParticipants,
-        expiresInHours: computeExpiresInHours(),
+        expiresInHours,
         locationName: locationName.trim() || null,
         locationLat,
         locationLng,
         imageUrl,
         eventDate: eventDate || null,
         eventTime: eventTime || null,
-      });
+      };
+      await activityPostCreate(payload);
 
       toast({ title: 'Activity posted!', description: 'Your activity is now visible to others.' });
       window.dispatchEvent(new Event('activityPostCreated'));
@@ -276,8 +279,9 @@ export default function CreatePostModal() {
   const predictions = placePredictions || [];
 
   return createPortal(
-    <AnimatePresence>
+    <>
       <motion.div
+        key="create-modal-main"
         className="fixed inset-0 z-[100] flex flex-col items-center overflow-y-auto"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -285,7 +289,7 @@ export default function CreatePostModal() {
         transition={{ duration: 0.2 }}
       >
         {/* Blurred backdrop */}
-        <div className="fixed inset-0" onClick={closeCreate}>
+        <div className="fixed inset-0" onClick={() => closeCreate()}>
           <div className="absolute inset-0 bg-white/40 backdrop-blur-2xl" />
         </div>
 
@@ -648,7 +652,7 @@ export default function CreatePostModal() {
           </div>
         </div>
       </BottomSheet>
-    </AnimatePresence>,
+    </>,
     portalRoot
   );
 }
