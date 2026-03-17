@@ -55,11 +55,16 @@ const NYC_LNG_MAX = -73.7;
 // ============================================================================
 
 export const activityPostCreateSchema = z.object({
+  title: z
+    .string()
+    .min(1, 'Activity title is required')
+    .max(20, 'Activity title must be at most 20 characters')
+    .refine((s) => s.trim().length > 0, 'Activity title cannot be only whitespace'),
   body: z
     .string()
-    .min(1, 'Post body is required')
-    .max(140, 'Post body must be at most 140 characters')
-    .refine((s) => s.trim().length > 0, 'Post body cannot be only whitespace'),
+    .max(140, 'Description must be at most 140 characters')
+    .optional()
+    .default(''),
   category: z.enum(ACTIVITY_CATEGORIES, {
     message: 'Please select a valid category',
   }),
@@ -70,10 +75,8 @@ export const activityPostCreateSchema = z.object({
     .max(4, 'Maximum 4 participants allowed'),
   expiresInHours: z
     .number()
-    .refine(
-      (v) => (ALLOWED_DURATIONS_HOURS as readonly number[]).includes(v),
-      'Please select a valid duration'
-    ),
+    .min(1, 'Duration must be at least 1 hour')
+    .max(8760, 'Duration must be at most 1 year'),
   locationName: z
     .string()
     .max(60, 'Location name must be at most 60 characters')
@@ -91,9 +94,10 @@ export const activityPostCreateSchema = z.object({
     .max(NYC_LNG_MAX, 'Location must be in the NYC area')
     .optional()
     .nullable(),
+  eventDate: z.string().optional().nullable(),
+  eventTime: z.string().optional().nullable(),
 }).refine(
   (data) => {
-    // If one coordinate is provided, both must be provided
     const hasLat = data.locationLat != null;
     const hasLng = data.locationLng != null;
     return hasLat === hasLng;
@@ -265,6 +269,7 @@ export interface ActivityPost {
   creatorUid: string;
   creatorDisplayName: string;
   creatorPhotoURL: string | null;
+  title?: string | null;
   body: string;
   category: ActivityCategory;
   imageUrl: string | null;
@@ -273,6 +278,8 @@ export interface ActivityPost {
   locationName: string | null;
   locationLat: number | null;
   locationLng: number | null;
+  eventDate?: string | null;
+  eventTime?: string | null;
   status: ActivityPostStatus;
   closeReason: string | null;
   groupId: string | null;

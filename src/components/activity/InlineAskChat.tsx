@@ -1,97 +1,301 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { askGetThread, askSendMessage, AskMessage } from '@/lib/firebase/functions';
-import { Loader2, Send } from 'lucide-react';
+import {
+    askGetThread,
+    askGetThreads,
+    askSendMessage,
+    AskMessage,
+    AskThreadInfo,
+} from '@/lib/firebase/functions';
+import { Loader2, Send, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ProfileAvatar } from '@/components/ui/ProfileAvatar';
 
 interface InlineAskChatProps {
     postId: string;
     creatorUid: string;
-    onClose?: () => void;
+    postStatus?: string;
     autoFocus?: boolean;
+    isExpired?: boolean;
 }
 
-export default function InlineAskChat({ postId, creatorUid, onClose, autoFocus }: InlineAskChatProps) {
+function timeAgo(dateStr: string | null): string {
+    if (!dateStr) return '';
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${Math.floor(diffHours / 24)}d ago`;
+}
+
+// ─── Creator view ────────────────────────────────────────────────────────────
+// Uses askGetThreads for asker metadata (photo/name) and askGetThread (no
+// targetAskerUid) for the FULL message history so creator replies and asker
+// follow-ups are never lost.
+function CreatorAsksView({ postId, isExpired }: { postId: string; isExpired?: boolean }) {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    // thread metadata keyed by askerUid
+    const [threads, setThreads] = useState<AskThreadInfo[]>([]);
+    // all messages for this post, keyed by askerUid
+    const [msgsByAsker, setMsgsByAsker] = useState<Record<string, AskMessage[]>>({});
+    const [loading, setLoading] = useState(true);
+    const [collapsed, setCollapsed] = useState(!!isExpired);
+    const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
+    const [sending, setSending] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!user) return;
+        let mounted = true;
+        async function fetchData() {
+            try {
+                setLoading(true);
+                // Fetch thread summaries (for asker photo/name) AND full messages in parallel.
+                // askGetThread without targetAskerUid returns ALL messages for ALL askers on
+                // this post, each tagged with askerUid, so we get the complete history.
+                const [threadsRes, allMsgsRes] = await Promise.all([
+                    askGetThreads({ role: 'creator' }),
+                    askGetThread({ postId }),
+                ]);
+                if (!mounted) return;
+
+                const filteredThreads = (threadsRes.data.askThreads || []).filter(
+                    t => t.postId === postId
+                );
+                setThreads(filteredThreads);
+
+                // Group messages by askerUid
+                const grouped: Record<string, AskMessage[]> = {};
+                for (const msg of allMsgsRes.data.messages || []) {
+                    const key = msg.askerUid || 'unknown';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(msg);
+                }
+                setMsgsByAsker(grouped);
+            } catch (err) {
+                console.error('[InlineAskChat] Failed to fetch data:', err);
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        }
+        fetchData();
+        return () => { mounted = false; };
+    }, [postId, user]);
+
+    const handleReply = async (askerUid: string) => {
+        const body = replyInputs[askerUid]?.trim();
+        if (!body || sending) return;
+        setSending(askerUid);
+        setReplyInputs(prev => ({ ...prev, [askerUid]: '' }));
+
+        // Optimistic update — append creator reply to the right thread
+        const tempMsg: AskMessage = {
+            id: `temp-${Date.now()}`,
+            senderUid: user!.uid,
+            senderDisplayName: user!.displayName || 'Me',
+            body,
+            createdAt: new Date().toISOString(),
+            askerUid,
+        };
+        setMsgsByAsker(prev => ({
+            ...prev,
+            [askerUid]: [...(prev[askerUid] || []), tempMsg],
+        }));
+
+        try {
+            const res = await askSendMessage({ postId, body, targetAskerUid: askerUid });
+            // Replace temp ID with real one
+            setMsgsByAsker(prev => ({
+                ...prev,
+                [askerUid]: (prev[askerUid] || []).map(m =>
+                    m.id === tempMsg.id ? { ...m, id: res.data.messageId } : m
+                ),
+            }));
+        } catch (err) {
+            console.error('[InlineAskChat] Failed to send reply:', err);
+            toast({ title: 'Failed to send reply', variant: 'destructive' });
+            // Roll back optimistic update
+            setMsgsByAsker(prev => ({
+                ...prev,
+                [askerUid]: (prev[askerUid] || []).filter(m => m.id !== tempMsg.id),
+            }));
+            setReplyInputs(prev => ({ ...prev, [askerUid]: body }));
+        } finally {
+            setSending(null);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="mt-3 flex justify-center py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-gray-300" />
+            </div>
+        );
+    }
+
+    if (threads.length === 0) return null;
+
+    return (
+        <div className="mt-3 border-t border-gray-100 pt-3">
+            {/* Collapsible header */}
+            <button
+                onClick={() => setCollapsed(c => !c)}
+                className="w-full flex items-center gap-1.5 px-1 py-0.5 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+                <MessageSquare className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <span className="text-[12px] font-semibold text-gray-600">{isExpired ? 'Asks history' : 'Asks'}</span>
+                <span className="text-[11px] font-bold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full ml-0.5">
+                    {threads.length}
+                </span>
+                <span className="ml-auto text-gray-400">
+                    {collapsed
+                        ? <ChevronDown className="w-3.5 h-3.5" />
+                        : <ChevronUp className="w-3.5 h-3.5" />
+                    }
+                </span>
+            </button>
+
+            {!collapsed && (
+                <div className="space-y-3 mt-2">
+                    {threads.map((thread) => {
+                        const msgs = msgsByAsker[thread.askerUid] || [];
+                        return (
+                            <div key={thread.askerUid} className="bg-gray-50 rounded-xl p-3">
+                                {/* Asker header row */}
+                                <div className="flex items-center gap-2 mb-2">
+                                    <ProfileAvatar
+                                        photoURL={thread.askerPhotoURL}
+                                        displayName={thread.askerDisplayName}
+                                        size="xs"
+                                        className="w-7 h-7 flex-shrink-0"
+                                    />
+                                    <span className="text-[12px] font-semibold text-gray-800 truncate flex-1">
+                                        {thread.askerDisplayName}
+                                    </span>
+                                    <span className="text-[11px] text-gray-400 flex-shrink-0">
+                                        {timeAgo(thread.lastMessageAt)}
+                                    </span>
+                                </div>
+
+                                {/* Full conversation bubbles */}
+                                <div className="space-y-1.5 mb-2.5">
+                                    {msgs.map((msg) => {
+                                        const isOwn = msg.senderUid === user!.uid;
+                                        return (
+                                            <div
+                                                key={msg.id}
+                                                className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ml-9`}
+                                            >
+                                                <div className={`max-w-[90%] px-3 py-2 rounded-xl text-[13px] leading-relaxed ${isOwn
+                                                    ? 'bg-violet-100 text-violet-900 rounded-br-sm'
+                                                    : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
+                                                    }`}>
+                                                    {msg.body}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Reply input — hidden in history (read-only) mode */}
+                                {!isExpired && (
+                                    <div className="ml-9 flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={replyInputs[thread.askerUid] || ''}
+                                            onChange={(e) =>
+                                                setReplyInputs(prev => ({ ...prev, [thread.askerUid]: e.target.value }))
+                                            }
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleReply(thread.askerUid);
+                                            }}
+                                            placeholder={`Reply to ${thread.askerDisplayName.split(' ')[0]}…`}
+                                            className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-[12px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-400 min-w-0"
+                                        />
+                                        <button
+                                            onClick={() => handleReply(thread.askerUid)}
+                                            disabled={!replyInputs[thread.askerUid]?.trim() || sending === thread.askerUid}
+                                            className="p-1.5 bg-violet-600 text-white rounded-full hover:bg-violet-700 disabled:bg-gray-200 disabled:text-gray-400 transition-colors flex-shrink-0"
+                                        >
+                                            {sending === thread.askerUid
+                                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                : <Send className="w-3 h-3" />
+                                            }
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Asker view: shows own thread as chat bubbles + send input ───
+function AskerAskView({ postId, postStatus, autoFocus, isExpired }: { postId: string; postStatus?: string; autoFocus?: boolean; isExpired?: boolean }) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [messages, setMessages] = useState<AskMessage[]>([]);
     const [loading, setLoading] = useState(true);
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
-
-    // For creator: track who they tapped to reply to
-    const [replyToAsker, setReplyToAsker] = useState<{ uid: string, name: string } | null>(null);
-
-    const isCreator = user?.uid === creatorUid;
+    const [collapsed, setCollapsed] = useState(!!isExpired);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!user) return;
-
         let mounted = true;
-
         async function fetchThread() {
             try {
                 setLoading(true);
-                // For creator, targetAskerUid is undefined -> fetches ALL comments
-                // For asker, the backend uses their own uid automatically
-                const res = await askGetThread({
-                    postId,
-                    limit: 100,
-                });
-                if (mounted) {
-                    setMessages(res.data.messages || []);
-                }
+                const res = await askGetThread({ postId });
+                if (mounted) setMessages(res.data.messages || []);
             } catch (err) {
                 console.error('[InlineAskChat] Failed to fetch thread:', err);
             } finally {
                 if (mounted) setLoading(false);
             }
         }
-
         fetchThread();
+        return () => { mounted = false; };
+    }, [postId, user]);
 
-        return () => {
-            mounted = false;
-        };
-    }, [postId, isCreator, user]);
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [autoFocus, loading]);
 
     const handleSend = async () => {
         if (!input.trim() || sending) return;
-        if (isCreator && !replyToAsker) return; // Creator must select someone to reply to
-
         const trimmed = input.trim();
-        const targetAskerUid = isCreator ? replyToAsker!.uid : undefined;
         setSending(true);
 
-        // Optimistic UI update
-        const tempId = `temp-${Date.now()}`;
-        const newMsg: AskMessage = {
-            id: tempId,
+        const tempMsg: AskMessage = {
+            id: `temp-${Date.now()}`,
             senderUid: user!.uid,
             senderDisplayName: user!.displayName || 'Me',
             body: trimmed,
             createdAt: new Date().toISOString(),
-            askerUid: targetAskerUid,
         };
-
-        setMessages((prev) => [...prev, newMsg]);
+        setMessages(prev => [...prev, tempMsg]);
         setInput('');
-        if (isCreator) setReplyToAsker(null); // Reset reply state
 
         try {
-            const res = await askSendMessage({
-                postId,
-                body: trimmed,
-                targetAskerUid: targetAskerUid,
-            });
-            // Replace temp ID with real one
-            setMessages((prev) => prev.map(m => m.id === tempId ? { ...m, id: res.data.messageId } : m));
+            const res = await askSendMessage({ postId, body: trimmed });
+            setMessages(prev =>
+                prev.map(m => m.id === tempMsg.id ? { ...m, id: res.data.messageId } : m)
+            );
         } catch (err) {
-            console.error('[InlineAskChat] Failed to send message:', err);
-            toast({ title: 'Message failed to send', variant: 'destructive' });
-            setMessages((prev) => prev.filter(m => m.id !== tempId));
+            console.error('[InlineAskChat] Failed to send:', err);
+            toast({ title: 'Failed to send message', variant: 'destructive' });
+            setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
             setInput(trimmed);
         } finally {
             setSending(false);
@@ -100,132 +304,113 @@ export default function InlineAskChat({ postId, creatorUid, onClose, autoFocus }
 
     if (!user) return null;
 
-    // If Creator and no messages exist, hide the section entirely
-    if (isCreator && messages.length === 0 && !loading) {
-        return null;
-    }
+    const canSend = !postStatus || postStatus === 'open';
 
     return (
-        <div className="bg-gray-50/70 rounded-xl overflow-hidden flex flex-col mt-3">
-            {/* Header / Top padding */}
-            {onClose && (
-                <div className="flex justify-end pt-1 pr-2">
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-[11px] font-medium px-2 py-1">
-                        Close Ask
-                    </button>
+        <div className="mt-3 border-t border-gray-100 pt-3">
+            {/* Header — collapsible when expired, static otherwise */}
+            {isExpired ? (
+                <button
+                    onClick={() => setCollapsed(c => !c)}
+                    className="w-full flex items-center gap-1.5 px-1 py-0.5 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                    <MessageSquare className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="text-[12px] font-semibold text-gray-600">Ask history</span>
+                    <span className="ml-auto text-gray-400">
+                        {collapsed
+                            ? <ChevronDown className="w-3.5 h-3.5" />
+                            : <ChevronUp className="w-3.5 h-3.5" />
+                        }
+                    </span>
+                </button>
+            ) : (
+                <div className="flex items-center gap-1.5 mb-2 px-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="text-[12px] font-semibold text-gray-600">My Ask</span>
                 </div>
             )}
 
-            {/* Messages Area (WeChat Moment Style) */}
-            <div className="px-3 pb-2 pt-2 text-[13px] leading-relaxed">
-                {loading ? (
-                    <div className="flex justify-center items-center py-4">
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                    </div>
-                ) : messages.length === 0 && !isCreator ? (
-                    <div className="text-gray-400 italic py-2">
-                        Ask a question. Only the creator will see it.
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-1">
-                        {messages.map((msg) => {
-                            const isMe = msg.senderUid === user.uid;
-                            let displayNameHTML;
-
-                            if (isCreator) {
-                                if (isMe) {
-                                    // Creator replied
-                                    const askerName = messages.find(m => m.senderUid === msg.askerUid && m.senderUid !== user.uid)?.senderDisplayName || 'Unknown';
-                                    displayNameHTML = (
-                                        <>
-                                            <span className="font-semibold text-violet-700 cursor-pointer">You</span>
-                                            <span className="text-gray-500 mx-1 border border-gray-200 text-[10px] px-1 rounded-md bg-white">Replied</span>
-                                            <span className="font-semibold text-violet-700 cursor-pointer">{askerName}</span>
-                                            <span className="font-semibold text-violet-700">: </span>
-                                        </>
-                                    );
-                                } else {
-                                    // Asker asked
-                                    displayNameHTML = (
-                                        <>
-                                            <span className="font-semibold text-violet-700 cursor-pointer">{msg.senderDisplayName}</span>
-                                            <span className="font-semibold text-violet-700">: </span>
-                                        </>
-                                    );
-                                }
-                            } else {
-                                if (isMe) {
-                                    displayNameHTML = (
-                                        <>
-                                            <span className="font-semibold text-violet-700 cursor-pointer">You</span>
-                                            <span className="font-semibold text-violet-700">: </span>
-                                        </>
-                                    );
-                                } else {
-                                    displayNameHTML = (
-                                        <>
-                                            <span className="font-semibold text-violet-700 cursor-pointer">{msg.senderDisplayName}</span>
-                                            <span className="font-semibold text-gray-500 mx-1 text-[10px] border border-gray-200 px-1 rounded-md bg-white">Creator</span>
-                                            <span className="font-semibold text-violet-700">: </span>
-                                        </>
-                                    );
-                                }
-                            }
-
-                            return (
-                                <div
-                                    key={msg.id}
-                                    className={`active:bg-gray-200 transition-colors rounded-sm px-1 py-0.5 ${isCreator && !isMe ? 'cursor-pointer hover:bg-gray-100' : ''}`}
-                                    onClick={() => {
-                                        if (isCreator && !isMe) {
-                                            setReplyToAsker({ uid: msg.senderUid, name: msg.senderDisplayName });
-                                        }
-                                    }}
-                                >
-                                    {displayNameHTML}
-                                    <span className="text-gray-800">{msg.body}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-
-            {/* Input Area */}
-            {(!isCreator || replyToAsker) && (
-                <div className="p-2 border-t border-gray-200/50 bg-white flex items-end gap-2">
-                    <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder={isCreator ? `Reply to ${replyToAsker?.name}...` : "Ask a question..."}
-                        className="flex-1 bg-gray-100 border-none rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
-                        rows={1}
-                        autoFocus={autoFocus || !!replyToAsker}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSend();
-                            }
-                        }}
-                        style={{ minHeight: '36px', maxHeight: '100px' }}
-                    />
-                    <button
-                        onClick={handleSend}
-                        disabled={!input.trim() || sending}
-                        className="mb-0.5 p-2 bg-violet-600 text-white rounded-full hover:bg-violet-700 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-                    >
-                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-3.5 h-3.5 ml-0.5 mb-0.5" />}
-                    </button>
-                    {isCreator && replyToAsker && (
-                        <button
-                            onClick={() => setReplyToAsker(null)}
-                            className="text-[11px] text-gray-400 hover:text-gray-600 mb-2 mr-1"
-                        >
-                            Cancel
-                        </button>
+            {!collapsed && (
+                <>
+                    {loading ? (
+                        <div className="flex justify-center py-3">
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-300" />
+                        </div>
+                    ) : (
+                        <div className="space-y-1.5 mb-2.5 mt-2">
+                            {messages.length === 0 && canSend && (
+                                <p className="text-[12px] text-gray-400 italic px-1">
+                                    Ask a question — only the creator will see it.
+                                </p>
+                            )}
+                            {messages.map((msg) => {
+                                const isMe = msg.senderUid === user.uid;
+                                return (
+                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                        <div
+                                            className={`max-w-[85%] px-3 py-2 rounded-xl text-[13px] leading-relaxed ${isMe
+                                                ? 'bg-violet-100 text-violet-900 rounded-br-sm'
+                                                : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
+                                                }`}
+                                        >
+                                            {!isMe && (
+                                                <p className="text-[10px] font-semibold text-gray-500 mb-0.5">
+                                                    {msg.senderDisplayName}{' '}
+                                                    <span className="font-normal text-gray-400">Creator</span>
+                                                </p>
+                                            )}
+                                            {msg.body}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
-                </div>
+
+                    {/* Input — only shown when post is still open */}
+                    {canSend ? (
+                        <div className="flex items-center gap-2">
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
+                                placeholder="Send another message…"
+                                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-[12px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-400 min-w-0"
+                            />
+                            <button
+                                onClick={handleSend}
+                                disabled={!input.trim() || sending}
+                                className="p-1.5 bg-violet-600 text-white rounded-full hover:bg-violet-700 disabled:bg-gray-200 disabled:text-gray-400 transition-colors flex-shrink-0"
+                            >
+                                {sending
+                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    : <Send className="w-3 h-3" />
+                                }
+                            </button>
+                        </div>
+                    ) : (
+                        !isExpired && messages.length > 0 && (
+                            <p className="text-[11px] text-gray-400 italic px-1">This activity is no longer accepting messages.</p>
+                        )
+                    )}
+                </>
             )}
         </div>
     );
+}
+
+// ─── Main export ───
+export default function InlineAskChat({ postId, creatorUid, postStatus, autoFocus, isExpired }: InlineAskChatProps) {
+    const { user } = useAuth();
+    if (!user) return null;
+
+    const isCreator = user.uid === creatorUid;
+
+    if (isCreator) {
+        return <CreatorAsksView postId={postId} isExpired={isExpired} />;
+    }
+
+    return <AskerAskView postId={postId} postStatus={postStatus} autoFocus={autoFocus} isExpired={isExpired} />;
 }

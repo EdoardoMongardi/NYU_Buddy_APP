@@ -5,10 +5,10 @@ import {
     activityPostGetMine,
     joinRequestGetMine,
     activityPostGetById,
-    FeedPost,
     JoinRequestInfo,
     PostDetail,
     GroupInfo,
+    FeedPost,
 } from '@/lib/firebase/functions';
 
 export interface JoinedActivity {
@@ -24,7 +24,7 @@ export interface IncomingRequestGroup {
 }
 
 export function useManageActivity() {
-    const [myPosts, setMyPosts] = useState<FeedPost[]>([]);
+    const [myPosts, setMyPosts] = useState<PostDetail[]>([]);
     const [joinedActivities, setJoinedActivities] = useState<JoinedActivity[]>([]);
     const [incomingRequests, setIncomingRequests] = useState<IncomingRequestGroup[]>([]);
 
@@ -40,31 +40,39 @@ export function useManageActivity() {
             setLoadingRequests(true);
             setError(null);
 
-            // 1. Fetch my posts
+            // 1. Fetch my posts (basic list)
             const res = await activityPostGetMine({});
-            const posts = res.data.posts;
-            setMyPosts(posts);
-            setLoadingPosts(false); // Posts are ready
+            const feedPosts = res.data.posts;
 
-            // 2. Fetch requests for each post (parallel)
-            // Only fetch for open posts or those that might have pending requests
-            // For simplicity, we check all non-expired posts or just all posts
+            // 2. Enrich each post with full details in parallel (needed for groupId, etc.)
+            //    and collect pending join requests at the same time.
             const requestGroups: IncomingRequestGroup[] = [];
+            const postDetails: PostDetail[] = [];
 
-            await Promise.all(posts.map(async (post) => {
+            await Promise.all(feedPosts.map(async (feedPost) => {
                 try {
-                    // Skip if post is hopelessly old/closed? No, user might still want to see.
-                    const detailRes = await activityPostGetById({ postId: post.postId });
-                    const pending = detailRes.data.joinRequests?.filter(r => r.status === 'pending') || [];
+                    const detailRes = await activityPostGetById({ postId: feedPost.postId });
+                    postDetails.push(detailRes.data.post);
 
+                    const pending = detailRes.data.joinRequests?.filter(r => r.status === 'pending') || [];
                     if (pending.length > 0) {
-                        requestGroups.push({ post, requests: pending });
+                        // Use feedPost for IncomingRequestGroup (compatible shape)
+                        requestGroups.push({ post: feedPost as unknown as FeedPost, requests: pending });
                     }
                 } catch (e) {
-                    console.warn(`Failed to fetch details for post ${post.postId}`, e);
+                    console.warn(`Failed to fetch details for post ${feedPost.postId}`, e);
+                    // Fall back to feedPost cast as PostDetail so the card still renders
+                    postDetails.push(feedPost as unknown as PostDetail);
                 }
             }));
 
+            // Preserve original ordering from activityPostGetMine
+            const orderedDetails = feedPosts.map(
+                (fp) => postDetails.find((d) => d.postId === fp.postId) ?? (fp as unknown as PostDetail)
+            );
+
+            setMyPosts(orderedDetails);
+            setLoadingPosts(false);
             setIncomingRequests(requestGroups);
         } catch (err) {
             console.error('[useManageActivity] Error fetching my posts/requests:', err);

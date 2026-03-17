@@ -142,6 +142,8 @@ export const ACTIVITY_LIMITS = {
   MAX_PARTICIPANTS: 4,
   /** Min participants (excluding creator) */
   MIN_PARTICIPANTS: 1,
+  /** Post title max length */
+  POST_TITLE_MAX_LENGTH: 20,
   /** Post body max length */
   POST_BODY_MAX_LENGTH: 140,
   /** Location name max length */

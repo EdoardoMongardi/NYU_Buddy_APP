@@ -159,9 +159,14 @@ export default function ActivityPostCard({ post, defaultAskExpanded = false }: A
           )}
         </div>
 
-        {/* Body Text */}
+        {/* Title / Body */}
+        {post.title && (
+          <p className="text-[16px] font-bold text-gray-900 leading-snug mb-1">
+            {post.title}
+          </p>
+        )}
         <p className="text-[15px] text-gray-900 leading-normal whitespace-pre-wrap mb-2.5">
-          {post.body}
+          {post.title ? post.body : post.body}
         </p>
 
         {/* Media Attachment */}

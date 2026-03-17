@@ -1,38 +1,33 @@
+import { NextResponse } from 'next/server';
+
+// This route serves the Firebase messaging service worker with
+// environment variables injected at request time, so no secrets
+// need to be hardcoded in the public/ directory.
+export async function GET() {
+    const firebaseConfig = {
+        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',
+        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? '',
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? '',
+        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
+        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
+        measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? '',
+    };
+
+    const swContent = `
 /**
- * Firebase Cloud Messaging Service Worker — STATIC FALLBACK ONLY
- *
- * ⚠️  DO NOT add real API keys here. This file is committed to the repository.
- *
- * In production and development, Next.js rewrites /firebase-messaging-sw.js
- * to /api/firebase-messaging-sw, which injects values from environment
- * variables (NEXT_PUBLIC_FIREBASE_*) at request time.
- *
- * This file is a fallback placeholder that will load valid scripts but will
- * not initialise Firebase without real config values. If you see this file
- * being served without the env vars, check that the rewrites() in
- * next.config.mjs are in place.
+ * Firebase Cloud Messaging Service Worker
+ * Handles background push notifications when the app is not in focus.
+ * This file is generated dynamically — do not edit public/firebase-messaging-sw.js directly.
  */
 
-// Import Firebase scripts for service worker
-// IMPORTANT: Keep this version in sync with package.json firebase dependency (currently v12.8.0)
 importScripts('https://www.gstatic.com/firebasejs/12.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.8.0/firebase-messaging-compat.js');
 
-// Placeholder config — real values are injected by /api/firebase-messaging-sw
-const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
-  measurementId: ""
-};
+const firebaseConfig = ${JSON.stringify(firebaseConfig, null, 2)};
 
-// Initialize Firebase in service worker
 firebase.initializeApp(firebaseConfig);
 
-// Get Firebase Messaging instance
 const messaging = firebase.messaging();
 
 // Handle background messages (data-only messages — title/body are in payload.data)
@@ -57,7 +52,6 @@ self.addEventListener('notificationclick', (event) => {
 
   event.notification.close();
 
-  // Navigate to relevant page based on notification type
   const urlToOpen = new URL('/', self.location.origin).href;
 
   const promiseChain = clients
@@ -66,14 +60,12 @@ self.addEventListener('notificationclick', (event) => {
       includeUncontrolled: true,
     })
     .then((windowClients) => {
-      // Check if there's already a window open
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
-      // Open new window if no matching window found
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
@@ -81,3 +73,15 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(promiseChain);
 });
+`.trim();
+
+    return new NextResponse(swContent, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            // Service workers must be served from correct scope; no caching so env changes take effect
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Service-Worker-Allowed': '/',
+        },
+    });
+}

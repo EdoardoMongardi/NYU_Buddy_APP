@@ -96,8 +96,12 @@ export default function InstantMatchTab({ isPWA }: InstantMatchTabProps) {
 
     return (
         <div
-            className="max-w-md mx-auto h-full overflow-hidden flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:pt-4"
-            style={{ overscrollBehavior: 'none', touchAction: 'manipulation' }}
+            className="max-w-md mx-auto overflow-hidden flex flex-col px-5 pt-[calc(env(safe-area-inset-top)+0.5rem)] md:pt-4"
+            style={{
+                overscrollBehavior: 'none',
+                touchAction: 'manipulation',
+                height: 'calc(100dvh - 48px - env(safe-area-inset-bottom, 0px))',
+            }}
         >
             {showMatchOverlay && user && (
                 <MatchOverlay matchId={showMatchOverlay} currentUserId={user.uid} currentUserPhoto={userProfile?.photoURL} onComplete={handleMatchOverlayComplete} isSender={outgoingOffers.some(o => o.status === 'accepted' && o.matchId === showMatchOverlay)} />

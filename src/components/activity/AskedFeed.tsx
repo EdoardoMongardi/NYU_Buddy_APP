@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { askGetThreads, AskThreadInfo } from '@/lib/firebase/functions';
-import ActivityPostCard from '@/components/activity/ActivityPostCard';
+import { askGetThreads, AskThreadInfo, FeedPost } from '@/lib/firebase/functions';
+import PostCardGrid from '@/components/activity/PostCardGrid';
+import PostDetailModal from '@/components/activity/PostDetailModal';
 import { Loader2, MessageSquareOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -15,6 +16,7 @@ export default function AskedFeed() {
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
 
     const fetchThreads = useCallback(async (cursor: string | null = null, append = false) => {
         if (!user) return;
@@ -48,12 +50,10 @@ export default function AskedFeed() {
         }
     }, [user, toast]);
 
-    // Initial load
     useEffect(() => {
         fetchThreads(null, false);
     }, [fetchThreads]);
 
-    // Infinite Scroll Intersection Observer
     const observerTarget = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const target = observerTarget.current;
@@ -71,6 +71,8 @@ export default function AskedFeed() {
         observer.observe(target);
         return () => observer.unobserve(target);
     }, [nextCursor, loading, loadingMore, fetchThreads]);
+
+    const postsWithData = threads.filter(t => t.post).map(t => t.post!);
 
     if (loading && threads.length === 0) {
         return (
@@ -95,24 +97,29 @@ export default function AskedFeed() {
 
     return (
         <div className="flex flex-col w-full pb-20">
-            {threads.map((thread) => {
-                if (!thread.post) return null;
-                return (
-                    <ActivityPostCard
-                        key={thread.askId}
-                        post={thread.post}
-                        defaultAskExpanded={true}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 px-3 py-2">
+                {postsWithData.map((post) => (
+                    <PostCardGrid
+                        key={post.postId}
+                        post={post}
+                        onClick={(p) => setSelectedPost(p)}
                     />
-                );
-            })}
+                ))}
+            </div>
 
-            {/* Infinite scroll marker */}
             <div ref={observerTarget} className="h-20 flex items-center justify-center w-full">
                 {loadingMore && <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />}
                 {!loadingMore && !nextCursor && threads.length > 0 && (
                     <p className="text-[13px] text-gray-400 font-medium pb-24">You&apos;ve reached the end</p>
                 )}
             </div>
+
+            {selectedPost && (
+                <PostDetailModal
+                    feedPost={selectedPost}
+                    onClose={() => setSelectedPost(null)}
+                />
+            )}
         </div>
     );
 }

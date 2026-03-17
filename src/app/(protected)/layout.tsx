@@ -16,6 +16,8 @@ import ManageActivityTab from '@/components/activity/ManageActivityTab';
 import InstantMatchTab from '@/components/matching/InstantMatchTab';
 import type { MapStatusNearby } from '@/lib/firebase/functions';
 import { NavProvider, useNav } from '@/context/NavContext';
+import { CreatePostProvider } from '@/context/CreatePostContext';
+import CreatePostModal from '@/components/activity/CreatePostModal';
 import { usePresence } from '@/lib/hooks/usePresence';
 
 // Dynamic import — SSR-safe, only loads mapbox-gl on client
@@ -253,6 +255,9 @@ function LayoutContent({
           onTabChange={handleTabChange}
         />
       )}
+
+      {/* Create Post Modal (rendered via portal) */}
+      <CreatePostModal />
     </div>
   );
 }
@@ -264,7 +269,9 @@ export default function ProtectedLayout({
 }) {
   return (
     <NavProvider>
-      <LayoutContent>{children}</LayoutContent>
+      <CreatePostProvider>
+        <LayoutContent>{children}</LayoutContent>
+      </CreatePostProvider>
     </NavProvider>
   );
 }

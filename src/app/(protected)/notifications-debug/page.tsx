@@ -84,8 +84,8 @@ ServiceWorker available: ${'serviceWorker' in navigator}
       // Test browser notification (bypasses FCM to test locally)
       new Notification('Test Notification from NYU Buddy 🎉', {
         body: 'If you see this, browser notifications are working!',
-        icon: '/icon.png',
-        badge: '/badge.png',
+        icon: '/app-icon-192x192.png',
+        badge: '/app-icon-192x192.png',
       });
       setTestResult('✅ Test notification sent! Check if it appeared.');
     } catch (error) {
