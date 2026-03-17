@@ -36,11 +36,9 @@ NYU Buddy closes that gap. It lets students broadcast what they want to do, find
 
 ## Demo
 
-<video src="screenshots/ScreenRecording_02-23-2026%2007-31-38_1.mov" controls muted playsinline width="900">
-  Your browser does not support the video tag.
-</video>
+> **Note:** GitHub doesn't render `<video>` tags in markdown. Click the link below to watch.
 
-[Open demo video directly](screenshots/ScreenRecording_02-23-2026%2007-31-38_1.mov)
+[▶ Watch the demo video](screenshots/ScreenRecording_02-23-2026%2007-31-38_1.mov)
 
 
 ---
@@ -149,8 +147,8 @@ The frontend is a single Next.js PWA deployed on Vercel. All business logic runs
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/<your-org>/nyu-buddy.git
-cd nyu-buddy
+git clone https://github.com/EdoardoMongardi/NYU_Buddy_APP.git
+cd NYU_Buddy_APP
 
 # 2. Use the correct Node version
 nvm use
@@ -175,8 +173,14 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 To run against local Firebase emulators instead of production:
 
-1. Set `NEXT_PUBLIC_USE_EMULATORS=true` in `.env.local`
-2. Start emulators in a separate terminal:
+1. Authenticate with Firebase (one-time):
+
+```bash
+firebase login
+```
+
+2. Set `NEXT_PUBLIC_USE_EMULATORS=true` in `.env.local`
+3. Start emulators in a separate terminal:
 
 ```bash
 firebase emulators:start
@@ -192,17 +196,41 @@ Copy `.env.example` to `.env.local` and fill in your values. Variables are group
 
 | Group | Variables | Description |
 |-------|-----------|-------------|
-| Firebase | `NEXT_PUBLIC_FIREBASE_*` (8 vars) | Firebase project config from the Firebase Console |
+| Firebase | `NEXT_PUBLIC_FIREBASE_*` (8 vars) | Firebase project config from the Firebase Console → Project Settings → Your Apps |
 | Firebase Push | `NEXT_PUBLIC_FIREBASE_VAPID_KEY` | VAPID key for FCM push notifications |
 | Admin | `NEXT_PUBLIC_ADMIN_EMAILS` | Comma-separated emails that bypass the @nyu.edu restriction |
 | Mapbox | `NEXT_PUBLIC_MAPBOX_TOKEN` | Public Mapbox token (for the map UI) |
 | Mapbox | `MAPBOX_ACCESS_TOKEN`, `MAPBOX_USERNAME` | Server-side Mapbox credentials (for tileset pipeline scripts) |
 | Google | `GOOGLE_PLACES_API_KEY` | Google Places API key for place search |
-| Google | `GOOGLE_APPLICATION_CREDENTIALS` | Path to Firebase service account JSON (for server-side Admin SDK) |
+| Google | `GOOGLE_APPLICATION_CREDENTIALS` | Path to Firebase Admin SDK service account JSON — download from Firebase Console → Project Settings → Service accounts → *Generate new private key* |
 | Dev | `NEXT_PUBLIC_USE_EMULATORS` | Set to `true` to connect to local Firebase emulators |
 | Dev | `NEXT_PUBLIC_SHOW_DESIGN_PLAYGROUND` | Set to `true` to show the design playground route |
 
 Cloud Functions email (OTP verification) requires separate SMTP secrets — see the comments in `.env.example`.
+
+---
+
+## Deploying
+
+### Frontend (Vercel)
+
+The Next.js app deploys automatically via Vercel on push. Make sure all `NEXT_PUBLIC_*` environment variables are set in your Vercel project under **Settings → Environment Variables**.
+
+### Cloud Functions
+
+```bash
+cd functions && npm run build
+firebase deploy --only functions
+```
+
+### Firestore & Storage Rules
+
+> **Note:** `firestore.rules` and `storage.rules` are gitignored to avoid accidental overwrites. Obtain them from the project maintainer or the Firebase Console.
+
+```bash
+firebase deploy --only firestore:rules
+firebase deploy --only storage
+```
 
 ---
 
