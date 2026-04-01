@@ -34,7 +34,7 @@ NYU Buddy closes that gap. It lets students broadcast what they want to do, find
 
 ---
 
-## Demo
+## Instant Match Demo
 
 > **Note:** GitHub doesn't render `<video>` tags in markdown. Click the link below to watch.
 
@@ -50,7 +50,7 @@ NYU Buddy closes that gap. It lets students broadcast what they want to do, find
 | Framework | Next.js 14 (App Router), React 18, TypeScript |
 | Styling | Tailwind CSS, Radix UI, Framer Motion |
 | Backend | Firebase (Auth, Firestore, Cloud Functions, Storage) |
-| Maps | Mapbox GL JS (custom NYU campus style + building overlays) |
+| Maps | Mapbox GL JS (custom NYU campus style) |
 | Places | Google Places API |
 | Validation | Zod, React Hook Form |
 | Hosting | Vercel (frontend), Firebase (functions + infra) |
